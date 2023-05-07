@@ -38,6 +38,7 @@ async def get_answer(query: Query):
 async def get_answer(query: Query):
 
     # Spawn a new process to execute the query
+    # Remove any import os, sys, etc. from the query -> activate failure mode
 
     generated_code = generate_code(query.query, params.MODEL)
 
