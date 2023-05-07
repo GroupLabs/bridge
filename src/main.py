@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 import openai
 
-from utils import HealthCheckResponse, Query, PARAMS, init, retrieve_context, retrieve_answer
+from utils import HealthCheckResponse, Query, PARAMS, init, retrieve_context, retrieve_answer, generate_code
 
 app = FastAPI() # init FastAPI
 params = PARAMS() # init parameters
@@ -36,8 +36,12 @@ async def get_answer(query: Query):
 
 @app.get("/execute")
 async def get_answer(query: Query):
-    
-    gen_ans = exec(query.query)
+
+    # Spawn a new process to execute the query
+
+    generated_code = generate_code(query.query, params.MODEL)
+
+    exec(generated_code)
 
     return {"answer": gen_ans,
             "query": query.query,

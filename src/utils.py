@@ -111,3 +111,18 @@ def retrieve_answer(query, index, chat_model, embedding_model, prompt_template, 
         log_question_answer(index, q_embedding=xq, question=query, answer=answer, _namespace=log_namespace)
     
     return answer
+
+def generate_code(prompt, MODEL, role="user", stream=False):
+
+    code_prompt = f"Generate code to find {prompt}. Express results in a matplotlib pyplot. Do not show the pyplot, instead save it as temp.png. Only return code."
+
+    completion = openai.ChatCompletion.create(
+    model=MODEL,
+    messages=[
+        {"role": role, "content": code_prompt}
+    ],
+    temperature=0,
+    stream=stream
+    )
+
+    return completion
