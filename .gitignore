@@ -1,2 +1,14 @@
 *venv
 *.env
+
+.DS_Store
+*.pyc
+
+# LLM cache
+*_cache
+
+*.cfg
+*.weights
+*.names
+*.data
+*.pth

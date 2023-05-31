@@ -1,0 +1,43 @@
+https://github.com/eugeneyan/open-llms
+
+_flan-t5_
+
+Find all devices on a network. Which service should I use: 'Search web,' 'use ping network devices,' or 'not sure'?
+
+Works with large.
+
+Run from within flan-t5 directory
+
+Prompt flan-tf-xl
+
+The following are examples of users asking for different services:
+1. Intent: Use audio model
+   User: "I need to analyze this sound file."
+   User: "Can you transcribe this audio for me?"
+2. Intent: Use vision model
+   User: "What objects are in this image?"
+   User: "I need to analyze this picture."
+3. Intent: Access filesystem
+   User: "Can you find this image in the filesystem?"
+   User: "Where is this document saved in the filesystem?"
+4. Intent: Search web
+Now, given a new user request, determine the intent:
+User: "Find names of every president."
+
+
+
+_llama-30b-supercot_
+
+
+```
+Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+
+### Instruction:
+<instruction>
+
+### Input:
+<any additional context. Remove this if it's not neccesary>
+
+### Response:
+<make sure to leave a single new-line here for optimal results>
+```
