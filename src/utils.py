@@ -112,9 +112,9 @@ def retrieve_answer(query, index, chat_model, embedding_model, prompt_template, 
     
     return answer
 
-def generate_code(prompt, MODEL, role="user", stream=False):
+def generate_code(prompt, MODEL, ans_is_scalar, role="user", stream=False):
 
-    code_prompt = f"Generate code to find {prompt}. Express results in a matplotlib pyplot. Do not show the pyplot, instead save it as temp.png. Only return code."
+    code_prompt = f"You are a computer engineer that can only speak in code. Only return valid Python code. {prompt}. Express results in a matplotlib pyplot. Do not show the pyplot, instead save it as temp.png. Only return code. Store the answer in a variable named result."
 
     completion = openai.ChatCompletion.create(
     model=MODEL,
@@ -125,4 +125,4 @@ def generate_code(prompt, MODEL, role="user", stream=False):
     stream=stream
     )
 
-    return completion
+    return completion["choices"][0]["message"]["content"]

@@ -1,0 +1,7 @@
+Cameras:
+
+https://www.ultraleap.com/product/ultraleap-3di/
+https://www.luxonis.com
+https://store.intelrealsense.com/buy-intel-realsense-depth-camera-d405.html?_ga=2.24195129.2055004625.1686260939-861100299.1686260939
+https://3d.pmdtec.com/en/3d-cameras/flexx2/?utm_term=kamera%203d&utm_campaign=3D+Development+Kit&utm_source=adwords&utm_medium=ppc&hsa_acc=3421193929&hsa_cam=17997773983&hsa_grp=139985269157&hsa_ad=615684474651&hsa_src=g&hsa_tgt=kwd-296680078208&hsa_kw=kamera%203d&hsa_mt=b&hsa_net=adwords&hsa_ver=3&gad=1&gclid=CjwKCAjw-IWkBhBTEiwA2exyO3CxYMxD8w-SO0w7gR8lamCUbW_0P02yE85W9smZvoPXhV1Uc9gzQBoCU4gQAvD_BwE
+https://www.carnegierobotics.com

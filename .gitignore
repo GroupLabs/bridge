@@ -12,3 +12,8 @@
 *.names
 *.data
 *.pth
+__pycache__/
+*.pyc
+
+# mock data
+data.csv

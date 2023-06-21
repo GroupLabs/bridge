@@ -9,6 +9,8 @@ params = PARAMS() # init parameters
 
 index = init() # initialize openai and pinecone connection
 
+# Index all data ##### Generate METDATA ################################
+
 # health check
 @app.get("/health-check")
 async def health():
@@ -38,13 +40,25 @@ async def get_answer(query: Query):
 async def get_answer(query: Query):
 
     # Spawn a new process to execute the query
-    # Remove any import os, sys, etc. from the query -> activate failure mode
+    # Remove any import os, sys, etc. from the query -> activate failure mode | This can hang. We need error handling
 
-    generated_code = generate_code(query.query, params.MODEL)
+    generated_code = generate_code(query.query, params.CHAT_MODEL, ans_is_scalar=False)
+    
+    split_text = generated_code.split("```")
+    split_text = split_text[1] if len(split_text) > 1 else ""
+    
+    code = split_text.lstrip("`").rstrip("`").lstrip("python") # remove ``` from beginning and end of generated code
 
-    exec(generated_code)
+    print(code)
 
-    return {"answer": gen_ans,
+    exec(code, globals(), locals())
+
+    if "result" in locals():
+        result = locals()['result']
+    else:
+        result = "No result variable returned."
+
+    return {"answer": result,
             "query": query.query,
             "health check": HealthCheckResponse.OK}
  

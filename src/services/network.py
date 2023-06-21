@@ -11,6 +11,8 @@ class NETWORK:
         self.mac_command = "arp -a | awk '{print $4}' | sed 's/[()]//g'"
 
     def ping_network(self):
+        ## Find all devices on the network
+
         # Execute the command and capture the output
         ip_output = subprocess.check_output(self.ip_command, shell=True, universal_newlines=True)
         mac_output = subprocess.check_output(self.mac_command, shell=True, universal_newlines=True)
