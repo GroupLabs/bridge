@@ -21,6 +21,7 @@ size = "xl"
 model_name = "google/flan-t5-" + size
 cache_dir = "./" + size + "_flan-t5_cache"
 
+print("Note: Two newline characters symbolize end of input.")
 print(TextColors.BLUE + "Model name: " + str(model_name) + TextColors.RESET)
 
 load_start_time = time.time()
