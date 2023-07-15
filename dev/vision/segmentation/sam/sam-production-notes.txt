@@ -1,0 +1,3 @@
+https://github.com/developmentseed/segment-anything-services
+
+Using TorchServe
