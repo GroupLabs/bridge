@@ -2,14 +2,14 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 import openai
 
-from utils import HealthCheckResponse, Query, PARAMS, init, retrieve_context, retrieve_answer, generate_code
+from utils import HealthCheckResponse, Query, PARAMS, init, retrieve_context, retrieve_answer, generate_code, create_metadata
 
 app = FastAPI() # init FastAPI
 params = PARAMS() # init parameters
 
 index = init() # initialize openai and pinecone connection
 
-# Index all data ##### Generate METDATA ################################
+# Index all data ##### Generate METADATA ################################
 
 # health check
 @app.get("/health-check")
@@ -62,6 +62,20 @@ async def get_answer(query: Query):
             "query": query.query,
             "health check": HealthCheckResponse.OK}
  
+
+@app.get("/metadata")
+async def get_answer(query: Query):
+
+    g = create_metadata()
+    print(g)
+
+    return {"answer": "result",
+            "query": query.query,
+            "health check": HealthCheckResponse.OK}
+ 
+
+
+
 # test streaming:
 # curl -X GET -H "Content-Type: application/json" -d '{"query": "What is SAGD?", "streaming": true}' http://localhost:8000/experimental-streaming
 

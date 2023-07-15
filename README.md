@@ -4,7 +4,18 @@ The objective of this project is to compile multiple dynamic data stores that ca
 
 
 
-bridge
+Ingests information 
+
+
+
+
+
+Gives answers
+
+
+
+
+
 
 
 Services

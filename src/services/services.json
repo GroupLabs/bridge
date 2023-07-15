@@ -1,29 +1,29 @@
 {
-    "model": "gpt-3.5-turbo-0613",
-    "messages": [
-      {"role": "user", "content": "Send Cobus from humanfirst ai an email asking for the monthly report?"}
-    ],
-    "functions": [
-      {
-        "name": "ping_network",
-        "description": "Find all devices on the network",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "to_address": {
-              "type": "string",
-              "description": "To address for email"
-            },          
-            "subject": {
-              "type": "string",
-              "description": "subject of the email"
-            },
-            "body": {
-              "type": "string",
-              "description": "Body of the email"
-            }
+  "model": "gpt-3.5-turbo-0613",
+  "messages": [
+    {"role": "user", "content": "CONTENT HERE"}
+  ],
+  "functions": [
+    {
+      "name": "ping_network",
+      "description": "Find all devices on the network",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to_address": {
+            "type": "string",
+            "description": "To address for email"
+          },          
+          "subject": {
+            "type": "string",
+            "description": "subject of the email"
+          },
+          "body": {
+            "type": "string",
+            "description": "Body of the email"
           }
         }
       }
-    ]
-  }
+    }
+  ]
+}
