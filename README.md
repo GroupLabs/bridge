@@ -1,5 +1,13 @@
 # Bridge
 
+To run the API (from within src/ directory):
+```
+pip install -r requirements.txt
+python api.py
+```
+
+Server will start at 8000, use Postman to hit the endpoints.
+
 The objective of this project is to compile multiple dynamic data stores that can be queried semantically, and automatically builds relational understanding of information. Then, users are able to ask nearly anything about the data, including forecasts, and so forth.
 
 ## Ingestion
