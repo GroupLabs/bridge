@@ -85,9 +85,9 @@ Here are some potential services:
 
 - [x] Answer questions from visible text documents
 - [x] Generate and execute python code on visible CSVs
-- [] Generating metadata, indexing
-- [] Calling services
-- [] ML services
+- [ ] Generating metadata, indexing
+- [ ] Calling services
+- [ ] ML services
 
 
 
