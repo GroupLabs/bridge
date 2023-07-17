@@ -87,5 +87,5 @@ The objective of this project is to compile multiple dynamic data stores that ca
 
 ### Features
 - Never exposes actual data
-
+- Self manages models (improves over time, corrects, etc.)
 
