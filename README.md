@@ -57,19 +57,19 @@ By storing these JSONs, we have a representation of the data. We now know where 
 
 Consider the following use cases:
 
-    1. Predictive Maintenance: The system can analyze sensor data from equipment and pipelines to predict potential failures or maintenance needs. This can significantly reduce downtime and repair costs.
+1. Predictive Maintenance: The system can analyze sensor data from equipment and pipelines to predict potential failures or maintenance needs. This can significantly reduce downtime and repair costs.
 
-    2. Supply and Demand Forecasting: By analyzing market data and trends, the system could predict future supply and demand. This would enable the company to optimize their operations and pricing.
+2. Supply and Demand Forecasting: By analyzing market data and trends, the system could predict future supply and demand. This would enable the company to optimize their operations and pricing.
 
-    3. Operational Optimization: The system could identify inefficiencies in the transportation and storage of oil and gas. This could involve optimizing routes, schedules, or storage allocation.
+3. Operational Optimization: The system could identify inefficiencies in the transportation and storage of oil and gas. This could involve optimizing routes, schedules, or storage allocation.
 
-    4. Risk Assessment: The system can analyze a variety of factors such as weather data, equipment status, and market conditions to assess risk levels. This could be used to prevent accidents or make informed business decisions.
+4. Risk Assessment: The system can analyze a variety of factors such as weather data, equipment status, and market conditions to assess risk levels. This could be used to prevent accidents or make informed business decisions.
 
-    5. Regulatory Compliance: The system could monitor operations and data to ensure regulatory compliance. If any potential issues are identified, it could alert the relevant personnel.
+5. Regulatory Compliance: The system could monitor operations and data to ensure regulatory compliance. If any potential issues are identified, it could alert the relevant personnel.
 
-    6. Energy Trading: The system could provide insights to assist with energy trading decisions. This might involve predicting future prices or identifying profitable trading opportunities.
-    
-    7. Customer Service: The system could answer questions from clients or partners about the status of shipments, prices, etc. It could also automate some aspects of contract management.
+6. Energy Trading: The system could provide insights to assist with energy trading decisions. This might involve predicting future prices or identifying profitable trading opportunities.
+
+7. Customer Service: The system could answer questions from clients or partners about the status of shipments, prices, etc. It could also automate some aspects of contract management.
 
 Each of them require some specific service. For example, predictive maintainence (1) and supply and demand forecasting (2) could use a forecasting service that analyzes the supplied data, and figures out any trends that could be insightful for the user. Risk assessment (4) could use a tabular classification service that categorizes risk based on certain factors.
 
