@@ -16,17 +16,17 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "to_address": {
+          "data source": {
             "type": "string",
-            "description": "To address for email"
+            "description": "Name of the relevant data source. Give full file names and extension."
           },          
-          "subject": {
+          "target": {
             "type": "string",
-            "description": "subject of the email"
+            "description": "Name of target variable for classification"
           },
-          "body": {
-            "type": "string",
-            "description": "Body of the email"
+          "**kwargs": {
+            "type": "kwargs",
+            "description": "All input variables for the classifier"
           }
         }
       }

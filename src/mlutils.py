@@ -34,6 +34,9 @@ class XGBoostModel(Model):
         self.model.load_model('models/' + self.target.replace(" ", "_") + '_' + self.model_info['model_task'] + '.bin')
 
     def predict(self, input):
+
+        # Some input validation needed here
+
         score = self.model.predict(input)
         classification = [1 if s > 0.5 else 0 for s in score]
         return classification, score

@@ -106,6 +106,7 @@ Here are some potential services:
 ### Features
 - Never exposes actual data
 - Self manages models (improves over time, corrects, etc.)
+- Can switch to fully self-hosted (Pinecone -> Chroma, np.array & OpenAI -> Llama 2, Starcoder, Dolly, etc.)
 
 In the future:
 - Automatically finds insights within data
