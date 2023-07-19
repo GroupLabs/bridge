@@ -1,4 +1,4 @@
-import json
+import json, os
 import pandas as pd
 
 from utils import PARAMS, init_apis, vec_db, llm, log_question_answer
@@ -13,28 +13,39 @@ with open('sources.json', "r") as json_file:
 
 for source in sources:
 
-    if source.endswith('.csv'):
-        print(f"Creating metadata for {source}")
+    source_path = "metadata/" + source + ".json"
 
-        csv_file = '../data/' + source 
+    if not os.path.exists(source_path):
 
-        df = pd.read_csv(csv_file)
-        header = df.columns.tolist()
+        if source.endswith('.csv'):
+            print(f"Creating metadata for {source}")
 
-        metadata = llm(prompt=params.prompts["metadata"].format(context=header), model=params.ADV_CHAT_MODEL)["content"]
-        metadata = json.loads(metadata)
+            csv_file = '../data/' + source 
 
-    res = {
-        "source_name" : source,
-        "type" : "csv" if source.endswith('.csv') else "unsupported format",
-        "meta" : metadata,
-    }
+            df = pd.read_csv(csv_file)
+            header = df.columns.tolist()
 
-    json_str = json.dumps(res, indent=4)
+            metadata = llm(prompt=params.prompts["metadata"].format(context=header), model=params.ADV_CHAT_MODEL)["content"]
+            try:
+                metadata = json.loads(metadata)
+            except json.decoder.JSONDecodeError as e:
+                try:
+                    metadata = json.loads(f'{{{metadata}}}')
+                except json.decoder.JSONDecodeError as e:
+                    print("Error in metadata generation")
+                    print(e)
+                    print(metadata)
 
-    file_path = "metadata/" + source + ".json"
-    with open(file_path, "w") as json_file:
-        json_file.write(json_str)
+        res = {
+            "source_name" : source,
+            "type" : "csv" if source.endswith('.csv') else "unsupported format",
+            "meta" : metadata,
+        }
+
+        json_str = json.dumps(res, indent=4)
+
+        with open(source_path, "w") as json_file:
+            json_file.write(json_str)
 
     # ingest into numpy vec db
     # numpy_db.ingest(res)
