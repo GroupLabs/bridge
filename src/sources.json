@@ -4,7 +4,8 @@
         "models": {
             "Accident Occurred" : {
                 "model_type" : "xgboost",
-                "model_task" : "classifier"
+                "model_task" : "classifier",
+                "model_name" : "Accident_Occurred_classifier.bin"
             }
         }
     },

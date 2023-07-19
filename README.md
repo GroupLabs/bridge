@@ -71,6 +71,12 @@ Consider the following use cases:
 
 7. Customer Service: The system could answer questions from clients or partners about the status of shipments, prices, etc. It could also automate some aspects of contract management.
 
+8. Anomaly Detection: GPT-4 can be used to identify patterns and anomalies in the operational data collected from machinery and equipment. This can help detect early signs of equipment failure or malfunction, allowing the company to address the issue before it results in a costly downtime.
+
+9. Fault Diagnosis: GPT-4 can be trained to recognize the symptoms of various faults in the equipment by analyzing historical data, maintenance logs, and failure records. By accurately diagnosing faults, it can help in timely maintenance and prevent catastrophic failures.
+
+10. Predicting Failure Time: GPT-4 can analyze the patterns and trends in equipment data over time to predict the expected time-to-failure of a particular component or equipment. This prediction can help schedule maintenance activities in a way that minimizes disruption to operations.
+
 Each of them require some specific service. For example, predictive maintainence (1) and supply and demand forecasting (2) could use a forecasting service that analyzes the supplied data, and figures out any trends that could be insightful for the user. Risk assessment (4) could use a tabular classification service that categorizes risk based on certain factors.
 
 Optimally, model training will happen in the background, and not on demand. Once models are trained, they will be able to answer questions like forecasts as inferences.
@@ -85,9 +91,14 @@ Here are some potential services:
 
 - [x] Answer questions from visible text documents
 - [x] Generate and execute python code on visible CSVs
-- [ ] Generating metadata, indexing
-- [ ] Calling services
-- [ ] ML services
+- [x] Generating metadata, indexing
+- [ ] Ability to call services
+- [ ] Make data invisible (use metadata instead)
+- [ ] Service that can use ML models (classifier, anomaly detection)
+- [ ] Auto-create models
+- [ ] Only pass relevant metadata
+- [ ] Only pass relevant services
+- [ ] Model management with MLFlow
 
 
 
@@ -96,3 +107,6 @@ Here are some potential services:
 - Never exposes actual data
 - Self manages models (improves over time, corrects, etc.)
 
+In the future:
+- Automatically finds insights within data
+- Notifications
