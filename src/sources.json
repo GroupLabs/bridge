@@ -1,0 +1,16 @@
+{   
+    "equipment_status.csv" :
+    {
+        "models": {
+            "Accident Occurred" : {
+                "model_type" : "xgboost",
+                "model_task" : "classifier"
+            }
+        }
+    },
+    "pred_maintainence.csv" :
+    {
+        "models": {
+        }
+    }
+}

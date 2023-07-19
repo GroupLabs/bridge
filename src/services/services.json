@@ -8,6 +8,12 @@
       "name": "ping_network",
       "description": "Find all devices on the network",
       "parameters": {
+      }
+    },
+    {
+      "name": "classifier",
+      "description": "Make a classification",
+      "parameters": {
         "type": "object",
         "properties": {
           "to_address": {

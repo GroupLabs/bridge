@@ -1,0 +1,38 @@
+{
+    "source_name": "equipment_status.csv",
+    "type": "csv",
+    "meta": {
+        "metadata": [
+            {
+                "field": "Temperature",
+                "type": "numeric",
+                "description": "The recorded temperature"
+            },
+            {
+                "field": "Humidity",
+                "type": "numeric",
+                "description": "The recorded humidity level"
+            },
+            {
+                "field": "Wind Speed",
+                "type": "numeric",
+                "description": "The recorded wind speed"
+            },
+            {
+                "field": "Equipment ID",
+                "type": "string",
+                "description": "The unique identifier for the equipment"
+            },
+            {
+                "field": "Equipment Status",
+                "type": "string",
+                "description": "The current status of the equipment"
+            },
+            {
+                "field": "Accident Occurred",
+                "type": "boolean",
+                "description": "Indicates whether an accident has occurred"
+            }
+        ]
+    }
+}

@@ -14,7 +14,8 @@
 *.pth
 __pycache__/
 *.pyc
+*.bin
 
 # mock data
-data.csv
+data/*
 *.jpg
