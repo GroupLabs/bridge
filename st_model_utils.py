@@ -33,7 +33,7 @@ class XGBoostModel(Model):
 
     def load_model(self):
         self.model = xgb.Booster()
-        self.model.load_model('models/' + self.target.replace(" ", "_") + '_' + self.model_info['model_task'] + '.bin')
+        self.model.load_model('src/models/' + self.target.replace(" ", "_") + '_' + self.model_info['model_task'] + '.bin')
 
     def predict(self, input):
 

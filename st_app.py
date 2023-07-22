@@ -33,6 +33,8 @@ with st.sidebar:
 
     if data_type == 'Models':
         st.write('Forecast the next 100 days of daily accidents.')
+        st.write('Forecast the next 100 days of daily accidents. Show the components.')
+        st.write('Will an accident occur based on the following conditions?  Temperature is -12.69638070956033, humidity is -1.4166499928577423, wind speed is 0.0967347766707744, equipment ID is 1380787, and equipment status is 1.073504406365598.')
 
 st.write('This is a demonstration of the capabilities of the Bridge API. The Bridge API is a RESTful API that allows you to access data from the Bridge data engine.')
 
@@ -370,7 +372,7 @@ if user_input:
                 ]
             )
 
-        st.code(response)
+        # st.code(response)
 
         function_call = response['choices'][0]['message'].get('function_call')
         if function_call:
@@ -384,4 +386,10 @@ if user_input:
         else:
             result = response['choices'][0]['message']['content']
 
-        st.write(result)
+        if function_name == "equipment_status_classifier":
+            if result[0][0] == 1:
+                st.write("An accident is likely to occur. With a confidence of " + str(result[1][0]*100) + "%.")
+            else:
+                st.write("An accident is not likely to occur. With a confidence of " + str((1 - result[1][0])*100) + "%.")
+        else:
+            st.write(result)
