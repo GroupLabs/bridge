@@ -457,6 +457,9 @@ def log_question_answer(index, q_embedding, question, answer, _namespace):
     return {'namespace':_namespace, 'id':id}
 
 def llm(prompt, model, role="user", stream=False):
+    prompt = prompt.replace('\u201c', '"').replace('\u201d', '"')
+
+    print("HELLOOO|N|N|N|N|\n\n\n\n\n")
     completion = openai.ChatCompletion.create(
     model=model,
     messages=[
