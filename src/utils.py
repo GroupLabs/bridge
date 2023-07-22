@@ -117,10 +117,10 @@ def llm(prompt, model, role="user", stream=False):
 
     return result
 
-def vec_db(query, index, embedding_model):
+def vec_db(query, index, embedding_model, ns='suncor'):
     # search for similar documents
     xq = openai.Embedding.create(input=query, engine=embedding_model)['data'][0]['embedding']
-    res = index.query([xq], top_k=4, include_metadata=True, namespace='suncor')
+    res = index.query([xq], top_k=4, include_metadata=True, namespace=ns)
 
     # building context string
     context = ''
