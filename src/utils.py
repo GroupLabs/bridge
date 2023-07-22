@@ -6,8 +6,364 @@ import openai, pinecone
 class PARAMS:
 
     prompts = {
-        "code" : "You are a computer engineer that can only speak in code. Only return valid Python code. {query}. Express results in a matplotlib pyplot. Do not show the pyplot, instead save it as temp.png. Only return code. Store the answer in a variable named result.",
-        
+        "code" : '''You are a computer engineer that can only speak in code. Only return valid Python code. {query}. Express results in a matplotlib pyplot. Only return code. Store the answer in a variable named result.
+        Use the following metadata:
+
+        {
+    "source_name": "data.csv",
+    "type": "csv",
+    "metadata": {
+        "metadata": [
+            {
+                "field": "first_name",
+                "type": "string",
+                "description": "The first name of the individual",
+                "unique_words": [
+                    "first",
+                    "name",
+                    "individual"
+                ]
+            },
+            {
+                "field": "last_name",
+                "type": "string",
+                "description": "The last name of the individual",
+                "unique_words": [
+                    "last",
+                    "name",
+                    "individual"
+                ]
+            },
+            {
+                "field": "email",
+                "type": "string",
+                "description": "The email address of the individual",
+                "unique_words": [
+                    "email",
+                    "address",
+                    "individual"
+                ]
+            },
+            {
+                "field": "make",
+                "type": "string",
+                "description": "The make of the vehicle the individual owns",
+                "unique_words": [
+                    "make",
+                    "vehicle",
+                    "owns"
+                ]
+            },
+            {
+                "field": "title",
+                "type": "string",
+                "description": "The job title of the individual",
+                "unique_words": [
+                    "job",
+                    "title",
+                    "individual"
+                ]
+            },
+            {
+                "field": "salary",
+                "type": "numeric",
+                "description": "The salary of the individual",
+                "unique_words": [
+                    "salary",
+                    "individual"
+                ]
+            }
+        ]
+    }
+}
+
+{
+    "source_name": "equipment_status.csv",
+    "type": "csv",
+    "meta": {
+        "metadata": [
+            {
+                "field": "Temperature",
+                "type": "numeric",
+                "description": "The recorded temperature"
+            },
+            {
+                "field": "Humidity",
+                "type": "numeric",
+                "description": "The recorded humidity level"
+            },
+            {
+                "field": "Wind Speed",
+                "type": "numeric",
+                "description": "The recorded wind speed"
+            },
+            {
+                "field": "Equipment ID",
+                "type": "string",
+                "description": "The unique identifier for the equipment"
+            },
+            {
+                "field": "Equipment Status",
+                "type": "string",
+                "description": "The current status of the equipment"
+            },
+            {
+                "field": "Accident Occurred",
+                "type": "boolean",
+                "description": "Indicates whether an accident has occurred"
+            }
+        ]
+    }
+}
+{
+    "source_name": "oil_pipeline_accidents.csv",
+    "type": "csv",
+    "meta": {
+        "metadata": [
+            {
+                "field": "Report Number",
+                "type": "numeric",
+                "description": "The unique number assigned to the accident report"
+            },
+            {
+                "field": "Supplemental Number",
+                "type": "numeric",
+                "description": "Additional number related to the accident report"
+            },
+            {
+                "field": "Accident Year",
+                "type": "numeric",
+                "description": "The year in which the accident occurred"
+            },
+            {
+                "field": "Accident Date/Time",
+                "type": "datetime",
+                "description": "The exact date and time of the accident"
+            },
+            {
+                "field": "Operator ID",
+                "type": "numeric",
+                "description": "Unique identifier for the operator of the pipeline"
+            },
+            {
+                "field": "Operator Name",
+                "type": "string",
+                "description": "Name of the operator of the pipeline"
+            },
+            {
+                "field": "Pipeline/Facility Name",
+                "type": "string",
+                "description": "Name of the pipeline or facility where the accident occurred"
+            },
+            {
+                "field": "Pipeline Location",
+                "type": "string",
+                "description": "Location of the pipeline where the accident occurred"
+            },
+            {
+                "field": "Pipeline Type",
+                "type": "string",
+                "description": "Type of the pipeline involved in the accident"
+            },
+            {
+                "field": "Liquid Type",
+                "type": "string",
+                "description": "Type of liquid involved in the accident"
+            },
+            {
+                "field": "Liquid Subtype",
+                "type": "string",
+                "description": "Subtype of the liquid involved in the accident"
+            },
+            {
+                "field": "Liquid Name",
+                "type": "string",
+                "description": "Specific name of the liquid involved in the accident"
+            },
+            {
+                "field": "Accident City",
+                "type": "string",
+                "description": "City where the accident occurred"
+            },
+            {
+                "field": "Accident County",
+                "type": "string",
+                "description": "County where the accident occurred"
+            },
+            {
+                "field": "Accident State",
+                "type": "string",
+                "description": "State where the accident occurred"
+            },
+            {
+                "field": "Accident Latitude",
+                "type": "numeric",
+                "description": "Latitude coordinate of the accident location"
+            },
+            {
+                "field": "Accident Longitude",
+                "type": "numeric",
+                "description": "Longitude coordinate of the accident location"
+            },
+            {
+                "field": "Cause Category",
+                "type": "string",
+                "description": "General category of the cause of the accident"
+            },
+            {
+                "field": "Cause Subcategory",
+                "type": "string",
+                "description": "Specific subcategory of the cause of the accident"
+            },
+            {
+                "field": "Unintentional Release (Barrels)",
+                "type": "numeric",
+                "description": "Amount of liquid unintentionally released during the accident, measured in barrels"
+            },
+            {
+                "field": "Intentional Release (Barrels)",
+                "type": "numeric",
+                "description": "Amount of liquid intentionally released during the accident, measured in barrels"
+            },
+            {
+                "field": "Liquid Recovery (Barrels)",
+                "type": "numeric",
+                "description": "Amount of liquid recovered after the accident, measured in barrels"
+            },
+            {
+                "field": "Net Loss (Barrels)",
+                "type": "numeric",
+                "description": "Net amount of liquid lost in the accident, measured in barrels"
+            },
+            {
+                "field": "Liquid Ignition",
+                "type": "string",
+                "description": "Indicates whether the liquid ignited during the accident"
+            },
+            {
+                "field": "Liquid Explosion",
+                "type": "string",
+                "description": "Indicates whether an explosion occurred during the accident"
+            },
+            {
+                "field": "Pipeline Shutdown",
+                "type": "string",
+                "description": "Indicates whether the pipeline was shut down as a result of the accident"
+            },
+            {
+                "field": "Shutdown Date/Time",
+                "type": "datetime",
+                "description": "Date and time when the pipeline was shut down"
+            },
+            {
+                "field": "Restart Date/Time",
+                "type": "datetime",
+                "description": "Date and time when the pipeline was restarted"
+            },
+            {
+                "field": "Public Evacuations",
+                "type": "numeric",
+                "description": "Number of public evacuations caused by the accident"
+            },
+            {
+                "field": "Operator Employee Injuries",
+                "type": "numeric",
+                "description": "Number of injuries to operator employees caused by the accident"
+            },
+            {
+                "field": "Operator Contractor Injuries",
+                "type": "numeric",
+                "description": "Number of injuries to operator contractors caused by the accident"
+            },
+            {
+                "field": "Emergency Responder Injuries",
+                "type": "numeric",
+                "description": "Number of injuries to emergency responders caused by the accident"
+            },
+            {
+                "field": "Other Injuries",
+                "type": "numeric",
+                "description": "Number of other injuries caused by the accident"
+            },
+            {
+                "field": "Public Injuries",
+                "type": "numeric",
+                "description": "Number of injuries to the public caused by the accident"
+            },
+            {
+                "field": "All Injuries",
+                "type": "numeric",
+                "description": "Total number of injuries caused by the accident"
+            },
+            {
+                "field": "Operator Employee Fatalities",
+                "type": "numeric",
+                "description": "Number of fatalities to operator employees caused by the accident"
+            },
+            {
+                "field": "Operator Contractor Fatalities",
+                "type": "numeric",
+                "description": "Number of fatalities to operator contractors caused by the accident"
+            },
+            {
+                "field": "Emergency Responder Fatalities",
+                "type": "numeric",
+                "description": "Number of fatalities to emergency responders caused by the accident"
+            },
+            {
+                "field": "Other Fatalities",
+                "type": "numeric",
+                "description": "Number of other fatalities caused by the accident"
+            },
+            {
+                "field": "Public Fatalities",
+                "type": "numeric",
+                "description": "Number of fatalities to the public caused by the accident"
+            },
+            {
+                "field": "All Fatalities",
+                "type": "numeric",
+                "description": "Total number of fatalities caused by the accident"
+            },
+            {
+                "field": "Property Damage Costs",
+                "type": "numeric",
+                "description": "Costs associated with property damage caused by the accident"
+            },
+            {
+                "field": "Lost Commodity Costs",
+                "type": "numeric",
+                "description": "Costs associated with the commodity lost in the accident"
+            },
+            {
+                "field": "Public/Private Property Damage Costs",
+                "type": "numeric",
+                "description": "Costs associated with damage to public or private property caused by the accident"
+            },
+            {
+                "field": "Emergency Response Costs",
+                "type": "numeric",
+                "description": "Costs associated with the emergency response to the accident"
+            },
+            {
+                "field": "Environmental Remediation Costs",
+                "type": "numeric",
+                "description": "Costs associated with environmental remediation due to the accident"
+            },
+            {
+                "field": "Other Costs",
+                "type": "numeric",
+                "description": "Other costs associated with the accident"
+            },
+            {
+                "field": "All Costs",
+                "type": "numeric",
+                "description": "Total costs associated with the accident"
+            }
+        ]
+    }
+}
+        ''',
         "contextual-answer" : 
         
         '''You are a helpful AI assistant. Use the following pieces of context to answer the question at the end.
@@ -60,7 +416,7 @@ class PARAMS:
         ''',
     }
 
-    def __init__(self, DEBUG=False, EMBEDDING_MODEL="text-embedding-ada-002", BASIC_CHAT_MODEL="gpt-3.5-turbo", ADV_CHAT_MODEL="gpt-4-0613", LOGGING_ENABLED=False, LOGS_NAMESPACE='suncor-logs'):
+    def __init__(self, DEBUG=False, EMBEDDING_MODEL="text-embedding-ada-002", BASIC_CHAT_MODEL="gpt-3.5-turbo", ADV_CHAT_MODEL="gpt-4", LOGGING_ENABLED=False, LOGS_NAMESPACE='suncor-logs'):
         self.DEBUG = DEBUG
         self.EMBEDDING_MODEL = EMBEDDING_MODEL
         self.BASIC_CHAT_MODEL = BASIC_CHAT_MODEL
