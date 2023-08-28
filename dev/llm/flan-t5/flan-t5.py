@@ -16,7 +16,7 @@ class TextColors:
     RESET = '\033[0m'
 
 # choose size: "small", "base", "large", "xl", "xxl"
-size = "xl"
+size = "large"
 
 model_name = "google/flan-t5-" + size
 cache_dir = "./" + size + "_flan-t5_cache"

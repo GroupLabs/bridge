@@ -21,7 +21,7 @@ with st.sidebar:
     st.write('Here are some examples of questions you can ask the Bridge API.')
 
     if data_type == 'Docs':
-        st.write('What was the comparable EBITDA in the first quarter of 2023?')
+        # st.write('What was the comparable EBITDA in the first quarter of 2023?')
         st.write('What were segmented earnings in 2022 and 2023? What was the comparable EBITDA in the first quarter of 2023? How much was this up from last year?')
         
         st.write('What color is a Ford Focus?')
