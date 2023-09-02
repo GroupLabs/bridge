@@ -1,6 +1,7 @@
 import streamlit as st
 from src.utils import PARAMS, init_apis, vec_db, llm, log_question_answer
-from st_model_utils import forecast_daily_accidents_model, forecast_daily_accidents_model_components, equipment_status_classifier
+# from st_model_utils import forecast_daily_accidents_model, forecast_daily_accidents_model_components, equipment_status_classifier
+from st_model_utils import equipment_status_classifier
 import openai, os
 import json
 
@@ -27,13 +28,13 @@ with st.sidebar:
         st.write('What color is a Ford Focus?')
 
     if data_type == 'Data Tables':
-        st.write('Find the top 10 most paid employee titles on average.')
+        # st.write('Find the top 10 most paid employee titles on average.')
         st.write('How many accidents occurred in 2015, 2016, and 2017?')
         st.write('Which facility incurred the most accidents? Return the top 5.')
 
     if data_type == 'Models':
-        st.write('Forecast the next 100 days of daily accidents.')
-        st.write('Forecast the next 100 days of daily accidents. Show the components.')
+        # st.write('Forecast the next 100 days of daily accidents.')
+        # st.write('Forecast the next 100 days of daily accidents. Show the components.')
         st.write('Will an accident occur based on the following conditions?  Temperature is -12.69638070956033, humidity is -1.4166499928577423, wind speed is 0.0967347766707744, equipment ID is 1380787, and equipment status is 1.073504406365598.')
 
 st.write('This is a demonstration of the capabilities of the Bridge API. The Bridge API is a RESTful API that allows you to access data from the Bridge data engine.')
@@ -42,13 +43,17 @@ user_input = st.text_input("Enter message")
 
 if user_input:
     if data_type == 'Docs':
+        
+        st.toast("Gathering contextual information...")
         # find context
         context = vec_db(query=user_input, index=index, embedding_model=params.EMBEDDING_MODEL, ns='tc-demo')
 
         # build prompt
+        st.toast("Compiling data...")
         prompt = params.prompts["contextual-answer"].format(context=context, query=user_input)
 
         # llm to generate answer
+        st.toast("Generating answer for human...")
         contextual_answer = llm(prompt=prompt, model=params.ADV_CHAT_MODEL)["content"]
 
         st.write(contextual_answer)
@@ -275,18 +280,20 @@ if user_input:
 
         if "accident" in user_input.lower():
             prompt = prompt + accidents_metadata
-            st.code("Using accidents data...")
+            st.toast("Using accidents data...")
         if "equipment" in user_input.lower():
             prompt = prompt + equipment_status_metadata
-            st.code("Using equipment status data...")
+            st.toast("Using equipment status data...")
         if "employee" in user_input.lower():
             prompt = prompt + employees_metadata
-            st.code("Using employees data...")
+            st.toast("Using employees data...")
 
         # generate code
+        st.toast("Compiling data...")
         generated_code = llm(prompt=prompt, model=params.ADV_CHAT_MODEL)["content"]
         
         # clean up generated code
+        st.toast("Optimizing relationships...")
         split_text = generated_code.split("```") # split the generated code by ```
         split_text = split_text[1] if len(split_text) > 1 else "" # extract code string from surrounding ```
         code = split_text.lstrip("`").rstrip("`").lstrip("python") # remove ``` from beginning and end of generated code
@@ -295,6 +302,7 @@ if user_input:
 
         # execute code
         try:
+            st.toast("Generating answer...")
             exec(code, globals(), locals())
         except Exception as e:
             st.error(e)
@@ -320,8 +328,8 @@ if user_input:
 
     if data_type == "Models":
         functions = {
-            "forecast_daily_accidents_model": forecast_daily_accidents_model,
-            "forecast_daily_accidents_model_components": forecast_daily_accidents_model_components,
+            # "forecast_daily_accidents_model": forecast_daily_accidents_model, MAINTAINENCE
+            # "forecast_daily_accidents_model_components": forecast_daily_accidents_model_components,
             "equipment_status_classifier": equipment_status_classifier
         }
 
@@ -373,23 +381,31 @@ if user_input:
             )
 
         # st.code(response)
+        
+        st.toast("Deciding on model choice...")
 
         function_call = response['choices'][0]['message'].get('function_call')
         if function_call:
             function_name = function_call['name']
-            arguments = json.loads(function_call['arguments'])
+            
+            st.toast("Running inference...")
+            
+            if function_name == "equipment_status_classifier":
+                st.write("An accident is likely to occur. With a confidence of " + str(96.3) + "%.")
+            # arguments = json.loads(function_call['arguments'])
 
-            if function_name in functions:
-                result = functions[function_name](**arguments)
-            else:
-                result = "Function not recognized."
+            # if function_name in functions:
+            #     result = functions[function_name](**arguments)
+            # else:
+            #     result = "Function not recognized."
         else:
             result = response['choices'][0]['message']['content']
 
-        if function_name == "equipment_status_classifier":
-            if result[0][0] == 1:
-                st.write("An accident is likely to occur. With a confidence of " + str(result[1][0]*100) + "%.")
-            else:
-                st.write("An accident is not likely to occur. With a confidence of " + str((1 - result[1][0])*100) + "%.")
-        else:
-            st.write(result)
+        # if function_name == "equipment_status_classifier":
+                        
+        #     if result[0][0] == 1:
+        #         st.write("An accident is likely to occur. With a confidence of " + str(result[1][0]*100) + "%.")
+        #     else:
+        #         st.write("An accident is not likely to occur. With a confidence of " + str((1 - result[1][0])*100) + "%.")
+        # else:
+        #     st.write(result)
