@@ -1,0 +1,6 @@
+purpose: provide isolated environment for code execution to maintain security and service robustness
+
+environment setup: automatated environment build, install appropriate dependencies, load function definitions and models
+execution: run code passed in through some interface
+managment: spawn new environment as needed (on catastrophic event, regular schedule, etc)
+shutdown: relieve resources
