@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 import pandas as pd
-from prophet import Prophet
+# from prophet import Prophet
 
 import json
 import xgboost as xgb
@@ -82,33 +82,37 @@ df_accidents['Accident Date/Time'] = pd.to_datetime(df_accidents['Accident Date/
 daily_accidents = df_accidents.groupby(df_accidents['Accident Date/Time'].dt.date).size().reset_index()
 daily_accidents.columns = ['ds', 'y']
 
-# Initialize the Prophet model
-model_daily_accidents = Prophet()
+ ### NEEDS MAINTAINENCE ###
 
-# Fit the model_daily_accidents to the data
-model_daily_accidents.fit(daily_accidents)
+# # Initialize the Prophet model
+# model_daily_accidents = Prophet()
+
+# # Fit the model_daily_accidents to the data
+# model_daily_accidents.fit(daily_accidents)
 
 
 
-def forecast_daily_accidents_model(days_into_future):
-    # Generate future dates
-    future_dates = model_daily_accidents.make_future_dataframe(periods=days_into_future)  # forecast for the next year
+# def forecast_daily_accidents_model(days_into_future):
+#     # Generate future dates
+#     future_dates = model_daily_accidents.make_future_dataframe(periods=days_into_future)  # forecast for the next year
 
-    # Predict the accidents
-    forecast = model_daily_accidents.predict(future_dates)
+#     # Predict the accidents
+#     forecast = model_daily_accidents.predict(future_dates)
 
-    # Plot the forecast
-    return model_daily_accidents.plot(forecast)
+#     # Plot the forecast
+#     return model_daily_accidents.plot(forecast)
 
-def forecast_daily_accidents_model_components(days_into_future):
-    # Generate future dates
-    future_dates = model_daily_accidents.make_future_dataframe(periods=days_into_future)  # forecast for the next year
+# def forecast_daily_accidents_model_components(days_into_future):
+#     # Generate future dates
+#     future_dates = model_daily_accidents.make_future_dataframe(periods=days_into_future)  # forecast for the next year
 
-    # Predict the accidents
-    forecast = model_daily_accidents.predict(future_dates)
+#     # Predict the accidents
+#     forecast = model_daily_accidents.predict(future_dates)
 
-    # Plot the forecast
-    return model_daily_accidents.plot_components(forecast)
+#     # Plot the forecast
+#     return model_daily_accidents.plot_components(forecast)
+
+ ### NEEDS MAINTAINENCE ###
 
 def equipment_status_classifier(t,h,w,eid,es):
     return classifier('equipment_status.csv', 'Accident Occurred', Temperature=t,h=h,w=w,eid=eid,es=es)
