@@ -1,0 +1,1 @@
+purpose: store and retrieve function definitions. generate descriptions at runtime.
