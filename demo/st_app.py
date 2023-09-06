@@ -1,5 +1,5 @@
 import streamlit as st
-from src.utils import PARAMS, init_apis, vec_db, llm, log_question_answer
+from utils import PARAMS, init_apis, vec_db, llm, log_question_answer
 # from st_model_utils import forecast_daily_accidents_model, forecast_daily_accidents_model_components, equipment_status_classifier
 from st_model_utils import equipment_status_classifier
 import openai, os
