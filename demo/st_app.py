@@ -42,9 +42,9 @@ st.write('This is a demonstration of the capabilities of the Bridge API. The Bri
 user_input = st.text_input("Enter message")
 
 if user_input:
-    if data_type == 'Docs':
-        
+    if data_type == 'Docs': 
         st.toast("Gathering contextual information...")
+
         # find context
         context = vec_db(query=user_input, index=index, embedding_model=params.EMBEDDING_MODEL, ns='tc-demo')
 
@@ -381,7 +381,6 @@ if user_input:
             )
 
         # st.code(response)
-        
         st.toast("Deciding on model choice...")
 
         function_call = response['choices'][0]['message'].get('function_call')

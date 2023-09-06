@@ -82,7 +82,6 @@ df_accidents['Accident Date/Time'] = pd.to_datetime(df_accidents['Accident Date/
 daily_accidents = df_accidents.groupby(df_accidents['Accident Date/Time'].dt.date).size().reset_index()
 daily_accidents.columns = ['ds', 'y']
 
-
  ### NEEDS MAINTAINENCE ###
 
 # # Initialize the Prophet model
