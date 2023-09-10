@@ -8,3 +8,17 @@ It seems like the embeddings will largely depend on what we want to use as the L
 - How do we make embeddings?
 	- Llama2 embeddings?
 	- SentenceTransformers !!
+
+
+purpose: store and retrieve data.
+
+INGESTION
+
+STORAGE
+
+FAISS, shards
+
+RETRIEVAL
+
+Knowledge Graph -> (Basic) Attention mechanism + Statistical [Variance/Deviation] / (Adv) Fine tuned LLM or Graph Attention Networks? -> Relevant Subset
+How do we resolve dependencies?
