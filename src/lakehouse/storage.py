@@ -1,5 +1,8 @@
 # purpose: organize stored data.
 
+# unstructured: store as new faiss index
+# structured: each column is its own entity
+
 from neo4j import GraphDatabase
 
 class Graph:
@@ -18,27 +21,19 @@ class Graph:
         query = "MATCH (n) DETACH DELETE n"
         tx.run(query)
 
-    def create_nodes_and_relationships(self):
+    def query(self, *query):
         with self._driver.session() as session:
-            session.write_transaction(self._create_nodes_and_relationships)
+            session.write_transaction(self._query, *query)
 
     @staticmethod
-    def _create_nodes_and_relationships(tx):
+    def _query(tx, *query):
         # Create nodes
-        query = (
-            "CREATE (alice:Person {name: 'Alice', age: 30}), "
-            "(bob:Person {name: 'Bob', age: 35}), "
-            "(eve:Person {name: 'Eve', age: 25}), "
-            "(python:Language {name: 'Python'}), "
-            "(java:Language {name: 'Java'}) "
-            "RETURN alice, bob, eve, python, java"
-        )
+        query = (query)
         tx.run(query)
 
         # Create relationships
         query = (
-            "MATCH (alice:Person {name: 'Alice'}), "
-            "(bob:Person {name: 'Bob'}), "
+            "MATCH (alice:Person {name: 'Alice'}), " "(bob:Person {name: 'Bob'}), "
             "(eve:Person {name: 'Eve'}), "
             "(python:Language {name: 'Python'}), "
             "(java:Language {name: 'Java'}) "
@@ -50,11 +45,11 @@ class Graph:
         tx.run(query)
 
 if __name__ == "__main__":
-    graph = Graph("bolt://localhost:7687", "neo4j", "bridge20")
+    graph = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
 
     graph.delete_all()
 
-    graph.create_nodes_and_relationships()
+    graph.query("h")
 
     graph.close()
 

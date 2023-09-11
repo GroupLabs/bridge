@@ -17,7 +17,13 @@ def embed(text): # create embedding from strings (and other modes later)
     return torch.as_tensor(EMBEDDING_MODEL.encode(text))
 
 def store(input): # store input in lakehouse
+    
+    
+    
     # figure out which index to store to using KG
+    
+    
+    
     index = faiss.IndexFlatL2(VEC_DIM) # instantiate index
     
     if type(input) is str:

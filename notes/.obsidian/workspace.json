@@ -8,14 +8,6 @@
         "type": "tabs",
         "children": [
           {
-            "id": "1ec1ac96ce710d2b",
-            "type": "leaf",
-            "state": {
-              "type": "empty",
-              "state": {}
-            }
-          },
-          {
             "id": "11401ed6a8078bee",
             "type": "leaf",
             "state": {
@@ -27,8 +19,7 @@
               }
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -157,8 +148,9 @@
   },
   "active": "11401ed6a8078bee",
   "lastOpenFiles": [
-    "Attention.md",
+    "Bob.md",
     "Lakehouse.md",
+    "Attention.md",
     "Bb.md",
     "README.md",
     "requirements.txt",
