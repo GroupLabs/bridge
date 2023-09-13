@@ -1,56 +1,71 @@
-# purpose: organize stored data.
+# purpose: convert and tag inbound data.
 
-# unstructured: store as new faiss index
-# structured: each column is its own entity
+def store(input): # store input in lakehouse
+    
+    # is the input an (a) unstructured, or (b) structured file path?
+    
+    # (a) structured
+        # store each column as node (id, name, desc) in knowledge graph
+        # store metadata vectors (id, name, desc) in vector store
+    
+    # (b) unstructured
+        # store file metadata as node (id, name, desc) in knowledge graph
+        # store metadata vectors (id, name, desc) in vector store
+    pass
 
-from neo4j import GraphDatabase
+import csv
+import os
 
-class Graph:
-    def __init__(self, uri, user, password):
-        self._driver = GraphDatabase.driver(uri, auth=(user, password))
+def is_structured(file_path):
+    # Check the file extension; for demonstration
+    return file_path.endswith('.csv')
 
-    def close(self):
-        self._driver.close()
+def vectorize_metadata(id, name, desc):
+    # Simple example; this function should actually convert text to vectors
+    return f"Vector({id},{name},{desc})"
 
-    def delete_all(self):
-        with self._driver.session() as session:
-            session.write_transaction(self._delete_all)
+def store_in_knowledge_graph(id, name, desc):
+    print(f"Storing in Knowledge Graph: ID: {id}, Name: {name}, Desc: {desc}")
+
+def store_in_vector_store(vector):
+    print(f"Storing in Vector Store: {vector}")
+
+def store(input):
+    if is_structured(input):
+        # Reading CSV and storing each column as a node in the knowledge graph
+        with open(input, 'r') as f:
+            reader = csv.reader(f)
+            headers = next(reader, None)  # Get the headers of CSV
             
-    @staticmethod
-    def _delete_all(tx):
-        query = "MATCH (n) DETACH DELETE n"
-        tx.run(query)
+            for header in headers:
+                id = header  # ID is the column name for this example
+                name = f"Column {header}"
+                desc = f"This column contains {header} data"
+                
+                # Storing in knowledge graph
+                store_in_knowledge_graph(id, name, desc)
+                
+                # Vectorizing and storing in vector store
+                metadata_vector = vectorize_metadata(id, name, desc)
+                store_in_vector_store(metadata_vector)
+                
+    else:
+        # For unstructured data, we are storing file metadata
+        id = os.path.basename(input)
+        name = "Unstructured File - {id}"
+        desc = f"This is an unstructured file with name {id}"
+        
+        # Storing in knowledge graph
+        store_in_knowledge_graph(id, name, desc)
+        
+        # Vectorizing and storing in vector store
+        metadata_vector = vectorize_metadata(id, name, desc)
+        store_in_vector_store(metadata_vector)
+        
+# Testing the function
+store("structured.csv")
+store("unstructured.txt")
 
-    def query(self, *query):
-        with self._driver.session() as session:
-            session.write_transaction(self._query, *query)
-
-    @staticmethod
-    def _query(tx, *query):
-        # Create nodes
-        query = (query)
-        tx.run(query)
-
-        # Create relationships
-        query = (
-            "MATCH (alice:Person {name: 'Alice'}), " "(bob:Person {name: 'Bob'}), "
-            "(eve:Person {name: 'Eve'}), "
-            "(python:Language {name: 'Python'}), "
-            "(java:Language {name: 'Java'}) "
-            "CREATE (alice)-[:KNOWS]->(bob), "
-            "(alice)-[:KNOWS]->(eve), "
-            "(alice)-[:LIKES]->(python), "
-            "(bob)-[:LIKES]->(java)"
-        )
-        tx.run(query)
 
 if __name__ == "__main__":
-    graph = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
-
-    graph.delete_all()
-
-    graph.query("h")
-
-    graph.close()
-
-    print("Knowledge Graph created!")
+    pass
