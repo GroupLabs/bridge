@@ -13,7 +13,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 # modalities
-from pdf import pdf_to_strings
+from ingestion.pdf import pdf_to_strings
 
 VEC_DIM = 768
 EMBEDDING_MODEL_NAME = 'msmarco-distilbert-base-tas-b'
