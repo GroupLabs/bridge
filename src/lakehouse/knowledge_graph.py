@@ -65,19 +65,21 @@ class Graph:
         with self._driver.session() as session:
             session.execute_write(delete_node_name, name)
             
+    def add_relationship(self, name_node_one, name_node_two, relation_name):
+        
+        def add_relation(tx, name_node_one, name_node_two, relation_name):
+            query = f"""
+            MATCH (a {{name : "{name_node_one}"}}), (b {{name: "{name_node_two}"}})
+            CREATE (a) -[:{relation_name}]-> (b)
+            """
+            return tx.run(
+                query
+            )
+        with self._driver.session() as session:
+            session.execute_write(add_relation, name_node_one, name_node_two, relation_name)
+            
             
     
-
-    
-
-    def add_rel(self, name1, name2, relation):
-        with self._driver.session() as session:
-            session.execute_write(self._create_rel, name1, name2, relation)
-    
-    @staticmethod
-    def _create_rel(tx, name1, name2, relation):
-        query = "MATCH (a:Node {name: $name1}), (b:Node {name: $name2}) CREATE (a)-[:%s]->(b)" % relation
-        tx.run(query, name1=name1, name2=name2)
 
     def del_rel(self, name1, name2, relation):
         with self._driver.session() as session:
