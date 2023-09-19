@@ -84,7 +84,7 @@ class Graph:
         tx.run(query)
         
 if __name__ == "__main__":
-    g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
+    g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973") # replace with your user, pass
 
     # Add a single node
     g.add_node("Alice", "Developer")
