@@ -19,3 +19,7 @@ __pycache__/
 # mock data
 data/*
 *.jpg
+
+# storage artifacts
+*.pkl
+*.json
