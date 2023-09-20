@@ -2,12 +2,12 @@
 
 import csv
 import os
+from dotenv import load_dotenv
 
 from knowledge_graph import Graph
 from vector_store import VectorStore
 
-kg = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
-vs = VectorStore()
+load_dotenv()
 
 from enum import Enum
 
@@ -118,34 +118,50 @@ def metadata(input):
                 metadata.is_structured = False
 
             else:
-                return f"WARN: Unsupported {ext} extension."
+                raise NotImplementedError(f"WARN: Unsupported {ext} extension.")
         else:
-            return "The input is a string but not a file path."
+            raise ValueError("Input to metadata function is a string but not a file path.")
     return metadata
 
-def store(input):
-    
-    # generate file meta (struct/unstruct)
-    meta = metadata(input)
-    
-    # store node (name, desc; meta: ...)
-    
-    
-    # store vec (desc; meta: document name)
-    vs.store_object(meta.as_object())
-    
+class Storage:
+    def __init__(self, **kwargs):
+        self.kg = Graph(
+            kwargs.get("graph_uri", os.getenv("GRAPH_URI")), 
+            kwargs.get("graph_user", os.getenv("GRAPH_USER")), 
+            kwargs.get("graph_pass", os.getenv("GRAPH_PASS"))
+            )
+        self.vs = VectorStore(kwargs.get("vs_loadfile", None))
+        
+    def __repr__(self):
+        r = ""
+        r = r + "Graph: \n"
+        r = r + "Vector Storage: \n"
+        r = r + f".... storing {len(self.vs.values)} value(s)"
+        
+        return r
+        
+        
+    def store(self, input):
+        # generate file meta (struct/unstruct)
+        meta = metadata(input)
+        
+        # store node (name, desc; meta: ...)
+        
+        # store vec (desc; meta: document name)
+        self.vs.store_object(meta.as_object())
+        
+    def save(self, name):
+        # save/close conn of graph
+        
+        # save index and values
+        self.vs.save(name)
+
+
 if __name__ == "__main__":
-    # m = metadata("hello.txt")
-    # print(m)
+    storage = Storage()
     
-    # print(m.as_object())
+    storage.store("../../data/hello.txt")
     
-    store("../../data/hello.txt")
+    print(storage)
     
-    
-    
-    l = vs.values
-    
-    print(l)
-    
-    vs.save_index('test')  # always overwrites test
+    storage.save('test')  # always overwrites test

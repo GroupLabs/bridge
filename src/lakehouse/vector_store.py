@@ -16,7 +16,7 @@ class VectorStore:
     EMBEDDING_MODEL_NAME = 'msmarco-distilbert-base-tas-b'
     EMBEDDING_MODEL = SentenceTransformer(EMBEDDING_MODEL_NAME)
     
-    def __init__(self, load_file=""):
+    def __init__(self, load_file=None):
         if not load_file:
             self.index = faiss.IndexFlatL2(self.VEC_DIM) # instantiate index
             self.values = []
@@ -63,7 +63,7 @@ class VectorStore:
             return relevant_distances, results
         return results
         
-    def save_index(self, name):
+    def save(self, name):
         with open(f"shards/{name}.pkl", "wb") as f:
             pickle.dump(self.index, f)
         with open(f"shards/{name}.json", 'w') as f:
