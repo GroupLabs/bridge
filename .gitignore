@@ -17,7 +17,6 @@ __pycache__/
 *.bin
 
 # mock data
-data/*
 *.jpg
 
 # storage artifacts

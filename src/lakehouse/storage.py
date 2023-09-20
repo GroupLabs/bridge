@@ -135,6 +135,7 @@ class Storage:
     def __repr__(self):
         r = ""
         r = r + "Graph: \n"
+        # graph info add here
         r = r + "Vector Storage: \n"
         r = r + f".... storing {len(self.vs.values)} value(s)"
         
