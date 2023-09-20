@@ -8,12 +8,12 @@
         "type": "tabs",
         "children": [
           {
-            "id": "11401ed6a8078bee",
+            "id": "d03f00e6249e554a",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Lakehouse.md",
+                "file": "Attention.md",
                 "mode": "source",
                 "source": false
               }
@@ -85,7 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Lakehouse.md",
+                "file": "Attention.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -102,7 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Lakehouse.md",
+                "file": "Attention.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -125,7 +125,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Lakehouse.md"
+                "file": "Attention.md"
               }
             }
           }
@@ -146,11 +146,13 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "11401ed6a8078bee",
+  "active": "d03f00e6249e554a",
   "lastOpenFiles": [
-    "Bob.md",
+    "vector storage.md",
+    "storing relationships.md",
     "Lakehouse.md",
     "Attention.md",
+    "Bob.md",
     "Bb.md",
     "README.md",
     "requirements.txt",

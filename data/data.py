@@ -18,3 +18,5 @@ string_list = ["This course serves as an introductory overview of the rapidly ev
                 Students will explore the various art movements, such as Impressionism, Cubism, and Abstract Expressionism, \
                 and examine their influence on culture and society. Field trips to art galleries and museums will \
                 complement classroom learning."]
+
+# https://www.kaggle.com/datasets/technika148/football-database?select=games.csv

@@ -2,10 +2,12 @@
 
 import csv
 import os
+from dotenv import load_dotenv
 
 from knowledge_graph import Graph
+from vector_store import VectorStore
 
-kg = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
+load_dotenv()
 
 from enum import Enum
 
@@ -22,15 +24,27 @@ class AllowedExtensions(Enum):
 
 class Metadata:
     def __init__(self):
+        self._name = None
         self._extension = None
         self._is_structured = None
+        self._description = None
         
     def __repr__(self) -> str:
         r = ''
+        r = r + f"name: {self._name}\n"
         r = r + f"ext: {self._extension}\n"
-        r = r + f"structured: {self._is_structured}"
+        r = r + f"structured: {self._is_structured}\n"
+        r = r + f"description: {self._description}"
         
         return r
+    
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value: str):
+        self._name = value
 
     @property
     def extension(self):
@@ -50,6 +64,24 @@ class Metadata:
     @is_structured.setter
     def is_structured(self, value: bool):
         self._is_structured = value
+        
+        
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, value: str):
+        self._description = value    
+    
+    def as_object(self):
+        obj = {}
+        obj["name"] = self._name
+        obj["extension"] = self._extension
+        obj["structured"] = self._is_structured
+        obj["description"] = self._description
+        
+        return obj
 
 
 def metadata(input):
@@ -58,7 +90,13 @@ def metadata(input):
     
     if isinstance(input, str):
         if os.path.exists(input):
-            _, ext = os.path.splitext(input)
+            name, ext = os.path.splitext(input)
+            
+            metadata.name = name
+            
+            # get description from desc file
+            with open(f'{name}.desc', 'r') as f:
+                metadata.description = f.read()
             
             # structured
             if ext.lower() == '.csv':
@@ -79,22 +117,56 @@ def metadata(input):
                 metadata.extension = "PDF"
                 metadata.is_structured = False
 
+            # if unstructured:
+            # store a new vs, content is vecstore fp
+            # else
+            # store columns in content
+
             else:
-                return f"WARN: Unsupported {ext} extension."
+                raise NotImplementedError(f"WARN: Unsupported {ext} extension.")
         else:
-            return "The input is a string but not a file path."
+            raise ValueError("Input to metadata function is a string but not a file path.")
     return metadata
 
-def store(input):
-    
-    # generate file meta (struct/unstruct)
-    # store node (name, desc; meta: ...)
-    # store vec (desc; meta: document name)
-    
-    pass
-    
-    
+class Storage:
+    def __init__(self, **kwargs):
+        self.graph = Graph(
+            kwargs.get("graph_uri", os.getenv("GRAPH_URI")), 
+            kwargs.get("graph_user", os.getenv("GRAPH_USER")), 
+            kwargs.get("graph_pass", os.getenv("GRAPH_PASS"))
+            )
+        self.vec_store = VectorStore(kwargs.get("vec_store_loadfile", None))
+        
+    def __repr__(self):
+        r = ""
+        r = r + "Graph: \n"
+        # graph info add here
+        r = r + "Vector Storage: \n"
+        r = r + f".... storing {len(self.vec_store.values)} value(s)"
+        
+        return r
+        
+    def store(self, input):
+        # generate file meta (struct/unstruct)
+        meta = metadata(input)
+        
+        # store node (name, desc; meta: ...)
+        
+        # store vec (desc; meta: document name)
+        self.vs.store_object(meta.as_object())
+        
+    def save(self, name):
+        # save/close conn of graph
+        
+        # save index and values
+        self.vs.save(name)
+
 
 if __name__ == "__main__":
-    m = metadata("hello.txt")
-    print(m)
+    storage = Storage()
+    
+    storage.store("../../data/hello.txt")
+    
+    print(storage)
+    
+    storage.save('test')  # always overwrites test

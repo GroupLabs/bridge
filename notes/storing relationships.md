@@ -1,0 +1,1 @@
+There's no file format to store relationships. We could store as a cql, and store CYPHER or as JSONs. It might be important that these are human-readable, and more importantly human-editable so we can enrich relationships at ingestion time.
