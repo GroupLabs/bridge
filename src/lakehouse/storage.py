@@ -117,6 +117,11 @@ def metadata(input):
                 metadata.extension = "PDF"
                 metadata.is_structured = False
 
+            # if unstructured:
+            # store a new vs, content is vecstore fp
+            # else
+            # store columns in content
+
             else:
                 raise NotImplementedError(f"WARN: Unsupported {ext} extension.")
         else:
@@ -125,22 +130,21 @@ def metadata(input):
 
 class Storage:
     def __init__(self, **kwargs):
-        self.kg = Graph(
+        self.graph = Graph(
             kwargs.get("graph_uri", os.getenv("GRAPH_URI")), 
             kwargs.get("graph_user", os.getenv("GRAPH_USER")), 
             kwargs.get("graph_pass", os.getenv("GRAPH_PASS"))
             )
-        self.vs = VectorStore(kwargs.get("vs_loadfile", None))
+        self.vec_store = VectorStore(kwargs.get("vec_store_loadfile", None))
         
     def __repr__(self):
         r = ""
         r = r + "Graph: \n"
         # graph info add here
         r = r + "Vector Storage: \n"
-        r = r + f".... storing {len(self.vs.values)} value(s)"
+        r = r + f".... storing {len(self.vec_store.values)} value(s)"
         
         return r
-        
         
     def store(self, input):
         # generate file meta (struct/unstruct)

@@ -1,13 +1,9 @@
 import pickle
 import numpy as np
 
-def retrieve():
+def retrieve(input):
     
-    # query vecdb
-    # query kg
-    
-    # generate subset
-        # apply dot product attn on L2 faiss index
-    
-    # find content
+    # vecdb.query(input)
+    # traversal from graph
+
     pass
