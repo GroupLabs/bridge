@@ -105,6 +105,10 @@ class Graph:
             )
         with self._driver.session() as session:
             session.execute_write(delete_relation, name_node_one, name_node_two, relation_name)
+    ## Bidirectional join function instead of single direction
+    def add_bidirectional_relationship(self, name_node_one, name_node_two, name_relationship):
+        self.add_relationship(name_node_one, name_node_two, name_relationship)
+        self.add_relationship(name_node_two, name_node_one, name_relationship)
     
     def add_join_table_relationship(self, name_node_one, name_node_two, name_join_table):
         self.add_relationship(name_node_one, name_node_two, "JOIN_TABLE_NEEDED")
