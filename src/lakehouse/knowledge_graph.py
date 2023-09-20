@@ -139,28 +139,33 @@ class Graph:
         
 if __name__ == "__main__":
     g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
+    
+    g.delete_all()
 
     # Add a single node
-    g.add_basic_node("Alice", "Developer", labels=["temp", "eugenes lover"])
-    g.add_basic_node("Bob", "Developer", labels=["temp", "eugenes lover2"])
+    g.add_basic_node("Alice", labels="Developer", description=["temp", "eugenes lover"])
+    g.add_basic_node("Bob", labels="Developer", description=["temp", "eugenes lover2"])
     
-    # Delete a single node
-    g.delete_node("Alice")
+    # NODE TRAVERSAL
+    # MATCH path = (start:TABLE {name: 'Students'})-[*..3]->(end:TABLE {name: 'Classes'}) RETURN path;
+    
+    # # Delete a single node
+    # g.delete_node("Alice")
 
-    # # Add a relationship between two existing nodes "Alice" and "Bob"
-    g.add_relationship("Alice", "Bob", "KNOWS")
+    # # # Add a relationship between two existing nodes "Alice" and "Bob"
+    # g.add_relationship("Alice", "Bob", "KNOWS")
 
-    # # Delete the relationship between "Alice" and "Bob"
-    g.delete_relationship("Alice", "Bob", "KNOWS")
+    # # # Delete the relationship between "Alice" and "Bob"
+    # g.delete_relationship("Alice", "Bob", "KNOWS")
 
     # # Add a triple
-    g.add_triple("Alice", "Bob", "KNOWS", "Developer", "Designer")
+    # g.add_triple("Alice", "Bob", "KNOWS", "Developer", "Designer")
 
     # # Delete a triple
-    g.del_triple("Alice", "Bob", "KNOWS")
+    # g.del_triple("Alice", "Bob", "KNOWS")
 
     # # Delete all nodes and relationships
-    g.delete_all()
+    # g.delete_all()
 
     # Close the connection
     g.close()

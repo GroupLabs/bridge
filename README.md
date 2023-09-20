@@ -7,3 +7,4 @@ The notes directory is compatible with Obsidian. To use this with Obsidian, open
 The dev folder holds experiments, and related non-production ready code.
 
 
+https://www.kaggle.com/datasets/technika148/football-database?select=games.csv
