@@ -95,6 +95,7 @@ def metadata(input):
             metadata.name = name
             
             # get description from desc file
+            # This doesn't seem to work for now, takes all file and assuems they are .desc
             with open(f'{name}.desc', 'r') as f:
                 metadata.description = f.read()
             
