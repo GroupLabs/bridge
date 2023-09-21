@@ -65,14 +65,21 @@ class Metadata:
     def is_structured(self, value: bool):
         self._is_structured = value
         
-        
     @property
     def description(self):
         return self._description
 
     @description.setter
     def description(self, value: str):
-        self._description = value    
+        self._description = value
+    
+    @property
+    def content(self):
+        return self._content
+
+    @content.setter
+    def content(self, value):
+        self._content = value   
     
     def as_object(self):
         obj = {}
@@ -80,6 +87,17 @@ class Metadata:
         obj["extension"] = self._extension
         obj["structured"] = self._is_structured
         obj["description"] = self._description
+        
+        # structured
+        obj["content"] = {
+            "PKs" : [],
+            "FKs" : [],
+            "columns" : []
+        }
+        
+        # unstructured
+        obj["content"] = "file_path_toshard"
+        
         
         return obj
 
@@ -120,7 +138,7 @@ def metadata(input):
             # if unstructured:
             # store a new vs, content is vecstore fp
             # else
-            # store columns in content
+            # find_pk_fks
 
             else:
                 raise NotImplementedError(f"WARN: Unsupported {ext} extension.")
