@@ -80,6 +80,28 @@ class Graph:
         with self._driver.session() as session:
             session.execute_write(create_node, pandas_dataframe, name, primary_key, labels)
             
+    # Add Tree Traversal
+    # NODE TRAVERSAL
+    # MATCH path = (start:TABLE {name: 'Students'})-[*..3]->(end:TABLE {name: 'Classes'}) RETURN path;
+    # https://stackoverflow.com/questions/63563077/neo4j-how-to-return-all-paths-from-a-selected-starting-node
+    def node_traversal(self, name_node_one, name_node_two, max_traversal = 3):
+        def _node_traversal(tx, name_node_one, name_node_two, max_traversal):
+            query = f"""
+                MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
+                """
+            result = tx.run(query)
+            return result
+        with self._driver.session() as session:
+            traversal = session.execute_read(_node_traversal, name_node_one, name_node_two, max_traversal)   
+        return traversal
+        
+        # with self._driver.session() as session:
+        #     traversal = session.execute_read(lambda tx: tx.run(f"""
+        #         MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
+        #         """))
+            
+        #     return traversal
+            
     def add_relationship(self, name_node_one, name_node_two, relation_name):
         
         def add_relation(tx, name_node_one, name_node_two, relation_name):
@@ -119,7 +141,7 @@ class Graph:
     def add_triple(self, name1, name2, relation, description1, description2):
         with self._driver.session() as session:
             session.execute_write(self._add_triple, name1, name2, relation, description1, description2)
-
+    
     @staticmethod
     def _add_triple(tx, name1, name2, relation, description1, description2):
         query = """
@@ -151,8 +173,7 @@ if __name__ == "__main__":
     g.add_basic_node("Alice", labels="Developer", description=["temp", "eugenes lover"])
     g.add_basic_node("Bob", labels="Developer", description=["temp", "eugenes lover2"])
     
-    # NODE TRAVERSAL
-    # MATCH path = (start:TABLE {name: 'Students'})-[*..3]->(end:TABLE {name: 'Classes'}) RETURN path;
+
     
     # # Delete a single node
     # g.delete_node("Alice")
