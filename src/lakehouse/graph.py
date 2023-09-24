@@ -14,10 +14,44 @@ class Graph:
     def close(self):
         self._driver.close()
 
+    # Basic read query
+    def query(self, query: str):
+        records, summary, keys = self._driver.execute_query(
+            query
+        )
+        return records, summary, keys
+    
+    def node_traversal(self, name_node_one, name_node_two, max_traversal: int = 3):
+        query = f"""
+                MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
+                """
+        result = self.query(query)
+        return result
+            
+    # Add Tree Traversal
+    # NODE TRAVERSAL
+    # MATCH path = (start:TABLE {name: 'Students'})-[*..3]->(end:TABLE {name: 'Classes'}) RETURN path;
+    # https://stackoverflow.com/questions/63563077/neo4j-how-to-return-all-paths-from-a-selected-starting-node
+    # def node_traversal(self, name_node_one, name_node_two, max_traversal = 3):
+    #     def _node_traversal(tx, name_node_one, name_node_two, max_traversal):
+    #         query = f"""
+    #             MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
+    #             """
+    #         result = tx.run(query)
+    #         return result
+    #     with self._driver.session() as session:
+    #         return session.execute_read(_node_traversal, name_node_one, name_node_two, max_traversal)  
+        
+    #     # with self._driver.session() as session:
+    #     #     traversal = session.execute_read(lambda tx: tx.run(f"""
+    #     #         MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
+    #     #         """))
+            
+    #     #     return traversal
+
     # OPERATIONS
     def add_table_node(self, name, primary_key, columns, labels):
-        
-        def create_table(tx, name, primary_key, columns, labels):
+        def _create_table(tx, name, primary_key, columns, labels):
             query = f"""
             CREATE ({name}:{labels} {{name: "{name}", primaryKey: "{primary_key}", columns: {columns}}});
             """
@@ -26,11 +60,10 @@ class Graph:
             ).single()
             
         with self._driver.session() as session:
-            session.execute_write(create_table, name, primary_key, columns, labels)
+            session.execute_write(_create_table, name, primary_key, columns, labels)
             
     def add_basic_node(self, name, description, labels):
-        
-        def create_node(tx, name, description, labels):
+        def _create_node(tx, name, description, labels):
             query = f"""
             CREATE ({name}:{labels} {{name: "{name}", description: "{description}"}});
             """
@@ -39,24 +72,23 @@ class Graph:
             ).single()
             
         with self._driver.session() as session:
-            session.execute_write(create_node, name, description, labels)
+            session.execute_write(_create_node, name, description, labels)
     
     # Utility Functions
     def delete_all(self):
-        
-        def delete_all(tx):
+        def _delete_all(tx):
             query = "MATCH (n) DETACH DELETE n"
             return tx.run(
                 query
             )
             
         with self._driver.session() as session:
-            session.execute_write(delete_all)
+            session.execute_write(_delete_all)
             
     def delete_node(self, name):
         # need to delete relationships first, which is DETACH keyword
         # Node names SHOULD be unique - will add functionality to add query to check for unique names or else it will just delete all nodes with name
-        def delete_node_name(tx, name):
+        def _delete_node_name(tx, name):
             query = f"""
             MATCH (n {{name: "{name}"}}) DETACH DELETE n
             """
@@ -65,11 +97,11 @@ class Graph:
             )
         
         with self._driver.session() as session:
-            session.execute_write(delete_node_name, name)
+            session.execute_write(_delete_node_name, name)
             
     def add_pandas_table_node(self, pandas_dataframe, name, primary_key, labels):
         
-        def create_node(tx, pandas_dataframe, name, primary_key, labels):
+        def _create_node(tx, pandas_dataframe, name, primary_key, labels):
             query = f"""
             CREATE ({name}:{labels} {{name: "{name}", primaryKey: "{primary_key}", columns: {pandas_dataframe.columns.tolist()}}});
             """
@@ -78,33 +110,11 @@ class Graph:
             )
             
         with self._driver.session() as session:
-            session.execute_write(create_node, pandas_dataframe, name, primary_key, labels)
-            
-    # Add Tree Traversal
-    # NODE TRAVERSAL
-    # MATCH path = (start:TABLE {name: 'Students'})-[*..3]->(end:TABLE {name: 'Classes'}) RETURN path;
-    # https://stackoverflow.com/questions/63563077/neo4j-how-to-return-all-paths-from-a-selected-starting-node
-    def node_traversal(self, name_node_one, name_node_two, max_traversal = 3):
-        def _node_traversal(tx, name_node_one, name_node_two, max_traversal):
-            query = f"""
-                MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
-                """
-            result = tx.run(query)
-            return result
-        with self._driver.session() as session:
-            traversal = session.execute_read(_node_traversal, name_node_one, name_node_two, max_traversal)   
-        return traversal
-        
-        # with self._driver.session() as session:
-        #     traversal = session.execute_read(lambda tx: tx.run(f"""
-        #         MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
-        #         """))
-            
-        #     return traversal
+            session.execute_write(_create_node, pandas_dataframe, name, primary_key, labels)
             
     def add_relationship(self, name_node_one, name_node_two, relation_name):
         
-        def add_relation(tx, name_node_one, name_node_two, relation_name):
+        def _add_relation(tx, name_node_one, name_node_two, relation_name):
             query = f"""
             MATCH (a {{name : "{name_node_one}"}}), (b {{name: "{name_node_two}"}})
             CREATE (a) -[:{relation_name}]-> (b)
@@ -113,11 +123,20 @@ class Graph:
                 query
             )
         with self._driver.session() as session:
-            session.execute_write(add_relation, name_node_one, name_node_two, relation_name)
+            session.execute_write(_add_relation, name_node_one, name_node_two, relation_name)
+    
+    # Meant to add relationships of every direction to the knowledge graph. Built with list structure of a list of lists        
+    def add_list_key_relationships(self, table_relationships: list, relation_name: str):
+        for relationship in table_relationships:
+            node_one = relationship[0]
+            node_two = relationship[1] 
+            key = f"""{relation_name} {{key : "{relationship[2]}"}}"""
+            # print(node_one, node_two, key)
+            self.add_relationship(name_node_one= node_one, name_node_two= node_two, relation_name= key)
             
     def delete_relationship(self, name_node_one, name_node_two, relation_name):
         
-        def delete_relation(tx, name_node_one, name_node_two, relation_name):
+        def _delete_relation(tx, name_node_one, name_node_two, relation_name):
             query = f"""
             MATCH(a {{name : "{name_node_one}"}})-[r:{relation_name}]->(b {{name: "{name_node_two}"}})
             DELETE r
@@ -126,7 +145,7 @@ class Graph:
                 query
             )
         with self._driver.session() as session:
-            session.execute_write(delete_relation, name_node_one, name_node_two, relation_name)
+            session.execute_write(_delete_relation, name_node_one, name_node_two, relation_name)
     ## Bidirectional join function instead of single direction
     def add_bidirectional_relationship(self, name_node_one, name_node_two, name_relationship):
         self.add_relationship(name_node_one, name_node_two, name_relationship)
