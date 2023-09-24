@@ -212,7 +212,7 @@ class Storage:
     def create_relationship(self, name1, name2, relation):
         self.graph.add_bidirectional_relationship(name1, name2, relation)
     
-    def create_relationships_structured(self, input_list: list):
+    def _create_dictionary_structured(self, input_list: list):
         df_dict = {}
         for input in input_list:
             meta = metadata(input)
@@ -221,6 +221,9 @@ class Storage:
                 return
             name = meta.name
             df_dict[name] = meta.contents.get(name)
+        return df_dict
+    
+    def _auto_detect_relationships(self, df_dict : dict):
         table_relationships = []
         for table1, dict1 in df_dict.items():
             keys1 = dict1.get("keys")
@@ -231,6 +234,13 @@ class Storage:
                     if shared_keys:
                         for i, shared_key in enumerate(shared_keys, start = 1):
                             table_relationships.append((table1, table2, f"{table1}.{shared_key} = {table2}.{shared_key}", i))
+        return table_relationships
+    
+    def create_relationships_structured(self, input_list: list):
+        df_dict = self._create_dictionary_structured(input_list)
+        
+        table_relationships = self._auto_detect_relationships(df_dict)
+        
         for relationship in table_relationships:
             node_one = relationship[0]
             node_two = relationship[1] 
