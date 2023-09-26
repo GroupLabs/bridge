@@ -9,6 +9,7 @@ from vector_store import VectorStore
 from metadata import Metadata
 
 load_dotenv(find_dotenv())
+
 class Storage:
     def __init__(self, **kwargs):
         self.graph = Graph(
