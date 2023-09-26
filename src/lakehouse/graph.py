@@ -1,12 +1,10 @@
 # purpose: handle knowledge graph storage, and retrieval
-
 from neo4j import GraphDatabase
 import pandas as pd
 from dotenv import load_dotenv, find_dotenv
 import os
 
 class Graph:
-    
     # CONNECTION
     def __init__(self, uri, user, password):
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
@@ -146,6 +144,7 @@ class Graph:
             )
         with self._driver.session() as session:
             session.execute_write(_delete_relation, name_node_one, name_node_two, relation_name)
+            
     ## Bidirectional join function instead of single direction
     def add_bidirectional_relationship(self, name_node_one, name_node_two, name_relationship):
         self.add_relationship(name_node_one, name_node_two, name_relationship)
