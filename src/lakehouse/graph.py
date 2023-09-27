@@ -17,14 +17,27 @@ class Graph:
         records, summary, keys = self._driver.execute_query(
             query
         )
-        return records, summary, keys
+        return records # don't care about other things
     
     def node_traversal(self, name_node_one, name_node_two, max_traversal: int = 3):
         query = f"""
                 MATCH path = (START:TABLE {{name : "{name_node_one}"}})-[*..{max_traversal}]->(end:TABLE {{name: "{name_node_two}"}}) RETURN path;
                 """
         result = self.query(query)
-        return result
+        processed_dict = self._process_node_traversal_result(result)
+        return processed_dict
+    
+    def _process_node_traversal_result(self, result):
+        path_ways = {}
+        for index, record in enumerate(result):
+            relationships = []
+            for relationship in record[0]:
+                join = relationship.get("key")
+                relationships.append(join)
+                # print(join)
+            path_ways[f"path{index}"] = relationships
+        return path_ways
+    
             
     # Add Tree Traversal
     # NODE TRAVERSAL
