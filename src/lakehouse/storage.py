@@ -30,6 +30,8 @@ class Storage:
         
     def store(self, input):
         # generate file meta (struct/unstruct)
+        if input.endswith(".desc"):
+            return
         meta = Metadata.metadata(input)
         name = meta.name
         description = meta.description
@@ -64,6 +66,9 @@ class Storage:
     def _create_dictionary_structured(self, input_list: list):
         df_dict = {}
         for input in input_list:
+            if ".desc" in input:
+                print(f"Skipping {input} as it's a description file")
+                continue
             meta = Metadata.metadata(input)
             if not meta.is_structured:
                 print("This function is for structured data!")

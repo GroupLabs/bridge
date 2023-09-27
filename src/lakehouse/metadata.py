@@ -95,14 +95,17 @@ class Metadata:
         if isinstance(input, str):
             if os.path.exists(input):
                 file_name = os.path.basename(input) # Gets rid of file path if a file path is used
+                dir_path = os.path.dirname(input) # Need dir path
                 name, ext = os.path.splitext(file_name)
+                if (ext == '.desc'):
+                    return
                 
                 metadata.name = name
                 
                 # get description from desc file
                 # This doesn't seem to work for now, takes all file and assumes they are .desc
-                if os.path.exists(f'{name}.desc'):
-                    with open(f'{name}.desc', 'r') as f:
+                if os.path.exists(f'{dir_path}/{name}.desc'):
+                    with open(f'{dir_path}/{name}.desc', 'r') as f:
                         metadata.description = f.read()
                 else: 
                     print(f"No description file provided for {name}{ext}")
