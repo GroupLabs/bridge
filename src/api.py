@@ -1,5 +1,14 @@
-import fastapi
+from fastapi import FastAPI
+import os
+from dotenv import load_dotenv
 
+from lakehouse.storage import Storage
+
+app = FastAPI()
+
+@app.get("/health-check")
+async def health_res():
+    return {"health": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn
@@ -32,7 +41,5 @@ if __name__ == "__main__":
     if os.getenv('ENV') == "PROD":
         print("Please consider the following command to start the server:")
         print("\t EXPERIMENTAL: uvicorn your_app_module:app --workers 3")
-        
-    global health 
-    health = Health(status=Status.OK, ENV=os.getenv('ENV'))
+
     uvicorn.run(app, host="0.0.0.0", port=PORT)

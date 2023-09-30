@@ -4,35 +4,18 @@
     "type": "split",
     "children": [
       {
-        "id": "41e5e21cc418cce1",
+        "id": "46198aad0e5e46d3",
         "type": "tabs",
         "children": [
           {
-            "id": "d03f00e6249e554a",
+            "id": "af12425bbffbb95b",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Attention.md",
-                "mode": "source",
-                "source": false
-              }
-            }
-          },
-          {
-            "id": "748aebecc2a99b3e",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "vector storage.md",
-                "mode": "source",
-                "source": false
-              }
+              "type": "empty",
+              "state": {}
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -98,7 +81,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "vector storage.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -115,7 +97,6 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "vector storage.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -137,9 +118,7 @@
             "type": "leaf",
             "state": {
               "type": "outline",
-              "state": {
-                "file": "vector storage.md"
-              }
+              "state": {}
             }
           },
           {
@@ -169,12 +148,12 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "748aebecc2a99b3e",
+  "active": "af12425bbffbb95b",
   "lastOpenFiles": [
+    "vector storage.md",
     "storing relationships.md",
     "Lakehouse.md",
     "Attention.md",
-    "vector storage.md",
     "Bob.md",
     "Bb.md",
     "README.md",
