@@ -46,7 +46,7 @@ class Storage:
             self.graph.add_basic_node(name, description, labels="UNSTRUCTURED")
         
         # store vec (desc; meta: document name)
-        # self.vs.store_object(meta.as_object())
+        self.vs.store_object(meta.as_object())
         
     def save(self, name):
         # save/close conn of graph
