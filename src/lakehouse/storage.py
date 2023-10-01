@@ -46,14 +46,14 @@ class Storage:
             self.graph.add_basic_node(name, description, labels="UNSTRUCTURED")
         
         # store vec (desc; meta: document name)
-        self.vs.store_object(meta.as_object())
+        self.vec_store.store_object(meta.as_object())
         
     def save(self, name):
         # save/close conn of graph
         self.graph.close()
         
         # save index and values
-        # self.vs.save(name)
+        # self.vec_store.save(name)
         
     # Store a list of inputs
     def store_list(self, list: list):
@@ -101,6 +101,25 @@ class Storage:
             key = f"""JOIN {{key : "{relationship[2]}"}}"""
             # print(node_one, node_two, key)
             self.graph.add_relationship(name_node_one= node_one, name_node_two= node_two, relation_name= key)
+        
+    def query(self, input, k=-1):
+        
+        # query vector store
+        relevant_tables = self.vec_store.query(input, k)
+        
+        table_names = []
+        for _index, dictionary in enumerate(relevant_tables):
+            # Use dict.get() to safely get the value of the 'name' key if it exists,
+            # or None if it doesn't exist
+            name_value = dictionary.get('name')
+            
+            if name_value is not None:
+                table_names.append(name_value)
+        
+        # traversal
+        nodes = self.graph.node_traversal(table_names[0], table_names[1], 2)
+        
+        return nodes
 
 if __name__ == "__main__":
     storage = Storage()
