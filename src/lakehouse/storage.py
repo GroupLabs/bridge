@@ -4,9 +4,9 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import pandas as pd
 from enum import Enum
-from graph import Graph
-from vector_store import VectorStore
-from metadata import Metadata
+from .graph import Graph
+from .vector_store import VectorStore
+from .metadata import Metadata
 
 load_dotenv(find_dotenv())
 
@@ -53,7 +53,7 @@ class Storage:
         self.graph.close()
         
         # save index and values
-        # self.vec_store.save(name)
+        self.vec_store.save(name)
         
     # Store a list of inputs
     def store_list(self, list: list):

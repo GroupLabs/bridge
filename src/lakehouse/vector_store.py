@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 
 # modalities
-from ingestion.pdf import pdf_to_strings
+from .ingestion.pdf import pdf_to_strings
         
 class VectorStore:
     VEC_DIM = 768
@@ -21,9 +21,9 @@ class VectorStore:
             self.index = faiss.IndexFlatL2(self.VEC_DIM) # instantiate index
             self.values = []
         else:
-            with open(f"shards/{load_file}.pkl", "rb") as f:
+            with open(f"lakehouse/shards/{load_file}.pkl", "rb") as f:
                 self.index = pickle.load(f)
-            with open(f"shards/{load_file}.json", 'r') as f:
+            with open(f"lakehouse/shards/{load_file}.json", 'r') as f:
                 self.values = json.load(f)
     
     def embed(self, text): # create embedding from strings (and other modes later)

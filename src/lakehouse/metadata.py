@@ -1,4 +1,4 @@
-from  allowed_extensions import AllowedExtensions 
+from  .allowed_extensions import AllowedExtensions 
 import os
 import pandas as pd
 

@@ -4,25 +4,29 @@ from dotenv import load_dotenv
 
 from lakehouse.storage import Storage
 
+load_dotenv()
+
 app = FastAPI()
+storage = Storage(vec_store_loadfile=os.getenv('STORAGE'))
 
 @app.get("/health-check")
 async def health_res():
     return {"health": "healthy"}
 
+@app.post("/query")
+async def health_res(input):
+    
+    a = storage.query(input.input)
+    
+    return {"health": a}
+
 if __name__ == "__main__":
     import uvicorn
-
-    load_dotenv()
     
     PORT = 8000
 
     if not os.getenv('ENV'):
         print("Missing environment variable.")
-        exit(1)
-    
-    if not os.getenv('API_KEY'):
-        print("Missing API key.")
         exit(1)
 
     if os.getenv('ENV') == "DEBUG":
