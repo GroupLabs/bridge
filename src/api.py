@@ -16,7 +16,8 @@ async def health_res():
 @app.post("/query")
 async def health_res(input):
     
-    a = storage.query(input.input)
+    a = storage.vec_store.query("How many players are in a game?")
+    
     
     return {"health": a}
 

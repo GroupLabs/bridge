@@ -119,6 +119,8 @@ class Storage:
         # traversal
         nodes = self.graph.node_traversal(table_names[0], table_names[1], 2)
         
+        # T1 -> T2 -> T3
+        
         return nodes
 
 if __name__ == "__main__":
