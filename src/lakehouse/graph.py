@@ -212,17 +212,29 @@ class Graph:
         """ % relation
         tx.run(query, name1=name1, name2=name2)
         
+    def get_node_count(self):
+        with self._driver.session() as session:
+            session.execute_write(self._get_node_count)
+    
+    @staticmethod
+    def _get_node_count(tx):
+        # This Cypher query will count the number of nodes in the graph.
+        result = tx.run("MATCH (n) RETURN count(n) AS node_count")
+        return result.single()["node_count"]
+        
 if __name__ == "__main__":
-    g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973") # replace with your user, pass
+    load_dotenv()
     
-    g.delete_all()
-    g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973") 
-
-    # Add a single node
-    g.add_basic_node("Alice", labels="Developer", description=["temp", "eugenes lover"])
-    g.add_basic_node("Bob", labels="Developer", description=["temp", "eugenes lover2"])
+    g = Graph(os.getenv("GRAPH_URI"), os.getenv("GRAPH_USER"), os.getenv("GRAPH_PASS")) # replace with your user, pass
     
+    g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973")
+    
+    # g.delete_all()
+    # g = Graph("bolt://localhost:7687", "neo4j", "eternal-pyramid-corner-jester-bread-6973") 
 
+    # # Add a single node
+    # g.add_basic_node("Alice", labels="Developer", description=["temp", "eugenes lover"])
+    # g.add_basic_node("Bob", labels="Developer", description=["temp", "eugenes lover2"])
     
     # # Delete a single node
     # g.delete_node("Alice")
@@ -241,6 +253,9 @@ if __name__ == "__main__":
 
     # # Delete all nodes and relationships
     # g.delete_all()
+    
+    
+    print(g.get_node_count())
 
     # Close the connection
     g.close()
