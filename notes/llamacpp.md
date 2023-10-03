@@ -7,6 +7,7 @@ llama.cpp can be used to:
 
 
 ## 1. Build llama.cpp
+Check the github page for instruction to compile with the appropriate options for your GPU:
 ```
 git clone https://github.com/ggerganov/llama.cpp.git
 cd llama.cpp
@@ -16,17 +17,17 @@ python3 -m pip install -r requirements.txt
 
 
 ## 2. Models
-Models need to be downloaded and converted to ggml format. By default the ggml file is in f16 format, but it can be quantized to other format, trading size for perplexity (see https://github.com/ggerganov/llama.cpp#quantization)
+Models need to be downloaded and converted to ggml format. By default the ggml file is in f16 (floating point 16 bytes, not quantized) format, but it can be quantized to other format, trading size for perplexity (see https://github.com/ggerganov/llama.cpp#quantization)
 
 Downloading the original file can take a long time, it's worth keeping around the file in the format we've decided on. Note: When uploading a file on a google shared folder, the space is taken from the account of the owner of the file, i.e.: the uploader, not the owner of the shared drive!!
 
 ### Prerequisites
 * Install and build llama.cpp as describe above
 * Install the **git-lfs** extension (on Fedora: `sudo dns install -y git-lfs`)
-* A huggingface account - `git clone` will aks for your userid and password.
+* A Hugging Face account - `git clone` will aks for your userid and password.
 
 ### Download (clone) model
-Find the model you need on huggingface, the URL of the page where the model is described can be used as the git repository.  
+Find the model you need on Hugging Face, the URL of the page where the model is described can be used as the git repository.  
 Note: By default the model name in the URL starts with an upper case, but you can clone them all lower case.
 
 Warning: It looks as though Hugging Face is rate limiting, this can take a long time, 45 minutes to an hour for a 7B models.  
@@ -48,6 +49,26 @@ python3 ./convert.py models/llama-2-7b-chat-hf
 
 
 ## 4. Run llama.cpp
+### Options
+Options to tweak:
+* increase/remove token limit (`-n`): The default is 512! Use `-2` for unlimited, which did not give any issue with a proper prompt
+* number of threads (`-n`). Increasing thread improved timing. The default is 4
+* temperature (`--temp`): The default is 0.8, lowering it to 0.6 yield better result without paralysis (empty result, repeat of the question)
+* numa (--numa): slight performance increase (check if available on your hardware)
+
+### Prompt
+A few changes to the prompt made dramatic differences both in performance and accuracy (better code quality):
+* Use quotes around file names
+* use actual column header, and quote them. Do not let any space for guessing
+* enclose your query in `[INST]`/`[/INST]`
+* example of prompt which produced good runable code:
+```
+
+```
 
 
 ## 5. llama.cpp Python binding
+Note: Use options to make use of for your GPU
+* https://github.com/abetlen/llama-cpp-python
+* https://python.langchain.com/docs/integrations/llms/llamacpp
+
