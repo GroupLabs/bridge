@@ -18,6 +18,24 @@ class Graph:
             query
         )
         return records # don't care about other things
+    # https://graphacademy.neo4j.com/courses/graph-data-science-fundamentals/1-graph-algorithms/5-c-path-finding/
+    def shortest_path_traversal(self, name_node_one, name_node_two,):
+        query = f"""
+                MATCH
+                (source:TABLE {{name: '{name_node_one}'}}),
+                (target:TABLE {{name: '{name_node_two}'}}),
+                p = shortestPath((source)-[:JOIN*..15]-(target)) 
+                RETURN p
+                """
+        query_result = self.query(query)[0] # It's only 1 result anyway, just delisting it
+        path = query_result.get("p")
+        result = []
+        for relationship in path.relationships:
+            result.append(relationship.get("key"))
+        return result
+        # processed_dict = self._process_node_traversal_result(result)
+        # return processed_dict
+                # the :JOIN*..15 part of the above query just means that 15 is the MAX number of hops I set, so we don't get stuck in infinite loops
     
     def node_traversal(self, name_node_one, name_node_two, max_traversal: int = 3):
         query = f"""
