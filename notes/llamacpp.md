@@ -63,12 +63,14 @@ A few changes to the prompt made dramatic differences both in performance and ac
 * enclose your query in `[INST]`/`[/INST]`
 * example of prompt which produced good runable code:
 ```
-
+Generate python code to output the number of employee by department name given that I have a csv file "A.csv" with columns "first_name", "last_name" and "salary", a csv file "B.csv" with columns "employee_id" and "deparment_id" and a file "C.csv" with columns "department_id" and "department_name"
 ```
 
 
 ## 5. llama.cpp Python binding
-Note: Use options to make use of for your GPU
+Note: Use options to make use of for your GPU  
 * https://github.com/abetlen/llama-cpp-python
 * https://python.langchain.com/docs/integrations/llms/llamacpp
+
+Never managed to get a good answer. The answwers make more sense with higher temperature than with the binary llamacpp, but are never as good. The only difference I can see is `n_ctx_train` but cannot find a way to change, I assume it is a compile option.
 
