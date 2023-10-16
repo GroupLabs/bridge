@@ -1,0 +1,1 @@
+Can we use a SAT solver to find the dependencies in the graph? Is it faster?

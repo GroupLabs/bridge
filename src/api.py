@@ -2,7 +2,10 @@ from fastapi import FastAPI
 import os
 from dotenv import load_dotenv
 
+from serverutils import Query
+
 from lakehouse.storage import Storage
+from data_engine.engine import llm, decode_code, decode_files
 
 load_dotenv()
 
@@ -14,12 +17,55 @@ async def health_res():
     return {"health": "healthy"}
 
 @app.post("/query")
-async def health_res(input):
+async def query(input : Query):
     
-    a = storage.vec_store.query("How many players are in a game?")
+    if not input.model:
+        model = "codellama:13b"
+    else:
+        model = input.model
     
+    out = storage.vec_store.query(input.query)
     
-    return {"health": a}
+    out = decode_files(out)
+    
+    prompt = f"{input.query} Write python code and save the answer in a variable 'OUTPUT'. The relevant information is {out} Not all information is relevant. Remember to save the answer in OUTPUT."
+        
+    llm_raw = llm(prompt, model=model)
+    
+    llm_out = decode_code(llm_raw)
+    
+    return {"model" : model, "prompt" : prompt, "raw" : llm_raw, "output" : llm_out}
+
+@app.post("/debug/query-all-models")
+async def query(input : Query):
+    
+    models = ["zephyr", "llama2", "mistral", "codeup", "gpt-4", "codellama:13b"]
+    
+    resp = {}
+    
+    for model in models:
+        out = storage.vec_store.query(input.query)
+        
+        out = decode_files(out)
+        
+        prompt = f"{input.query} Write python code and save the answer in a variable 'OUTPUT'. The relevant information is {out}"
+            
+        llm_raw = llm(prompt, model=model)
+        
+        llm_out = decode_code(llm_raw)
+        
+        resp[model] = llm_out
+    
+    return {"prompt" : prompt, "res" : resp}
+
+@app.post("/debug/lakehouse")
+async def lakehouse(input : Query):
+    
+    out = storage.vec_store.query(input.query)
+    
+    out = decode_files(out)
+    
+    return {"output" : out}
 
 if __name__ == "__main__":
     import uvicorn
