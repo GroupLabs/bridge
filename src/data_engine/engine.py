@@ -41,7 +41,6 @@ def decode_files(input):
 def llm(prompt, context=[], model="mistral", url="http://localhost:11434/api/generate"):
     
     if model == "gpt-4":
-        print("Using GPT-4")
         prompt = prompt.replace('\u201c', '"').replace('\u201d', '"')
 
         completion = openai.ChatCompletion.create(

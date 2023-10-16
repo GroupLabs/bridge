@@ -13,6 +13,8 @@ health_endpoint = f"{url}/health-check"
 query_endpoint = f"{url}/query"
 query_debug_endpoint = f"{url}/query-debug"
 
+DEBUG = False
+
 # Streamlit UI
 st.title("Bridge Demo")
 
@@ -39,19 +41,14 @@ if query:
         st.write("Data discovery mechanism...")
         st.write("Dependency resolution...")
         st.write("Step planning...")
-    
-        if response.status_code == 200:
-            st.success(f"Server has a healthy response!")
-        else:
-            st.error(f"Failed to get response from server. Status code: {response.status_code}")
-            status.update(label=f"Status code: {response.status_code}", state="error", expanded=False)
             
         status.update(label=f"Bridge finished in {time.time() - start_time}s", state="running", expanded=False)
     
         st.write("Executing steps...")
         
         try:
-            st.code(response.json()["output"])
+            if DEBUG:
+                st.code(response.json()["output"])
             exec(response.json()["output"], globals(), locals())
         except Exception as e:
             status.update(label="Self-healing method A", state="running")
@@ -61,7 +58,8 @@ if query:
         
             response = requests.post(query_endpoint, json=payload)
             try:
-                st.code(response.json()["output"])
+                if DEBUG:
+                    st.code(response.json()["output"])
                 
                 exec(response.json()["output"], globals(), locals())
             except Exception as e:
@@ -78,7 +76,8 @@ if query:
         
             response = requests.post(query_endpoint, json=payload)
             try:
-                st.code(response.json()["output"])
+                if DEBUG:
+                    st.code(response.json()["output"])
                 
                 exec(response.json()["output"], globals(), locals())
             except Exception as e:
@@ -88,6 +87,12 @@ if query:
                 OUTPUT = locals()['OUTPUT']
             else:
                 OUTPUT = "No OUTPUT variable returned."
+                
+        if response.status_code == 200:
+            st.success(f"Server has a healthy response!")
+        else:
+            st.error(f"Failed to get response from server. Status code: {response.status_code}")
+            status.update(label=f"Status code: {response.status_code}", state="error", expanded=False)
                 
         status.update(label=f"Bridge finished in {time.time() - start_time}s", state="complete", expanded=False)
         

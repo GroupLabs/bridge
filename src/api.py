@@ -20,7 +20,7 @@ async def health_res():
 async def query(input : Query):
     
     if not input.model:
-        model = "codellama:13b"
+        model = "gpt-4"
     else:
         model = input.model
     
