@@ -1,12 +1,12 @@
 from enum import Enum
 
+
 class AllowedExtensions(Enum):
-    
     # structured
-    CSV = 'CSV'
-    TSV = 'TSV'
-    PARQUET = 'PARQUET'
-    
+    CSV = "CSV"
+    TSV = "TSV"
+    PARQUET = "PARQUET"
+
     # unstructured
-    TXT = 'TXT'
-    PDF = 'PDF'
+    TXT = "TXT"
+    PDF = "PDF"
