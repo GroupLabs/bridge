@@ -1,13 +1,16 @@
 import requests
 import json
-import openai
-from dotenv import load_dotenv
+from openai import OpenAI
 import os
+from dotenv import load_dotenv
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
 
 load_dotenv(".env")
 
 # init openai
-openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 
 def decode_code(generated_code):
@@ -48,15 +51,13 @@ def llm(prompt, context=[], model="mistral", url="http://localhost:11434/api/gen
     if model == "gpt-4":
         prompt = prompt.replace("\u201c", '"').replace("\u201d", '"')
 
-        completion = openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            stream=False,
-        )
+        completion = client.chat.completions.create(model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        stream=False)
 
         result = {
-            "content": completion["choices"][0]["message"]["content"],
+            "content": completion.choices[0].message.content,
             "completion": completion,
         }
 

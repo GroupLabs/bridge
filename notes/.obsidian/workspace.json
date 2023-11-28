@@ -4,15 +4,19 @@
     "type": "split",
     "children": [
       {
-        "id": "46198aad0e5e46d3",
+        "id": "b6ee4df94decfbb3",
         "type": "tabs",
         "children": [
           {
-            "id": "af12425bbffbb95b",
+            "id": "d13c3162bc56f86a",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {}
+              "type": "markdown",
+              "state": {
+                "file": "research/Bridge v4 Research.md",
+                "mode": "source",
+                "source": false
+              }
             }
           }
         ]
@@ -81,6 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "research/Bridge v4 Research.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -97,6 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
+                "file": "research/Bridge v4 Research.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -118,7 +124,9 @@
             "type": "leaf",
             "state": {
               "type": "outline",
-              "state": {}
+              "state": {
+                "file": "research/Bridge v4 Research.md"
+              }
             }
           },
           {
@@ -148,15 +156,25 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "af12425bbffbb95b",
+  "active": "d13c3162bc56f86a",
   "lastOpenFiles": [
+    "research/resources reccomended to us.md",
+    "research/Bridge v4 Research.md",
+    "research/postgresml.md",
+    "research/future lakehouse.md",
+    "README.md",
+    "meetings/kelly - Oct 16, 2023.md",
+    "future lakehouse.md",
     "vector storage.md",
+    "using openai.md",
     "storing relationships.md",
-    "Lakehouse.md",
+    "sat solver.md",
+    "resources reccomended to us.md",
+    "model repository.md",
     "Attention.md",
+    "Lakehouse.md",
     "Bob.md",
     "Bb.md",
-    "README.md",
     "requirements.txt",
     "dev"
   ]
