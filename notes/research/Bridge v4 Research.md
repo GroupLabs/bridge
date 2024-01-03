@@ -1,3 +1,5 @@
+> Hopefully, this note turns into a publishable paper
+
 We are building the integrative core that has a human-level system understanding. The first objective is to prove capabilities of semantic understanding of information contained in different data formats.
 
 > By "understanding" I only mean that it is reasonably able to transduce information from natural to machine language.
@@ -15,6 +17,8 @@ TF-IDF
 ### Transformers
 
 https://arxiv.org/abs/2304.10557
+[https://ig.ft.com/generative-ai/](https://ig.ft.com/generative-ai/) (Only works in Chrome)
+https://arxiv.org/abs/2311.01906
 #### Attention
 
 Attention is all you need (https://arxiv.org/abs/1706.03762)
@@ -23,5 +27,7 @@ Attention is all you need (https://arxiv.org/abs/1706.03762)
 
 
 ## Optimizations
-
+[https://x.com/amanrsanger/status/1728502445184274710?s=46&t=C-lAPJA8zJecpJNV1n8ILg](https://x.com/amanrsanger/status/1728502445184274710?s=46&t=C-lAPJA8zJecpJNV1n8ILg)
+https://twitter.com/finbarrtimbers/status/1727741345983574439?s=46&t=C-lAPJA8zJecpJNV1n8ILg
+https://twitter.com/marktenenholtz/status/1730987646929776940?s=46&t=C-lAPJA8zJecpJNV1n8ILg
 # 2. Dependency Resolution

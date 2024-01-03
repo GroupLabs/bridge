@@ -7,7 +7,12 @@ import base64
 
 from pdf_gen import *
 
-from pdf_utiils import pdf_to_image, handle_uploaded_file
+from pdf_utils import pdf_to_image, handle_uploaded_file, Prompt
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 chroma_path = './chroma/'
 client = chromadb.PersistentClient(path=chroma_path)
@@ -28,6 +33,21 @@ nlp = pipeline(
     "document-question-answering", 
     model="impira/layoutlm-invoices"
 )
+
+def decode_code(generated_code):
+    try:
+        split_text = generated_code.split("```")
+        split_text = split_text[1] if len(split_text) > 1 else ""
+        extracted_code = split_text.lstrip("`").rstrip("`").lstrip("python")
+
+        # Encode and decode to utf-8
+        sanitized_code = extracted_code.encode("utf-8", "ignore").decode("utf-8")
+
+        return sanitized_code
+
+    except Exception as e:
+        print("An exception occurred:", e)
+        return ""
 
 
 if "thread" not in st.session_state:
@@ -126,28 +146,49 @@ if mode == "View PDF":
     else:
         st.write("No PDF uploaded.")
         
-# if mode == "Generate":
-#         if prompt := st.chat_input("Enter your response here"):
-        
-#             st.session_state.gen_thread.append({"role" : "user", "content" : prompt})
-        
-#             with st.chat_message("user"):
-#                 st.write(prompt)
+if mode == "Generate":
+    
+    inference_endpoint = 'https://api.openai.com/v1/chat/completions'
+    
+    HEADERS = {
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {os.getenv("OPENAI_API_KEY")}'
+    }
+    
+    pdf_template_obj = Prompt()
+    
+    if prompt := st.chat_input("Enter your response here"):
+    
+        st.session_state.gen_thread.append({"role" : "user", "content" : prompt})
+    
+        with st.chat_message("user"):
+            st.write(prompt)
 
-#             with st.chat_message("assistant"):
+        with st.chat_message("assistant"):
 
-#                 data = {
-#                     "query" : prompt,
-#                 }
+            data = {
+                "model" : "gpt-4-1106-preview",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt + "\n\nUse the following as a template to updated:\n" + pdf_template_obj.pdf_template + "Only return code. My career depends on you returning full code. I am going to put your code in an exec(). Make sure it is only code. Do not comment out the execution part."
+                    }
+                ]
+            }
 
-#                 with st.spinner(''):
+            with st.spinner(''):
+                
+                try:
+                    # Send a POST request to the API endpoint
+                    response = requests.post(inference_endpoint, headers=HEADERS, data=json.dumps(data)).json()
+                except Exception as e:
+                    st.write(e)
                     
-#                     try:
-#                         # Send a POST request to the API endpoint
-#                         response = requests.post(inference_endpoint, headers=HEADERS, data=json.dumps(data)).json()
-#                     except Exception as e:
-#                         st.write(e)
-                        
-#                     st.session_state.thread.append({"role" : "assistant", "content" : ans[0]['answer'], "confidence": ans[0]['score']})
-#                     st.write(response)
-#                     # st.markdown(f"confidence: {ans[0]['score']}")
+                code = decode_code(response['choices'][0]['message']['content'])
+                    
+                st.session_state.thread.append({"role" : "assistant", "content" : response['choices'][0]['message']['content']})
+                st.code(code)
+                
+                pdf_template_obj.pdf_template = code
+                
+                exec(code)

@@ -49,85 +49,18 @@ class PDFPSReport:
         self.elements = []
 
         # colors - Azul turkeza 367AB3
-        self.colorOhkaGreen0 = Color((45.0/255), (166.0/255), (153.0/255), 1)
-        self.colorOhkaGreen1 = Color((182.0/255), (227.0/255), (166.0/255), 1)
-        self.colorOhkaGreen2 = Color((140.0/255), (222.0/255), (192.0/255), 1)
-        #self.colorOhkaGreen2 = Color((140.0/255), (222.0/255), (192.0/255), 1)
         self.colorOhkaBlue0 = Color((54.0/255), (122.0/255), (179.0/255), 1)
         self.colorOhkaBlue1 = Color((122.0/255), (180.0/255), (225.0/255), 1)
         self.colorOhkaGreenLineas = Color((50.0/255), (140.0/255), (140.0/255), 1)
-
-        self.firstPage()
-        
-        self.nextPagesHeader(True)
         
         for key in data:
         
             self.TableMaker(key)
             self.elements.append(PageBreak())
-
-        self.summaryTableMaker()
         
         # Build
         self.doc = SimpleDocTemplate(path, pagesize=LETTER)
         self.doc.multiBuild(self.elements, canvasmaker=FooterCanvas)
-
-    def firstPage(self):
-        img = Image('static/lr.png', kind='proportional')
-        img.drawHeight = 1*inch
-        img.drawWidth = 1*inch
-        img.hAlign = 'LEFT'
-        self.elements.append(img)
-
-        spacer = Spacer(30, 100)
-        self.elements.append(spacer)
-
-        img = Image('static/ohka.png')
-        img.drawHeight = 2*inch
-        img.drawWidth = 2*inch
-        self.elements.append(img)
-
-        spacer = Spacer(10, 250)
-        self.elements.append(spacer)
-
-        psDetalle = ParagraphStyle('Resumen', fontSize=9, leading=14, justifyBreaks=1, alignment=TA_LEFT, justifyLastLine=1)
-        text = """INVOICE FOR PROFESSIONAL SERVICES<br/>
-        Deliver to: GroupLabs<br/>
-        Initiated: 23-Oct-2023<br/>
-        """
-        paragraphReportSummary = Paragraph(text, psDetalle)
-        self.elements.append(paragraphReportSummary)
-        self.elements.append(PageBreak())
-
-    def nextPagesHeader(self, isSecondPage):
-        if isSecondPage:
-            psHeaderText = ParagraphStyle('Hed0', fontSize=16, alignment=TA_LEFT, borderWidth=3, textColor=self.colorOhkaGreen0)
-            text = 'Sessions Report'
-            paragraphReportHeader = Paragraph(text, psHeaderText)
-            self.elements.append(paragraphReportHeader)
-
-            spacer = Spacer(10, 10)
-            self.elements.append(spacer)
-
-            d = Drawing(500, 1)
-            line = Line(-15, 0, 483, 0)
-            line.strokeColor = self.colorOhkaGreenLineas
-            line.strokeWidth = 2
-            d.add(line)
-            self.elements.append(d)
-
-            spacer = Spacer(10, 1)
-            self.elements.append(spacer)
-
-            d = Drawing(500, 1)
-            line = Line(-15, 0, 483, 0)
-            line.strokeColor = self.colorOhkaGreenLineas
-            line.strokeWidth = 0.5
-            d.add(line)
-            self.elements.append(d)
-
-            spacer = Spacer(10, 22)
-            self.elements.append(spacer)
 
     def TableMaker(self, title):        
         psHeaderText = ParagraphStyle('Hed0', fontSize=12, alignment=TA_LEFT, borderWidth=3, textColor=self.colorOhkaBlue0)
@@ -195,76 +128,11 @@ class PDFPSReport:
         table.setStyle(tStyle)
         self.elements.append(table)
 
-    def summaryTableMaker(self):
-        psHeaderText = ParagraphStyle('Hed0', fontSize=12, alignment=TA_LEFT, borderWidth=3, textColor=self.colorOhkaBlue0)
-        text = 'REGISTERED Total Hours'
-        paragraphReportHeader = Paragraph(text, psHeaderText)
-        self.elements.append(paragraphReportHeader)
-
-        spacer = Spacer(10, 22)
-        self.elements.append(spacer)
-        """
-        Create the line items
-        """
-
-        tStyle = TableStyle([
-                   ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                   #('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                   ("ALIGN", (1, 0), (1, -1), 'RIGHT'),
-                   ('LINEABOVE', (0, 0), (-1, -1), 1, self.colorOhkaBlue1),
-                   ('BACKGROUND',(-2, -1),(-1, -1), self.colorOhkaGreen2)
-                   ])
-
-        fontSize = 8
-        lineData = [["Remote Sessions", "30:15"],
-                    ["On Site Sessions", "00:00"],
-                    ["Other Activities", "00:00"],
-                    ["Total Hours", "30:15"]]
-
-        # for row in lineData:
-        #     for item in row:
-        #         ptext = "<font size='%s'>%s</font>" % (fontSize-1, item)
-        #         p = Paragraph(ptext, centered)
-        #         formattedLineData.append(p)
-        #     data.append(formattedLineData)
-        #     formattedLineData = []
-
-        table = Table(lineData, colWidths=[400, 100])
-        table.setStyle(tStyle)
-        self.elements.append(table)
-
-        # Total Hours contradas vs horas consumidas
-        data = []
-        formattedLineData = []
-
-        lineData = [["Total Hours", "120:00"],
-                    ["Hours Consumed", "00:00"]]
-
-        # for row in lineData:
-        #     for item in row:
-        #         ptext = "<b>{}</b>".format(item)
-        #         p = Paragraph(ptext, self.styleSheet["BodyText"])
-        #         formattedLineData.append(p)
-        #     data.append(formattedLineData)
-        #     formattedLineData = []
-
-        table = Table(lineData, colWidths=[400, 100])
-        tStyle = TableStyle([
-                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                ("ALIGN", (1, 0), (1, -1), 'RIGHT'),
-                ('BACKGROUND', (0, 0), (1, 0), self.colorOhkaBlue1),
-                ('BACKGROUND', (0, 1), (1, 1), self.colorOhkaGreen1),
-                ])
-        table.setStyle(tStyle)
-
-        spacer = Spacer(10, 50)
-        self.elements.append(spacer)
-        self.elements.append(table)
-
 
 if __name__ == '__main__':
     
     data = ["Remote Sessions", "On-Site Sessions", "Other Activities"]
+    
     name = 'invoice.pdf'
     
     report = PDFPSReport(name, data)

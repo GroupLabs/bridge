@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "b6ee4df94decfbb3",
+        "id": "b25dcd824946a606",
         "type": "tabs",
         "children": [
           {
-            "id": "d13c3162bc56f86a",
+            "id": "a7d21948fbad6385",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -156,11 +156,12 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "d13c3162bc56f86a",
+  "active": "a7d21948fbad6385",
   "lastOpenFiles": [
-    "research/resources reccomended to us.md",
+    "research/Bridge capability 2.md",
     "research/Bridge v4 Research.md",
     "research/postgresml.md",
+    "research/resources reccomended to us.md",
     "research/future lakehouse.md",
     "README.md",
     "meetings/kelly - Oct 16, 2023.md",

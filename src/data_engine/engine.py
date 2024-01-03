@@ -11,8 +11,6 @@ load_dotenv(".env")
 
 # init openai
 
-
-
 def decode_code(generated_code):
     try:
         split_text = generated_code.split("```")
