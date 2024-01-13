@@ -8,6 +8,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 
+
 class VectorStore:
     VEC_DIM = 768
     EMBEDDING_MODEL_NAME = "msmarco-distilbert-base-tas-b"
