@@ -1,10 +1,9 @@
-Name,Description
-48 Hours Notice,Grantee shall provide Grantor with 48 hours notice prior to commencement of the intended activity:
-Addendum Copy,The Grantee must have copy of this Addendum onsite of construction at all times during their operations s0 as to be made available to the Grantors representative upon request
-Trespass,"Addendum(s) will not be fully executed until proof of payment has been submitted. Additionally, trespass fee will be imposed if grantee is found using the road without a fully executed agreement Trespass fee must be paid in full prior to commencing activity"
-Additional Charges,Additional charges will apply if Grantor's annual surface lease rentals are increased as a result of Grantee's activity under this Agreement:
-Affiliates,The Master Road Use Agreement shall be binding upon the Grantor any of its affiliates or subsidiaries and their respective successors (by reason of amalgamation or name change) and the Grantee The Grantor agrees to provide notice to the Grantee within a reasonable time of any amalgamation or name change affecting the Grantor: and
-Expiry,In addition to clause 20. on CAPLA's Version III Master Road Use Agreement; the expiry date of this Addendum will be one year from the effective date of this Addendum if the Grantee's operationslconstruction has not commenced_ etantorhac Imnlemanted cortain Oate cnerationc +C comnlan Iith the AER The Grantee
-Gates,contact Grantor's field representative to discuss these operations so there is no confusion as t0 what the expectations are. If the Grantee wants to amend these operations with the AER then the Grantee must discuss their proposal with Grantor's field representative and it must be approved by all parties involved_
-Grantee,IT tne Grantee IS going TO nave excessive traiTic tnen tney may pe requestea t0 proviae some Kina OT dust control on the Grantor's roads_
-Maintenance Fees,For Nvon-vvellsite rOau use auuenuums (Kiset= Fialt Olles boltow compressors Elc. maintenance fees charged as per the road use fee schedule shall begin to accrue as per the effective date of the addendum and the grantee will be invoiced monthly thereafter: For all Wellsite road use addendums maintenance fees charged as per the road use fee schedule shall begin to accrue as per the spud date of each well and the Grantee will be invoiced monthly thereafter
+Model Name,nparams,nlayers,dmodel,nheads,dhead,Batch Size,Learning Rate
+GPT-3 Small,125M,12,768,12,64,0.5M,6.0 x 10
+GPT-3 Medium,350M,24,1024,16,64,0.SM,3.0 x 10
+GPT-3 Large,760M,24,1536,16,96,0.SM,2.5 X 10
+GPT3XL,1.3B,24,2048,24,128,1M,20x10
+GPT32 7B,2 7B,32,2560,32,80,1M,1.6 * 10
+GPT3 6. 7B,6.7B,32,4096,32,128,2M,12x10_
+GPT3 13B,13.OB,40,5140,40,128,2M,LOx1O
+GPT3175B or GPT-3',1750B,96,12288,96,128,32M,06x10
