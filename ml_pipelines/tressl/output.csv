@@ -1,9 +1,10 @@
-dim,4096
-layers,32
-hhead_ dim,128
-hidden dim,14336
-heads,
-n kv heads,
-window size,4096
-context len,8192
-vocab_ size,32000
+[20],"Baptiste Roziere, Jonas Gehring; Fabian Gloeckle, Sten Sootla, Itai Gat, Xiaoqing Ellen Tan Yossi Adi, Jingyu Liu, Tal Remez, Jeremy Rapin, et al. Code llama: Open foundation models for code. arXiv preprint arXiv:2308.12950,2023."
+[21,"Keisuke Sakaguchi, Ronan Le Bras, Chandra Bhagavatula, and Yejin Choi. Winogrande: An adversarial winograd schema challenge at scale. Communications of the ACM,64(9).99-106_ 2021."
+[22C,"Maarten Sap, Hannah Rashkin, Derek Chen, Ronan LeBras, and Yejin Choi. Socialiqa: Com monsense reasoning about social interactions. arXiv preprint arKiv: 1904.09728,2019."
+[23C,"Mirac Suzgun, Nathan Scales, Nathanael Scharli, Sebastian Gehrmann, Yi Hyung Won Chung; Aakanksha Chowdhery, Quoc V Le, Ed H Chi, Denny Zhou, and Jason  Wei_ Challenging big-bench tasks and whether chain-of-thought can solve them: arXiv preprint arXiv:2210.09261,2022. Tay;"
+[24,"Alon Talmor; Jonathan Herzig; Nicholas Lourie, and Jonathan Berant: Commonsenseqa: A ques tion answering challenge targeting commonsense knowledge. arXiv preprint arKiv: 1811.00937_ 2018"
+[25C,"Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timo thee Lacroix, Baptiste Roziere, Naman Goyal, Eric Hambro, Faisal Azhar; et al. Llama: Open and efficient foundation language models arKiv preprint arKiv:2302.139712023."
+[260,"Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei_ Nikolay Bashlykov, Soumya Batra; Prajjwal Bhargava, Shruti Bhosale, et al. Llama 2: Open foundation and fine-tuned chat models_ arXiv preprint arXiv:2307.09288,2023."
+[27,"Ashish Vaswani, Noam Shazeer; Niki Parmar; Jakob Uszkoreit; Llion Jones, Aidan N Gomez Lukasz Kaiser; and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems, 30, 2017."
+[28C,"Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, and Yejin Choi. Hellaswag: Can a machine really finish your sentence? arXiv preprint arXiv: 1905.07830, 2019."
+[29C,"Wanjun Zhong; Ruixiang Cui, Yiduo Guo, Yaobo Shuai Lu, Yanlin Wang, Amin Saied_ Weizhu Chen; and Nan Duan. Agieval: A human-centric benchmark for evaluating foundation models. arXiv preprint arXiv:2304.06364,2023. Liang;"

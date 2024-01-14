@@ -387,6 +387,8 @@ def apply_ocr(cell_coordinates, cropped_table):
     # return as Pandas dataframe
     df = pd.read_csv("output.csv")
 
+    os.remove("output.csv")
+
     return df, data
 
 
