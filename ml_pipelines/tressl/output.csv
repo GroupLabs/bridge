@@ -1,0 +1,9 @@
+dim,4096
+layers,32
+hhead_ dim,128
+hidden dim,14336
+heads,
+n kv heads,
+window size,4096
+context len,8192
+vocab_ size,32000

@@ -25,7 +25,7 @@ def load_models():
 
 model_lst = load_models()
 
-from vector_store import VectorStore
+from ml_pipelines.tressl.dev.vector_store import VectorStore
 
 vs = VectorStore()
 

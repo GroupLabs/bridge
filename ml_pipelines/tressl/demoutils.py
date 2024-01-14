@@ -3,10 +3,6 @@ import shutil
 import PyPDF2
 import os
 
-from marker.convert import convert_single_pdf
-from marker.models import load_all_models
-import json
-
 import streamlit as st
 
 @st.cache_data
@@ -18,26 +14,6 @@ def save_uploaded_file(uploaded_file):
     except Exception as e:
         print(e)
         return None
-
-@st.cache_resource
-def load_models():
-    return load_all_models()
-
-model_lst = load_models()
-
-def marker(pdf_path):
-    full_text, out_meta = convert_single_pdf(pdf_path, model_lst, max_pages=None, parallel_factor=2)
-
-    out_path = f'{pdf_path}_marked.md'
-
-    with open(out_path, "w+", encoding='utf-8') as f:
-        f.write(full_text)
-
-    out_meta_filename = out_path.rsplit(".", 1)[0] + "_meta.json"
-    with open(out_meta_filename, "w+") as f:
-        f.write(json.dumps(out_meta, indent=4))
-
-    return full_text
 
 from pdf2image import convert_from_path
 from PIL import Image
