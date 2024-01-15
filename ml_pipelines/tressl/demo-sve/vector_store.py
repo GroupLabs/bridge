@@ -46,6 +46,9 @@ class VectorStore:
         if k == -1:
             k = len(self.values)  # use max number of values as k
 
+        if k <= 0:
+            k = 1
+
         query_vec = self.embed(input).reshape(1, -1)
         distances, indices = self.index.search(query_vec, k)
 
