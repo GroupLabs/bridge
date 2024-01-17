@@ -1,8 +1,13 @@
-https://github.com/obsproject/obs-studio
+https://github.com/obsproject/obs-studio (+compressor?)
 
 + 
 
 https://github.com/TheDuckAI/DuckTrack
 
++ 
 
-Correlation
+Salesforce Integration
+
++
+
+Correlation Analysis -> Predictive model
