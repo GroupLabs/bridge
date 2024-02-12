@@ -7,7 +7,12 @@
 # https://www.youtube.com/watch?v=Hg4ahTQlBm0
 # https://github.com/neo4j/graph-data-science-client
 
+# 1.1.1 Loading MySQL/Postgres (and other supported by neo4j data importer)
+# 1.1.2 Loading documents and genersting relationships
+
 # 1.2 colbert indexing (vespa)
+# https://pyvespa.readthedocs.io/en/latest/examples/mother-of-all-embedding-models-cloud.html
+# https://github.com/vespa-engine/pyvespa/blob/master/docs/sphinx/source/examples/mother-of-all-embedding-models-cloud.ipynb
 
 # 2 target search
 
