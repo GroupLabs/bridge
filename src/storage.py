@@ -9,8 +9,9 @@ load_dotenv(find_dotenv())
 
 
 class Connector:
-    def __init__(self):
-        pass
+    def __init__(self, search: Search, graph: Graph):
+        self.search = search
+        self.graph = graph
 
     def __repr__(self) -> str:
         standard_methods = [
@@ -42,17 +43,22 @@ class Connector:
             "__subclasshook__",
             "__weakref__",
         ]
-        return str([method for method in dir(self) if method not in standard_methods])
 
-    def pdf():
-        # unstructured -> vespa (happens under the hood)
-        # neo4j
-        pass
+        data = [
+            "search",
+            "graph",
+        ]
 
-    def sql():
-        # unstructured -> vespa
-        # neo4j data importer
-        pass
+        return f"available connectors: {str([method for method in dir(self) if method not in (standard_methods + data)])}"
+
+    def pdf(self, input):
+        self.search.pdf(input)
+        self.graph.pdf(input)
+
+    # def sql(self):
+    #     # unstructured -> vespa
+    #     # neo4j data importer
+    #     pass
 
 
 class Storage:
@@ -63,14 +69,15 @@ class Storage:
             kwargs.get("graph_pass", os.getenv("GRAPH_PASS")),
         )
 
-        # self.search = Search()
+        self.search = Search()
+
+        self.connector = Connector(self.search, self.graph)
 
     def __repr__(self):
         r = ""
-        r = r + "Graph: \n"
-        # r = r + f".... storing {len(self.graph)} value(s)" # graph info
-        r = r + "Search: \n"
-        # r = r + f".... storing {len(self.search)} value(s)"
+        r = str(self.graph)
+        r = r + "\n"
+        r = r + str(self.search)
 
         return r
 
@@ -81,7 +88,8 @@ class Storage:
         description = meta.description
 
         # invoke the apppropriate connector
-        # if meta.extension
+        if meta.extension == "PDF":
+            self.connector.pdf(input)
 
     def save(self):
         pass
@@ -95,7 +103,7 @@ class Storage:
 if __name__ == "__main__":
     storage = Storage()
 
-    c = Connector()
+    c = Connector(storage.search, storage.graph)
 
     print(storage)
 
