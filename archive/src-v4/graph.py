@@ -48,10 +48,18 @@ class Graph:
                 _create_node, elements[0].metadata.to_dict()["filename"]
             )
 
+    def sql():
+        # https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwio5cLh3qeEAxXSLzQIHQm7BCs4ChAWegQICRAB&url=https%3A%2F%2Fdl.acm.org%2Fdoi%2F10.1145%2F2484425.2484426&usg=AOvVaw1SSCXxig-TYumhrc3fJ_GK&opi=89978449
+        # https://medium.com/neo4j/tap-into-hidden-connections-translating-your-relational-data-to-graph-d3a2591d4026
+        pass
+
     # algorithms
 
     def correlation():
         # https://neo4j.com/docs/graph-data-science/current/algorithms/pregel-api/
+
+        # prevent cyclic graphs!
+        # https://neo4j.com/docs/graph-data-science/current/algorithms/dag/topological-sort/#topological-sort-cycles
         pass
 
     # utils
@@ -66,18 +74,4 @@ class Graph:
 
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
-    g = Graph(os.getenv("GRAPH_URI"), os.getenv("GRAPH_USER"), os.getenv("GRAPH_PASS"))
-
-    g.delete_all()
-
-    g.pdf(
-        "/Users/noelthomas/Documents/GitHub/Bridge/data/datasets/pdf_tressl/Summary Report.pdf"
-    )
-
-    print(len(g))
-
-    print(g)
+    pass

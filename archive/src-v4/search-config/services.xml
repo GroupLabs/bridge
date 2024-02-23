@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <services version="1.0">
-    <container id="search_container" version="1.0">
+    <container id="pdfs_container" version="1.0">
         <search></search>
         <document-api></document-api>
         <document-processing></document-processing>
@@ -13,11 +13,11 @@
             <tokenizer-model url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"/>
         </component>
     </container>
-    <content id="search_content" version="1.0">
+    <content id="pdfs_content" version="1.0">
         <redundancy>1</redundancy>
         <documents>
-            <document type="pdf" mode="index"></document>
-            <document-processing chain="indexing" cluster="search_container" />
+            <document type="pdf" mode="streaming"></document>
+            <document-processing chain="indexing" cluster="pdfs_container" />
         </documents>
         <nodes>
             <node distribution-key="0" hostalias="node1"></node>

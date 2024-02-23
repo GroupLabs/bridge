@@ -12,6 +12,9 @@ schema pdf {
         field authors type array<string> {
             indexing: summary | index
         }
+        field metadata type map<string,string> {
+            indexing: summary | index
+        }
         field page type int {
             indexing: summary | attribute
         }

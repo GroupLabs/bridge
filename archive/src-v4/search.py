@@ -89,14 +89,4 @@ class Search:
 
 
 if __name__ == "__main__":
-    s = Search()
-
-    s.pdf(
-        "/Users/noelthomas/Documents/GitHub/Bridge/data/datasets/pdf_tressl/Summary Report.pdf"
-    )
-
-    s.query("List of projects")
-
-    print(len(s))
-
-    print(s)
+    pass
