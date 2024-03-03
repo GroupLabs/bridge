@@ -38,36 +38,50 @@ class Storage:
     def query(
         self,
         query: str,
-        yql: str = "select id,title,page,chunkno,chunk_text from chunk where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+        yql: str = "select id, url, title, page, chunkno, authors, text from chunk where userQuery() or ({targetHits:20}nearestNeighbor(embedding,q))",
+        hits: int = 3,
         ranking: str = "colbert",
     ):
-        response: VespaQueryResponse = self.app.query(
+        response:VespaQueryResponse = self.app.query(
             yql=yql,
             groupname="all",
             ranking=ranking,
             query=query,
+            hits = hits,
             body={
                 "presentation.format.tensors": "short-value",
-                f"input.query(q)": 'embed(e5, "{query}")',
-                f"input.query(qt)": 'embed(colbert, "{query}")',
-            },
+                "input.query(q)": f"embed(e5, \"query: {query} \")",
+                "input.query(qt)": f"embed(colbert, \"query: {query} \")"
+            }
         )
-
-        return response.hits
+        if not response.is_successful():
+            raise ValueError(f"Query failed with status code {response.status_code}, url={response.url} response={response.json}")
+        
+        return response
+    
+    def load_db(self):
+        pass
 
     def load_data(self, filepath: str):    
         # checks for illegal paths and returns type
         pathtype = get_pathtype(filepath)
 
+        # unstructured
         if pathtype == "pdf":
             self._pdf(filepath)
+
+        elif pathtype == "txt":
+            pass
+
+        # structured
         elif pathtype == "dir":
+            # os.walkdir
+
             # check if database yamls
             if os.path.basename(filepath) == "noelthomas":
                 self._db()
         else:
-            print(pathtype)
-            raise NotImplementedError("File type is not supported.")
+            raise NotImplementedError(f"File ({pathtype}) type is not supported.")
 
         return pathtype
     
@@ -81,11 +95,11 @@ class Storage:
             groupname= "all"
         )
 
-    def _pdf(self, input):
+    def _pdf(self, filepath):
         # assume schema exists
 
         # elements = partition_pdf(input, strategy="fast", chunking_strategy="by_title")
-        elements = partition_pdf(input, strategy="hi_res", chunking_strategy="by_title")
+        elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy="by_title")
 
         for i, e in enumerate(elements):
             vespa_id = f"{e.metadata.to_dict()['filename']}#{e.metadata.to_dict()['page_number']}#{i}"
@@ -102,7 +116,7 @@ class Storage:
                 "id": hash_value,
                 "authors": [],
                 "chunkno": i,
-                "chunk_text": chunk,
+                "text": chunk,
             }
 
             self._upload(schema="chunk", data_id=hash_value, fields=fields)
@@ -130,7 +144,7 @@ class Storage:
                         "id": hash_value,
                         "authors": [],
                         "chunkno": i,
-                        "chunk_text": data[os.path.basename(filepath).split(".")[0]]["semantic_context"],
+                        "text": data[os.path.basename(filepath).split(".")[0]]["semantic_context"],
                     }
 
                     self._upload(schema="chunk", data_id=hash_value, fields=fields)

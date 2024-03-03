@@ -33,7 +33,10 @@ async def health_res():
 @app.post("/load")
 async def load(input: Load):
 
-    s.load_data(input.filepath)
+    try:
+        s.load_data(input.filepath)
+    except NotImplementedError:
+        return {"health": health, "status" : "fail", "reason" : "file type not implemented"}
 
     return {"health": health, "status" : "success"}
 
