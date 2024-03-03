@@ -1,5 +1,4 @@
 import os
-import enum
 
 from magika import Magika
 
@@ -20,7 +19,7 @@ def get_pathtype(filepath: str):
 
 
 if __name__ == "__main__":
-    print(get_pathtype("test"))
+    print(get_pathtype("api.py"))
     
 
 # result = magika.identify_bytes(b"# Example\nThis is an example of markdown!")
