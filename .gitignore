@@ -22,3 +22,6 @@ __pycache__/
 # storage artifacts
 *.pkl
 *.json
+
+*.yaml
+*.yml
