@@ -6,13 +6,17 @@ import yaml
 from vespa.io import VespaQueryResponse
 from vespa.application import Vespa
 
+from celery import Celery
+
 from unstructured.partition.pdf import partition_pdf
 
+from log import setup_logger
 from typeutils import get_pathtype
-from celery import Celery
 
 VESPA_URL = "http://localhost:8080/"
 CELERY_BROKER_URL = "amqp://guest:guest@localhost"
+
+logger = setup_logger()
 
 celery_app = Celery(
     "worker",
@@ -35,6 +39,7 @@ def get_vespa_app():
     global vespa_app
     if vespa_app is None:
         vespa_app = Vespa(url=VESPA_URL)
+        logger.info("Initialized Vespa.")
     return vespa_app
 
 # def __len__(self) -> int:
@@ -75,6 +80,8 @@ def query(
     if not response.is_successful():
         raise ValueError(f"Query failed with status code {response.status_code}, url={response.url} response={response.json}")
     
+    logger.info("Query fulfilled successfully.")
+
     return response
 
 @celery_app.task(name="load_data_task")
@@ -97,7 +104,10 @@ def load_data(filepath: str):
         if os.path.basename(filepath) == "noelthomas":
             _db()
     else:
+        logger.warning("unsupported filetype encountered.")
         raise NotImplementedError(f"File ({pathtype}) type is not supported.")
+    
+    logger.info(f"Loading data from {pathtype}")
 
     return pathtype
     
