@@ -5,7 +5,7 @@ from vespa.package import Schema, Document, Field, FieldSet, ApplicationPackage,
    
 pdf_schema = Schema(
             name="pdf",
-            mode="streaming",
+            mode = "streaming",
             document=Document(
                 fields=[
                     Field(name="id", type="string", indexing=["summary"]),
@@ -97,16 +97,16 @@ pdf_schema.add_rank_profile(colbert)
 vespa_application_package.to_files("VespaApp")
 
 
-# import shutil
-# import os
+import shutil
+import os
 
 # Your existing code to define the application package goes here...
 
 # Define the directory where the application files will be written
-# application_dir = r'C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes_Nodes\VespaApp\\'
+application_dir = r'C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes_Nodes\VespaApp\\'
 
 # # Define the name for the zip file
-# zip_name = 'my_vespa_app_package'
+zip_name = 'my_vespa_app_package'
 
 # # Create the zip archive
-# shutil.make_archive(application_dir + zip_name, 'zip', application_dir)
+shutil.make_archive(application_dir + zip_name, 'zip', application_dir)

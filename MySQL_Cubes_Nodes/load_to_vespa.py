@@ -8,8 +8,15 @@ from dotenv import load_dotenv, find_dotenv
 from vespa.package import Schema, Document, Field, FieldSet, ApplicationPackage, Component, Parameter, RankProfile, Function, FirstPhaseRanking, SecondPhaseRanking
 import hashlib
 import unicodedata
+from vespa.application import Vespa
+from vespa.deployment import VespaDocker
+from vespa.io import VespaQueryResponse
 
 load_dotenv()
+
+vespa_endpoint = 'http://localhost:8080/'
+
+app = Vespa(url = vespa_endpoint)
 
 def sample_pdfs():
     return [
@@ -78,29 +85,48 @@ for pdf in sample_pdfs():
           my_docs_to_feed.append(fields)
           
 
+from typing import Iterable
+def vespa_feed(user:str) -> Iterable[dict]:
+    for doc in my_docs_to_feed:
+        yield {
+            "fields": doc,
+            "id": doc["id"],
+            "groupname": "all"
+        }
+
+from vespa.io import VespaResponse
+
+def callback(response:VespaResponse, id:str):
+    if not response.is_successful():
+        print(f"Document {id} failed to feed with status code {response.status_code}, url={response.url} response={response.json}")
+
+app.feed_iterable(schema="pdf", iter=vespa_feed("all"), namespace="personal", callback=callback)
+
 import requests
 import json
 
 # Your Vespa endpoint
-vespa_endpoint = 'http://localhost:8080/document/v1/'
 
 # Feed each document
-headers = {"Content-Type": "application/json"}
-for doc in my_docs_to_feed:
-    document_id = f"id:pdf:pdf::{doc['id']}"
-    url = f"{vespa_endpoint}pdf/pdf/docid/{doc['id']}"
-    data = json.dumps({"fields": doc})
-    response = requests.post(url, data=data, headers=headers)
-    print(response.json())
+# headers = {"Content-Type": "application/json"}
+# for doc in my_docs_to_feed:
+#     document_id = f"id:pdf:pdf::{doc['id']}"
+#     url = f"{vespa_endpoint}pdf/pdf/docid/{doc['id']}"
+#     data = json.dumps({"fields": doc})
+#     response = requests.post(url, data=data, headers=headers)
+#     print(response.json())
 
+response:VespaQueryResponse = app.query(
+    yql="select id,title,page,chunkno,chunk from pdf where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+    groupname="all",
+    ranking="colbert",
+    query="why is colbert effective?",
+    body={
+        "presentation.format.tensors": "short-value",
+        "input.query(q)": "embed(e5, \"why is colbert effective?\")",
+        "input.query(qt)": "embed(colbert, \"why is colbert effective?\")",
+    }
+)
 
-query = 'Efficient Retrieval'
-vespa_query_endpoint = f"{vespa_endpoint}search/"
-params = {
-    'yql': f'select * from sources * where userQuery() contains "{query}";',
-    'hits': 10,
-    'summary': 'short',
-    'timeout': '1.0s'
-}
-response = requests.get(vespa_query_endpoint, params=params)
-print(response.json())
+print(json.dumps(response.hits[0], indent=2))
+
