@@ -44,7 +44,7 @@ async def get_task_result(task_id: str):
 # returns ok
 
 @app.post("/load")
-async def load_endpoint(input: Load):
+async def load_data(input: Load):
     try:
         task = load_data.delay(input.filepath)
         return {"status": "success", "task_id": task.id}
@@ -57,7 +57,7 @@ async def load_endpoint(input: Load):
 # returns distance
 
 @app.get("/query")
-async def query_endpoint(input: Query):
+async def nl_query(input: Query):
 
     resp = query(input.query)
 
@@ -79,35 +79,28 @@ if __name__ == "__main__":
 
     load_dotenv()
     
-    PORT = 8000
-    
-    # if os.getenv('PORT'):
-    #     PORT = int(os.getenv('PORT'))
+    PORT = int(os.getenv('API_PORT', 8000))
 
-    # if not os.getenv('ENV'):
-    #     print("Missing environment variable.")
-    #     exit(1)
-    
-    # if not os.getenv('API_KEY'):
-    #     print("Missing API key.")
-    #     exit(1)
+    if not os.getenv('ENV'): # requires environment declaration
+        print("Missing environment variable.")
+        exit(1)
 
-    # if os.getenv('ENV') == "DEBUG":
-    #     import socket
+    if os.getenv('ENV') == "DEBUG":
+        import socket
 
-    #     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    #     try: 
-    #         s.connect(("8.8.8.8", 80))
-    #         ip_address = s.getsockname()[0]
+        try: 
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()[0]
 
-    #         print("\n\nServer available @ http://" + ip_address + ":" + str(PORT) + "\n\n")
-    #     except OSError as e:
-    #         print(e)
+            print("\n\nServer available @ http://" + ip_address + ":" + str(PORT) + "\n\n")
+        except OSError as e:
+            print(e)
 
-    # if os.getenv('ENV') == "PROD":
-    #     print("Please consider the following command to start the server:")
-    #     print("\t EXPERIMENTAL: uvicorn your_app_module:app --workers 3")
+    if os.getenv('ENV') == "PROD":
+        print("Please consider the following command to start the server:")
+        print("\t EXPERIMENTAL: uvicorn your_app_module:app --workers 3")
         
     global health 
     health = Health(status=Status.OK, ENV=os.getenv('ENV'))
