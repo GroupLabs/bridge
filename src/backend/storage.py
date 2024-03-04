@@ -3,17 +3,20 @@ import unicodedata
 import os
 import yaml
 
-from vespa.deployment import VespaDocker
 from vespa.io import VespaQueryResponse
+from vespa.application import Vespa
 
 from unstructured.partition.pdf import partition_pdf
 
 from typeutils import get_pathtype
 from celery import Celery
 
+VESPA_URL = "http://localhost:8080/"
+CELERY_BROKER_URL = "amqp://guest:guest@localhost"
+
 celery_app = Celery(
     "worker",
-    broker="amqp://guest:guest@localhost",  # Default RabbitMQ credentials
+    broker=CELERY_BROKER_URL,  # Default RabbitMQ credentials
     backend="rpc://",  # Use RPC as the backend with RabbitMQ
 )
 
@@ -31,11 +34,7 @@ vespa_app = None
 def get_vespa_app():
     global vespa_app
     if vespa_app is None:
-        name = "search"
-        app_root = "./search-config"
-        vespa_app = VespaDocker().deploy_from_disk(
-            application_name=name, application_root=app_root
-        )
+        vespa_app = Vespa(url=VESPA_URL)
     return vespa_app
 
 # def __len__(self) -> int:
@@ -77,9 +76,6 @@ def query(
         raise ValueError(f"Query failed with status code {response.status_code}, url={response.url} response={response.json}")
     
     return response
-
-def load_db():
-    pass
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str):    

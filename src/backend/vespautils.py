@@ -2,6 +2,11 @@ from vespa.package import Schema, Document, Field, FieldSet
 from vespa.package import ApplicationPackage, Component, Parameter
 from vespa.package import RankProfile, Function, FirstPhaseRanking, SecondPhaseRanking
 
+from vespa.deployment import VespaDocker
+
+VESPA_NAME = "search"
+VESPA_APP_ROOT = "./search-config"
+
 def create_config():
     
     chunk_schema = Schema(
@@ -98,5 +103,13 @@ def create_config():
 
     vespa_application_package.to_files("search-config")
 
+def create_vespa_container():
+
+    VespaDocker().deploy_from_disk(
+        application_name=VESPA_NAME, 
+        application_root=VESPA_APP_ROOT
+    )
+
 if __name__ == "__main__":
     create_config()
+    create_vespa_container()

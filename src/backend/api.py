@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Response
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
@@ -26,17 +26,16 @@ app = FastAPI(lifespan=lifespan)
 async def health_endpoint():
     return {"health": health}
 
-@app.get("/task/{task_id}/status")
-async def get_task_status(task_id: str):
-    task = load_data.AsyncResult(task_id)
-    return {"task_id": task_id, "status": task.state}
 
-@app.get("/task/{task_id}/result")
+@app.get("/task/{task_id}")
 async def get_task_result(task_id: str):
     task = load_data.AsyncResult(task_id)
-    if task.state == 'SUCCESS':
-        result = task.get(timeout=1)
-        return {"task_id": task_id, "status": task.state, "result": result}
+
+    # return result obj
+    # if task.state == 'SUCCESS':
+    #     result = task.get(timeout=1)
+    #     return {"task_id": task_id, "status": task.state, "result": result}
+    
     return {"task_id": task_id, "status": task.state}
 
 # load collection (dir)/document (pdf, txt) or database (postgres, mssql, duckdb)/table (csv, tsv, parquet)
@@ -44,13 +43,14 @@ async def get_task_result(task_id: str):
 # returns ok
 
 @app.post("/load")
-async def load_data(input: Load):
+async def load_data_ep(input: Load, response: Response):
     try:
         task = load_data.delay(input.filepath)
-        return {"status": "success", "task_id": task.id}
+        response.status_code = 202
+        return {"status": "accepted", "task_id": task.id}
     except NotImplementedError:
-        return {"health": health, "status" : "fail", "reason" : "file type not implemented"}
-    
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
 # search
 # accepts NL query
@@ -68,7 +68,7 @@ async def nl_query(input: Query):
         prompt += "Use the following for context:\n"
         prompt += " ".join(context_list)
 
-    return {"health": health, "status" : "success", "resp" : [x["fields"]["text"] for x in resp.hits]}
+    return {"health": health, "status" : "success", "resp" : [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
 
 

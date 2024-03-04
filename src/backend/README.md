@@ -13,3 +13,11 @@ unstructured is not fork-safe. use threads instead
 celery -A storage worker --loglevel=info -P threads
 
 run: python api.py
+
+
+
+Other:
+
+gives 10 threads, and 2 unique workers. task assignment is handled
+celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker1@%h &
+celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker2@%h &
