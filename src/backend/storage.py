@@ -9,14 +9,34 @@ from vespa.io import VespaQueryResponse
 from unstructured.partition.pdf import partition_pdf
 
 from typeutils import get_pathtype
-from celery_config import celery_app
+from celery import Celery
 
-name="search"
-app_root="./search-config"
-
-app = VespaDocker().deploy_from_disk(
-    application_name=name, application_root=app_root
+celery_app = Celery(
+    "worker",
+    broker="amqp://guest:guest@localhost",  # Default RabbitMQ credentials
+    backend="rpc://",  # Use RPC as the backend with RabbitMQ
 )
+
+# Optional: Celery configuration
+celery_app.conf.update(
+    task_serializer='json',
+    accept_content=['json'],  # Ignore other content
+    result_serializer='json',
+    timezone='Europe/London',
+    enable_utc=True,
+)
+
+vespa_app = None
+
+def get_vespa_app():
+    global vespa_app
+    if vespa_app is None:
+        name = "search"
+        app_root = "./search-config"
+        vespa_app = VespaDocker().deploy_from_disk(
+            application_name=name, application_root=app_root
+        )
+    return vespa_app
 
 # def __len__(self) -> int:
 #     return self.app.query(
@@ -40,6 +60,7 @@ def query(
     hits: int = 3,
     ranking: str = "colbert",
 ):
+    app = get_vespa_app()
     response:VespaQueryResponse = app.query(
         yql=yql,
         groupname="all",
@@ -85,6 +106,8 @@ def load_data(filepath: str):
     return pathtype
     
 def _upload(schema: str, data_id: str, fields: dict):
+
+    app = get_vespa_app()
 
     app.feed_data_point(
         schema=schema,
