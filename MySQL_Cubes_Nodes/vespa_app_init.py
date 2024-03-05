@@ -1,7 +1,18 @@
 import pandas as pd 
 import numpy as np 
-from vespa.package import Schema, Document, Field, FieldSet, ApplicationPackage, Component, Parameter, RankProfile, Function, FirstPhaseRanking, SecondPhaseRanking
+from vespa.package import Schema, Document, Field, StructField, FieldSet, ApplicationPackage, Component, Parameter, RankProfile, Function, FirstPhaseRanking, SecondPhaseRanking, Struct
 
+from vespa.deployment import VespaDocker
+
+# Define the struct that represents the complex type
+dimension_struct = Struct(
+    name="dimension",
+    fields=[
+        Field(name="name", type="string"),
+        Field(name="type", type="string"),
+        Field(name="sql", type="string")
+    ]
+)
    
 yaml_schema = Schema(
             name="yamls",
@@ -11,7 +22,7 @@ yaml_schema = Schema(
                     Field(name="id", type="string", indexing=["summary"]),
                     Field(name="name", type="string", indexing=["summary", "index"]),
                     Field(name="sql_name", type="string", indexing=["summary", "index"]),
-                    Field(name="dimensions", type="array<string>", indexing=["summary", "index"]),
+                    Field(name="dimensions", type = "dimension" ,indexing=["summary", "index"]),
                     Field(name="joins", type="array<string>", indexing=["summary", "index"]),
                     Field(name="metadata", type="map<string,string>", indexing=["summary", "index"]),
                     Field(name="chunkno", type="int", indexing=["summary", "attribute"]),
@@ -31,7 +42,8 @@ yaml_schema = Schema(
             ),
             fieldsets=[
                 FieldSet(name = "default", fields = ["name", "chunk"])
-            ]
+            ],
+            structs = dimension_struct
 )
 
 vespa_app_name = "yamls"
@@ -96,6 +108,8 @@ colbert = RankProfile(
 yaml_schema.add_rank_profile(colbert)
 vespa_application_package.to_files("VespaAppYamls")
 
+vespa_container = VespaDocker()
+vespa_connection = vespa_container.deploy(application_package=vespa_application_package)
 
 import shutil
 import os

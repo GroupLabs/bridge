@@ -1,5 +1,10 @@
 schema yamls {
     document yamls {
+        struct dimension {
+            field name type string {}
+            field type type string {}
+            field sql type string {}
+        }
         field id type string {
             indexing: summary
         }
@@ -9,8 +14,17 @@ schema yamls {
         field sql_name type string {
             indexing: summary | index
         }
-        field dimensions type array<string> {
+        field dimensions type array<dimension> {
             indexing: summary | index
+            struct-field name {
+                indexing: summary | index
+            }
+            struct-field type{
+                indexing: summary | index
+            }
+            struct-field sql{
+                indexing: summary | index
+            }
         }
         field joins type array<string> {
             indexing: summary | index
