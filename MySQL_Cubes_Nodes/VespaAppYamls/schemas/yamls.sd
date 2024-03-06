@@ -4,6 +4,8 @@ schema yamls {
             field name type string {}
             field type type string {}
             field sql type string {}
+            field foreign_key type string {}
+            field primary_key type string {}
         }
         field id type string {
             indexing: summary

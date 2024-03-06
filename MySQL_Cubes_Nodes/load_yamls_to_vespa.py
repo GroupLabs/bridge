@@ -61,7 +61,7 @@ for yaml_content in yamls:
               "name" : yaml_content['name'],
               "sql_name" : yaml_content['sql_name'],
               "dimensions": yaml_content['dimensions'],
-              "joins": yaml_content['joins'] if 'joins' in yamls[0].keys() else "",
+              "joins": yaml_content['joins'] if 'joins' in yamls[0].keys() else [""],
               "chunkno": doc_id,
               "chunk": doc
           }
@@ -90,3 +90,16 @@ app.feed_iterable(schema="yamls", iter=vespa_feed("all"), namespace="personal", 
 
 
 
+response:VespaQueryResponse = app.query(
+    yql="select name,chunkno,chunk from yamls where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+    groupname="all",
+    ranking="colbert",
+    query="what apples to choose?",
+    body={
+        "presentation.format.tensors": "short-value",
+        "input.query(q)": "embed(e5, \"what apples to choose?\")",
+        "input.query(qt)": "embed(colbert, \"what apples to choose?\")",
+    }
+)
+
+print(json.dumps(response.hits[0], indent=2))
