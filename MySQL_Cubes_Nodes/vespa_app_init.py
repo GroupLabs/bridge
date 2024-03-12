@@ -1,6 +1,6 @@
 import pandas as pd 
 import numpy as np 
-from vespa.package import Schema, Document, Field, StructField, FieldSet, ApplicationPackage, Component, Parameter, RankProfile, Function, FirstPhaseRanking, SecondPhaseRanking, Struct
+from vespa.package import Schema, Document, Field, StructField, FieldSet, ApplicationPackage, Component, Parameter, RankProfile, Function, FirstPhaseRanking, SecondPhaseRanking, Struct, Array
 
 from vespa.deployment import VespaDocker
 
@@ -10,7 +10,9 @@ dimension_struct = Struct(
     fields=[
         Field(name="name", type="string"),
         Field(name="type", type="string"),
-        Field(name="sql", type="string")
+        Field(name="sql", type="string"),
+        Field(name = "foreign_key", type = "tring"),
+        Field(name = "primary_key", type = "tring")
     ]
 )
    
@@ -22,7 +24,7 @@ yaml_schema = Schema(
                     Field(name="id", type="string", indexing=["summary"]),
                     Field(name="name", type="string", indexing=["summary", "index"]),
                     Field(name="sql_name", type="string", indexing=["summary", "index"]),
-                    Field(name="dimensions", type = "dimension" ,indexing=["summary", "index"]),
+                    Field(name="dimensions", type = "array<dimension>" ,indexing=["summary", "index"], struct_field=dimension_struct),
                     Field(name="joins", type="array<string>", indexing=["summary", "index"]),
                     Field(name="metadata", type="map<string,string>", indexing=["summary", "index"]),
                     Field(name="chunkno", type="int", indexing=["summary", "attribute"]),
@@ -43,7 +45,7 @@ yaml_schema = Schema(
             fieldsets=[
                 FieldSet(name = "default", fields = ["name", "chunk"])
             ],
-            structs = dimension_struct
+            struct = [dimension_struct]
 )
 
 vespa_app_name = "yamls"
@@ -106,7 +108,7 @@ colbert = RankProfile(
 )
 
 yaml_schema.add_rank_profile(colbert)
-vespa_application_package.to_files("VespaAppYamls")
+vespa_application_package.to_files("VespaAppYamls-test")
 
 vespa_container = VespaDocker()
 vespa_connection = vespa_container.deploy(application_package=vespa_application_package)

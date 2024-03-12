@@ -3,8 +3,9 @@ import numpy as np
 import mysql.connector
 import pandas.io.sql as psql
 import os
-from dotenv import load_dotenv
-load_dotenv()
+from datasets import load_dataset
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv(r"C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes_Nodes\.env"))
 
 mydb = mysql.connector.connect(
     host = "localhost",
@@ -14,6 +15,83 @@ mydb = mysql.connector.connect(
 )
 
 mycursor = mydb.cursor()
+
+dataset = load_dataset("inria-soda/tabular-benchmark", data_files="reg_cat/house_sales.csv")
+dataset = pd.DataFrame(dataset["train"])
+
+house_id = pd.Series(np.random.choice(range(0, len(dataset)), len(dataset), replace=False))
+
+houses_part1 = dataset.iloc[:, :9]
+houses_part2 = dataset.iloc[:, 9:]
+
+houses_part1["house_id"] = house_id
+houses_part2["house_id_foreign"] = house_id
+
+mycursor.execute("""
+                    CREATE TABLE HOUSE_P1 (bedrooms INT, 
+                    bathrooms float,
+                    sqft_living int,
+                    sqft_lot int,
+                    waterfront int,
+                    garde int,
+                    sqft_above int,
+                    sqft_basement int,
+                    yr_built int,
+                    house_id int primary key
+                    )
+                    """)
+
+mycursor.execute("""
+                    CREATE TABLE HOUSE_P2 (yr_renovated int, 
+                    lat float,
+                    `long` float,
+                    sqft_living15 int,
+                    sqft_lot15 int,
+                    date_year int,
+                    date_month int,
+                    date_day int,
+                    price float,
+                    house_id_foreign int,
+                    foreign key (house_id_foreign) references house_p1(house_id)
+                    )
+                    """)
+
+for id, row in houses_part2.iterrows():
+    
+    mycursor.execute("""
+                     INSERT INTO HOUSE_P2 (
+                        yr_renovated,
+                        lat, 
+                        `long`, 
+                        sqft_living15, 
+                        sqft_lot15, 
+                        date_year, 
+                        date_month, 
+                        date_day, 
+                        price, 
+                        house_id_foreign
+                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s)                     
+                     """, (row["yr_renovated"], row["long"], row["lat"], row["sqft_living15"], row["sqft_lot15"], row["date_year"], row["date_month"], row["date_day"], row["price"], row["house_id_foreign"]))
+
+mydb.commit()
+
+for id, row in houses_part1.iterrows():
+    mycursor.execute("""
+                     
+                     INSERT INTO HOUSE_P1 (
+                         bedrooms, 
+                         bathrooms,
+                         sqft_living,
+                         sqft_lot,
+                         waterfront,
+                         garde,
+                         sqft_above,
+                         sqft_basement,
+                         yr_built,
+                         house_id
+                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s,%s, %s)
+                     
+                     """, (row["bedrooms"], row["bathrooms"], row["sqft_living"], row["sqft_lot"], row["waterfront"], row["grade"], row["sqft_above"], row["sqft_basement"], row["yr_built"], row["house_id"]))
 
 sales_df = pd.read_csv(r"../data/Amazon Sale Report.csv")
 sales_df.columns = sales_df.columns.str.strip()

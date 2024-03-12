@@ -5,8 +5,8 @@ import yaml
 
 from neo4j import GraphDatabase
 import os 
-from dotenv import load_dotenv
-load_dotenv()
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv(r"C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes_Nodes\.env"))
 
 ### THIS HAS TO BE RUN 2 TIMES TO CAPTURE ALL FK,PK RELATIONSHIPS
 
@@ -81,13 +81,12 @@ class GraphCreator:
         
         # Extend this method to handle relationships based on your YAML structure
 
-# Example Usage
 uri = os.getenv("GRAPH_URI")
 username = os.getenv("GRAPH_USER")
 password = os.getenv("GRAPH_PWD")
 graph_creator = GraphCreator(uri, username, password)
 graph_creator.test_connection()
-yamls_path = r'C:\Users\Eugene\Documents\GroupLabs\MySQL_Cubes\MySql\cubes\\'  # Update this path to your YAML file
+yamls_path = r'C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes_Nodes\MySql\models\cubes\\'  # Update this path to your YAML file
 
 for cube in os.listdir(yamls_path):
 
@@ -97,3 +96,5 @@ for cube in os.listdir(yamls_path):
 graph_creator.close()
 
 ### TO DO - ERROR HANDLING
+### TO DO - check for duplicate relationships
+### TO DO - think about the way what you can change JOINS to for more specific semantic relationship between entities (understand why it matters)

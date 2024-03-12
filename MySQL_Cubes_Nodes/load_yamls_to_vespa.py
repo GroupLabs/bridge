@@ -91,7 +91,7 @@ app.feed_iterable(schema="yamls", iter=vespa_feed("all"), namespace="personal", 
 
 
 response:VespaQueryResponse = app.query(
-    yql="select name,chunkno,chunk from yamls where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+    yql="select name,chunkno,chunk, dimensions from yamls where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
     groupname="all",
     ranking="colbert",
     query="what apples to choose?",
