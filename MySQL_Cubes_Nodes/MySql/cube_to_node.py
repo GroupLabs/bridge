@@ -109,3 +109,7 @@ graph_creator.close()
 ### TO DO - ERROR HANDLING
 ### TO DO - check for duplicate relationships
 ### TO DO - think about the way what you can change JOINS to for more specific semantic relationship between entities (understand why it matters)
+
+#Q1 - hwo do we choose tables to traverse?
+#Q2 - do we want dynamyc relationship names generation? with openai
+#Q3 - do i need to comprise everything I've done in one nice pipeline foe MySQLnd Postgres?
