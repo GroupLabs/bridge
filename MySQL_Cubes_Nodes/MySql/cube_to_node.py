@@ -13,7 +13,17 @@ load_dotenv(find_dotenv(r"C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes
 class GraphCreator:
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
-
+    
+    def execute(self, query):
+        records = []
+        
+        with self.driver.session() as session:
+            result  = session.run(query)
+            for record in result:
+                records.append(record)
+                    
+        return records
+        
     def close(self):
         self.driver.close()
 
@@ -33,21 +43,21 @@ class GraphCreator:
             return result.single() is not None
 
     def create_graph_from_yaml(self, yaml_data):
-        with self.driver.session() as session:
+        with self.driver.session() as session:            
             # Check if the table node already exists
             if not self.table_exists(yaml_data['name']):
                 session.write_transaction(self._create_table_node_with_dimensions, yaml_data)
-                if 'joins' in yaml_data:
+                if ('joins' in yaml_data) :
                     for join in yaml_data['joins']:
                         session.write_transaction(self._create_join_relationship, yaml_data['name'], join)
             else:
                 print(f"Table node for '{yaml_data['name']}' already exists. Skipping creation. Double-checking relationships...")
                 
-                if 'joins' in yaml_data:
+                if ('joins' in yaml_data) :
                     for join in yaml_data['joins']:
                         session.write_transaction(self._create_join_relationship, yaml_data['name'], join)
 
-    @staticmethod
+    @staticmethod    
     def _create_table_node_with_dimensions(tx, table_info):
         # Serialize dimensions for storage in the node
         dimensions = yaml.dump(table_info.get('dimensions', []))
@@ -73,6 +83,7 @@ class GraphCreator:
     
     @staticmethod
     def _create_join_relationship(tx, table_name, join_info):
+        
         # Create a relationship based on the join information
         tx.run("""
             MATCH (t1:Table {name: $table_name}), (t2:Table {name: $join_name})
