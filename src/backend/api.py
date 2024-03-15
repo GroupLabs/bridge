@@ -4,12 +4,16 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
 
+from log import setup_logger
 from storage import load_data, query
 from serverutils import Health, Status, Load, Query
 from ollama import chat
 
 
 PROD = True
+
+logger = setup_logger("api")
+logger.info("LOGGER READY")
 
 # https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
@@ -37,7 +41,7 @@ async def get_task_result(task_id: str):
     # if task.state == 'SUCCESS':
     #     result = task.get(timeout=1)
     #     return {"task_id": task_id, "status": task.state, "result": result}
-    
+
     return {"task_id": task_id, "status": task.state}
 
 # load collection (dir)/document (pdf, txt) or database (postgres, mssql, duckdb)/table (csv, tsv, parquet)
@@ -49,8 +53,10 @@ async def load_data_ep(input: Load, response: Response):
     try:
         task = load_data.delay(input.filepath)
         response.status_code = 202
+        logger.info(f"LOAD success: {input.filepath}")
         return {"status": "accepted", "task_id": task.id}
     except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {input.filepath}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
@@ -70,14 +76,14 @@ async def nl_query(input: Query):
         prompt += "Use the following for context:\n"
         prompt += " ".join(context_list)
 
+    logger.info(f"QUERY success: {input.query}")
     return {"health": health, "status" : "success", "resp" : [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
 @app.get("/llm")
 async def llm_query(input: Query):
     messages = [{"role": "user", "content": input.query}]
     
-    # asynchronous generator
-    chat_stream = chat(messages)
+    chat_stream = chat(messages) # asynchronous generator
 
     return StreamingResponse(chat_stream, media_type="text/plain")
 
@@ -112,4 +118,5 @@ if __name__ == "__main__":
         
     global health 
     health = Health(status=Status.OK, ENV=os.getenv('ENV'))
+    logger.info("SYSTEM READY")
     uvicorn.run(app, host="0.0.0.0", port=PORT)

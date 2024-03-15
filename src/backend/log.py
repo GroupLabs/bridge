@@ -17,10 +17,13 @@ def get_log_level_from_str(log_level_str: str = LOG_LEVEL) -> int:
 
 def setup_logger(
     name: str = __name__,
+    logfile_name: str = None,
     log_level: int = logging.INFO,
-    logfile_name: str | None = None,
 ) -> logging.Logger:
     logger = logging.getLogger(name)
+
+    if not logfile_name:
+        logfile_name = name if name else __name__
 
     if logger.handlers:
         return logger
@@ -28,7 +31,7 @@ def setup_logger(
     logger.setLevel(log_level)
 
     formatter = logging.Formatter(
-        "%(levelname)s %(asctime)s %(filename)20s%(lineno)4s : %(message)s",
+        "%(levelname)s: %(asctime)s %(filename)20s%(lineno)4s : %(message)s",
         datefmt="%m/%d/%Y %I:%M:%S %p",
     )
 

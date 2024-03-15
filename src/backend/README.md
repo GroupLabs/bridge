@@ -1,36 +1,32 @@
-Deps
+This README is designed to give you the rundown. The backend consists of:
 
-ensure docker daemon is running
+- Celery[RabbitMQ]
+- Vespa
+- Triton (not implemented)
+- Ollama (partially implemented)
+- API
+- Frontend (not implemented)
 
-pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx
+We want to use whatever is available that gets the job done. At least for now, no reinventing the wheel.
 
-run the vespautils file to get the config
+To get the API started on your computer, do the following:
 
-start rabbitmq
-docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management
-
-unstructured is not fork-safe. use threads instead
-celery -A storage worker --loglevel=info -P threads
-
-run: python api.py
-
+1. Ensure your Docker daemon is running. On Mac, just start Docker Desktop
+2. In your venv (or not), run: `pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx`
+3. Run: `python vespautils.py` (this configures and sets up your Vespa container)
+4. Start RabbitMQ: `docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management` (this may download the image if you don't have it already)
+5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead)
+6. Finally, run the API: `python api.py`
 
 
-Other:
+### Other fun stuff:
 
 gives 10 threads, and 2 unique workers. task assignment is handled
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker1@%h &
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker2@%h &
 
 
-Stack:
-- Celery[RabbitMQ]
-- Vespa
-- Triton
-- Ollama
-- API
-- Frontend
-
+### Misc:
 
 “What information is important?”
 

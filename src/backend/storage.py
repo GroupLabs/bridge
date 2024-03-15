@@ -16,7 +16,7 @@ from typeutils import get_pathtype
 VESPA_URL = "http://localhost:8080/"
 CELERY_BROKER_URL = "amqp://guest:guest@localhost"
 
-logger = setup_logger()
+logger = setup_logger("storage")
 
 celery_app = Celery(
     "worker",
