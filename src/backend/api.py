@@ -1,10 +1,12 @@
 from fastapi import Depends, FastAPI, Response
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
 
 from storage import load_data, query
 from serverutils import Health, Status, Load, Query
+from ollama import chat
 
 
 PROD = True
@@ -70,8 +72,14 @@ async def nl_query(input: Query):
 
     return {"health": health, "status" : "success", "resp" : [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
+@app.get("/llm")
+async def llm_query(input: Query):
+    messages = [{"role": "user", "content": input.query}]
+    
+    # asynchronous generator
+    chat_stream = chat(messages)
 
-
+    return StreamingResponse(chat_stream, media_type="text/plain")
 
 
 if __name__ == "__main__":

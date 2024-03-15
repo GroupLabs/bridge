@@ -63,11 +63,12 @@ def query(
     yql: str = "select id, url, title, page, chunkno, authors, text from chunk where userQuery() or ({targetHits:20}nearestNeighbor(embedding,q))",
     hits: int = 3,
     ranking: str = "colbert",
+    groupname: str = "all"
 ):
     app = get_vespa_app()
     response:VespaQueryResponse = app.query(
         yql=yql,
-        groupname="all",
+        groupname=groupname,
         ranking=ranking,
         query=query,
         hits = hits,
@@ -111,7 +112,7 @@ def load_data(filepath: str):
 
     return pathtype
     
-def _upload(schema: str, data_id: str, fields: dict):
+def _upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
 
     app = get_vespa_app()
 
@@ -120,7 +121,7 @@ def _upload(schema: str, data_id: str, fields: dict):
         namespace="all",
         data_id=data_id,
         fields=fields,
-        groupname= "all"
+        groupname=groupname
     )
 
 def _pdf(filepath):
