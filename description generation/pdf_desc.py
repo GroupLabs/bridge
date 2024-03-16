@@ -34,6 +34,7 @@ for pdf in pdf_names:
     
     with open(pdf_files_path + "\\" + pdf, "rb") as f:
         pdf = PdfReader(f)
+        num_pages = len(pdf.pages)
         for page in range(len(pdf.pages)):
             #pdf_page = pdf.getPage(page)
             page_to_clean = pdf.pages[page].extract_text()
@@ -47,10 +48,23 @@ for pdf in pdf_names:
 
             cleaned_page = ' '.join(tokens)
             
+            if num_pages <=4: 
+                chunk_size = 75
+                chunk_overlap = 3 
+            elif num_pages > 4 and num_pages <=12:
+                chunks_size = 250
+                chunk_overlap = 10
+            elif num_pages >12 and num_pages <= 25:
+                chunk_size = 500
+                chunk_overlap = 20
+            else:
+                chunk_size = 1000
+                chunk_overlap = 35
+            
             text_splitter = RecursiveCharacterTextSplitter(
                 
-                chunk_size = 500,
-                chunk_overlap = 20,
+                chunk_size = chunk_size,
+                chunk_overlap = chunk_overlap,
                 length_function = len
             )
             
@@ -58,8 +72,8 @@ for pdf in pdf_names:
             [chunks.append(chunk) for chunk in temp_chunks]
             
             
-#first 5 chunks, 5 chunks from the middle and bottom 5 chunks
-chunks_to_send = chunks[:7] + chunks[int(len(chunks)/2): int(len(chunks)/2) + 7] + chunks[-7:]
+#first k chunks, k chunks from the middle and bottom k chunks - TO BE DETERMINED
+chunks_to_send = chunks[:10] + chunks[int(len(chunks)/2): int(len(chunks)/2) + 10] + chunks[-10:]
 
 text_to_send = ' '.join(chunks_to_send)
 
