@@ -51,15 +51,19 @@ for pdf in pdf_names:
             if num_pages <=4: 
                 chunk_size = 75
                 chunk_overlap = 3 
+                split_id = 5
             elif num_pages > 4 and num_pages <=12:
                 chunks_size = 250
                 chunk_overlap = 10
+                split_id = 7
             elif num_pages >12 and num_pages <= 25:
                 chunk_size = 500
                 chunk_overlap = 20
+                split_id = 10
             else:
                 chunk_size = 1000
                 chunk_overlap = 35
+                split_id = 15
             
             text_splitter = RecursiveCharacterTextSplitter(
                 
@@ -73,7 +77,9 @@ for pdf in pdf_names:
             
             
 #first k chunks, k chunks from the middle and bottom k chunks - TO BE DETERMINED
-chunks_to_send = chunks[:10] + chunks[int(len(chunks)/2): int(len(chunks)/2) + 10] + chunks[-10:]
+
+
+chunks_to_send = chunks[:split_id] + chunks[int(len(chunks)/2): int(len(chunks)/2) + split_id] + chunks[-split_id:]
 
 text_to_send = ' '.join(chunks_to_send)
 
