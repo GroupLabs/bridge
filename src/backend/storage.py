@@ -2,6 +2,8 @@ import hashlib
 import unicodedata
 import os
 import yaml
+from uuid import uuid4, uuid5, NAMESPACE_URL
+import time
 
 from vespa.io import VespaQueryResponse
 from vespa.application import Vespa
@@ -9,6 +11,7 @@ from vespa.application import Vespa
 from celery import Celery
 
 from unstructured.partition.pdf import partition_pdf
+# from connect.postgres import postgres_to_yamls
 
 from log import setup_logger
 from typeutils import get_pathtype
@@ -58,26 +61,21 @@ def get_vespa_app():
 # def __del__(self):
 #     pass
 
+
 def query(
     query: str,
-    yql: str = "select id, url, title, page, chunkno, authors, text from chunk where userQuery() or ({targetHits:20}nearestNeighbor(embedding,q))",
-    hits: int = 3,
-    ranking: str = "colbert",
-    groupname: str = "all"
-):
-    app = get_vespa_app()
-    response:VespaQueryResponse = app.query(
-        yql=yql,
-        groupname=groupname,
-        ranking=ranking,
-        query=query,
-        hits = hits,
-        body={
-            "presentation.format.tensors": "short-value",
-            "input.query(q)": f"embed(e5, \"query: {query} \")",
-            "input.query(qt)": f"embed(colbert, \"query: {query} \")"
+    ):
+
+    response = vespa_app.query(
+    body={
+            "yql": 'select * from sources * where userQuery();',
+            "hits": 10,
+            "query": query,
+            "type": "any",
+            "ranking": "default"
         }
     )
+        
     if not response.is_successful():
         raise ValueError(f"Query failed with status code {response.status_code}, url={response.url} response={response.json}")
     
@@ -86,13 +84,13 @@ def query(
     return response
 
 @celery_app.task(name="load_data_task")
-def load_data(filepath: str):    
+def load_data(filepath: str, read=True):    
     # checks for illegal paths and returns type
     pathtype = get_pathtype(filepath)
 
     # unstructured
     if pathtype == "pdf":
-        _pdf(filepath)
+        _pdf(filepath, read_pdf=read)
 
     elif pathtype == "txt":
         pass
@@ -124,36 +122,57 @@ def _upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
         groupname=groupname
     )
 
-def _pdf(filepath):
-    # assume schema exists
+def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
-    # elements = partition_pdf(input, strategy="fast", chunking_strategy="by_title")
-    elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy="by_title")
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    for i, e in enumerate(elements):
-        vespa_id = f"{e.metadata.to_dict()['filename']}#{e.metadata.to_dict()['page_number']}#{i}"
-        hash_value = hashlib.sha1(vespa_id.encode()).hexdigest()  # hash of id
+    if read_pdf: # read pdf
+        # elements = partition_pdf(input, strategy="fast", chunking_strategy="by_title")
+        elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
 
-        chunk = "".join(
-            ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-        )  # remove control characters
+        for i, e in enumerate(elements):
 
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+
+            chunk_id = str(uuid4()) # random id
+
+            fields = {
+                "id" : chunk_id, 
+                "document_id" : doc_id, # document id from path
+                "access_group" : "", # not yet implemented
+                "chunk_text" : chunk,
+                "chunking_strategy" : chunking_strategy,
+                "chunk_no" : i,
+                "embedding" : [0],
+                "last_updated" : int(time.time()) # current time in long int
+            }
+
+            _upload(schema="text_chunk", data_id=chunk_id, fields=fields)
+    else:
         fields = {
-            "title": e.metadata.filename,
-            "url": "",
-            "page": 0,
-            "id": hash_value,
-            "authors": [],
-            "chunkno": i,
-            "text": chunk,
+            "id" : doc_id, 
+            "access_group" : "", # not yet implemented
+            "description_text" : "", # not yet implemented
+            "file_path" : filepath,
+            "embedding" : [0],
+            "last_updated" : int(time.time()), # current time in long int
+            "data_hash" : "not implemented"
         }
 
-        _upload(schema="chunk", data_id=hash_value, fields=fields)
+        _upload(schema="document_meta", data_id=doc_id, fields=fields)
 
-    return
 
-def _db():
-    node_name = "noelthomas"
+def _db(db_type, host, user, password):
+    # figure out which db connector to use
+    if db_type == "pg":
+        # postgres_to_yamls(host, user, password)
+        pass
+    else:
+        raise NotImplementedError
+
+    node_name = "models/yamls"
 
     data = {}
 
@@ -181,4 +200,8 @@ def _db():
                 print("stored: " + file.split(".")[0])
 
 if __name__ == "__main__":
-    load_data("noelthomas")
+    get_vespa_app()
+    load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
+
+    response = query("What is GQA?")
+    print(response.json["root"]["children"])
