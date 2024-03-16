@@ -83,8 +83,8 @@ for db_name in dbs_to_process:
         }
 
         yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
-        os.makedirs("models/cubes", exist_ok=True)
-        with open(f"models/cubes/{table}_cube.yaml", 'w') as yaml_file:
+        os.makedirs("models/yamls", exist_ok=True)
+        with open(f"models/yamls/{table}_yaml.yaml", 'w') as yaml_file:
             yaml_file.write(yaml_str)
 
 # Closing the database connection
@@ -206,7 +206,7 @@ mydb.close()
             
             # yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
             
-            # with open(fr"cubes/{table}_cube.yaml", 'w') as yaml_file:
+            # with open(fr"yamls/{table}_yaml.yaml", 'w') as yaml_file:
             #     yaml_file.write(yaml_str)
             
             # yaml_file = f"""

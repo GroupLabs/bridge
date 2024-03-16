@@ -89,9 +89,9 @@ graph_creator = GraphCreator(uri, username, password)
 graph_creator.test_connection()
 yamls_path = r'C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes_Nodes\PostgreSql\models\cubes\\'  # Update this path to your YAML file
 
-for cube in os.listdir(yamls_path):
+for yaml in os.listdir(yamls_path):
 
-    graph_creator.process_yaml(yamls_path + cube)
+    graph_creator.process_yaml(yamls_path + yaml)
 
 #graph_creator.process_yaml(yaml_path)
 graph_creator.close()
