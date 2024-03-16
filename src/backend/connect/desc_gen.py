@@ -23,6 +23,7 @@ def desc_gen(input):
         messages = [
             {
                 "role": "user",
+              
                 "content": f"If the input's structure is pandas dataframe, then describe the table. if the format is text only, then please describe it as a pdf file. Here is the input {input}. Return just the description - as detailed as possible, but keep it straight to the point"
             }
         ],
