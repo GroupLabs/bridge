@@ -2,19 +2,12 @@ import pandas as pd
 import psycopg2
 import os
 import yaml
-from desc_gen import desc_gen
+from auto_description import desc_gen
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(".env"))
 
-# Establish database connection using environment variables
-conn = psycopg2.connect(
-    host="localhost",
-    user=os.getenv("PG_USER"),
-    password=os.getenv("PG_PWD")
-)
-
 # Function to fetch constraints data, adapted for PostgreSQL
-def get_constraints(db_name, table_name):
+def get_constraints(db_name, table_name, conn):
     query = f"""
     SELECT
         tc.constraint_name,
@@ -40,7 +33,7 @@ def get_constraints(db_name, table_name):
     """
     return pd.read_sql(query, conn)
 
-def get_tables(db_name):
+def get_tables(db_name, conn):
     query = f"""SELECT *
     FROM
         information_schema.tables
@@ -58,7 +51,7 @@ def get_tables(db_name):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-def get_columns(db_name, table_name):
+def get_columns(db_name, table_name, conn):
     query = f"""
     SELECT
         table_name,
@@ -122,19 +115,18 @@ def postgres_to_yamls(host, user, password):
     yamls = []
 
     for db in all_dbs:
+                
+        conn = psycopg2.connect(dbname=db, user=user, password=password, host=host)
         
-        conn_string = f"host = {host} user = {user} password = {password} dbname = {db}"
-        
-        conn = psycopg2.connect(conn_string)
-        
-        temp_sys_table = get_tables(db)
+        temp_sys_table = get_tables(db, conn)
         tables = temp_sys_table.loc[:, "table_name"].values.tolist() 
+
+        print(tables)
         
         for table in tables:
-            
-            description = desc_gen(table)
-            columns = get_columns(db_name=db, table_name=table)
-            constraints = get_constraints(db_name=db, table_name=table)
+            columns = get_columns(db_name=db, table_name=table, conn=conn)
+            description = desc_gen(str(columns))
+            constraints = get_constraints(db_name=db, table_name=table, conn=conn)
             primary_keys = constraints[constraints["constraint_type"] == "PRIMARY KEY"]["column_name"].tolist()
             foreign_keys = constraints[constraints["constraint_type"] == "FOREIGN KEY"]
             
@@ -166,8 +158,8 @@ def postgres_to_yamls(host, user, password):
             yamls.append(yaml_structure)
 
             yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
-            os.makedirs("models/yamls", exist_ok=True)
-            with open(f"models/yamls/{table}_yaml.yaml", 'w') as yaml_file:
+            os.makedirs(f"models/pg/yamls", exist_ok=True)
+            with open(f"models/pg/yamls/{table}.yaml", 'w') as yaml_file:
                 yaml_file.write(yaml_str)
 
     conn.close()
