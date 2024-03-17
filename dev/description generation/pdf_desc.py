@@ -12,13 +12,14 @@ from nltk.tokenize import RegexpTokenizer
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
+from unstructured.partition.pdf import partition_pdf
 nltk.download('stopwords')
 nltk.download('wordnet')
 
 load_dotenv(find_dotenv(r"C:\Users\Eugene\Documents\GroupLabs\bridge\.env"))
 
-current_dir = Path(__file__).parent
-connect_dir = current_dir.parent / 'connect'
+current_dir = Path(__file__).parent.parent
+connect_dir = current_dir.parent / 'src' / 'backend' / 'connect'
 sys.path.append(str(connect_dir))
 
 from desc_gen import desc_gen
@@ -51,26 +52,24 @@ def text_desc(folder_path):
                 cleaned_page = ' '.join(tokens)
                 
                 if num_pages <=4: 
-                    chunk_size = 75
-                    chunk_overlap = 3 
+                    
                     split_id = 5
                 elif num_pages > 4 and num_pages <=12:
-                    chunks_size = 250
-                    chunk_overlap = 10
+                    
                     split_id = 7
                 elif num_pages >12 and num_pages <= 25:
-                    chunk_size = 500
-                    chunk_overlap = 20
+                    
                     split_id = 10
                 else:
-                    chunk_size = 1000
-                    chunk_overlap = 35
+                    
                     split_id = 15
+                
+                chunk_size = 700
                 
                 text_splitter = RecursiveCharacterTextSplitter(
                     
                     chunk_size = chunk_size,
-                    chunk_overlap = chunk_overlap,
+                    chunk_overlap = 20,
                     length_function = len
                 )
                 
@@ -78,18 +77,23 @@ def text_desc(folder_path):
                 [chunks.append(chunk) for chunk in temp_chunks]
                 
                 
-    #first k chunks, k chunks from the middle and bottom k chunks - TO BE DETERMINED
+    #15000 is the max context window tokens I'm willing to send
 
+    print(len((' '.join(chunks)).strip().replace(" ", "")))
+    
+    if len((' '.join(chunks)).strip().replace(" ", "")) > 15000:
 
-    chunks_to_send = chunks[:split_id] + chunks[int(len(chunks)/2): int(len(chunks)/2) + split_id] + chunks[-split_id:]
+        chunks_step = int(np.floor(int(np.floor(15000/chunk_size))/3))
+        
+        chunks_to_send = chunks[:chunks_step] + chunks[int(len(chunks)/2): int(len(chunks)/2) + chunks_step] + chunks[-chunks_step:]
+        
+        text_to_send = ' '.join(chunks_to_send)
 
-    text_to_send = ' '.join(chunks_to_send)
+    else:
+        text_to_send = ' '.join(chunks)
 
     desc = desc_gen(text_to_send)
     
     return desc
-            
-                        
-text_desc(r'C:\Users\Eugene\Documents\GroupLabs\bridge\data\datasets\pdf_nonigest')
 
 
