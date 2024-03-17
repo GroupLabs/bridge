@@ -51,19 +51,6 @@ def text_desc(folder_path):
 
                 cleaned_page = ' '.join(tokens)
                 
-                if num_pages <=4: 
-                    
-                    split_id = 5
-                elif num_pages > 4 and num_pages <=12:
-                    
-                    split_id = 7
-                elif num_pages >12 and num_pages <= 25:
-                    
-                    split_id = 10
-                else:
-                    
-                    split_id = 15
-                
                 chunk_size = 700
                 
                 text_splitter = RecursiveCharacterTextSplitter(
@@ -77,10 +64,7 @@ def text_desc(folder_path):
                 [chunks.append(chunk) for chunk in temp_chunks]
                 
                 
-    #15000 is the max context window tokens I'm willing to send
-
-    print(len((' '.join(chunks)).strip().replace(" ", "")))
-    
+    #15000 is the max context window tokens I'm willing to send    
     if len((' '.join(chunks)).strip().replace(" ", "")) > 15000:
 
         chunks_step = int(np.floor(int(np.floor(15000/chunk_size))/3))
