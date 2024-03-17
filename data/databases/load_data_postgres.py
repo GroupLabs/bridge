@@ -9,7 +9,7 @@ load_dotenv(find_dotenv(r"C:\Users\Eugene\Documents\GroupLabs\bridge\MySQL_Cubes
 
 # Connect to PostgreSQL database
 conn = psycopg2.connect(
-    dbname = "PostgresTest",
+    dbname = os.getenv("PG_DBNAME"),
     host="localhost",
     user=os.getenv("PG_USER"),
     password=os.getenv("PG_PWD")

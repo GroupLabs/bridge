@@ -1,9 +1,9 @@
-import hashlib
 import unicodedata
 import os
 import yaml
 from uuid import uuid4, uuid5, NAMESPACE_URL
 import time
+from pathlib import Path
 
 from vespa.io import VespaQueryResponse
 from vespa.application import Vespa
@@ -11,7 +11,7 @@ from vespa.application import Vespa
 from celery import Celery
 
 from unstructured.partition.pdf import partition_pdf
-# from connect.postgres import postgres_to_yamls
+from postgres import postgres_to_yamls
 
 from log import setup_logger
 from typeutils import get_pathtype
@@ -167,12 +167,12 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 def _db(db_type, host, user, password):
     # figure out which db connector to use
     if db_type == "pg":
-        # postgres_to_yamls(host, user, password)
-        pass
+        postgres_to_yamls(host, user, password)
     else:
         raise NotImplementedError
 
-    node_name = "models/yamls"
+    node_name = f"models/{db_type}/yamls" # should be turned to path object
+    db_id = str(uuid5(NAMESPACE_URL, node_name))
 
     data = {}
 
@@ -182,20 +182,20 @@ def _db(db_type, host, user, password):
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
 
-                vespa_id = f"{os.path.basename(filepath)}#{i}"
-                hash_value = hashlib.sha1(vespa_id.encode()).hexdigest()
+                table_id = str(uuid4())
 
                 fields = {
-                    "title": node_name,
-                    "url": "",
-                    "page": 0,
-                    "id": hash_value,
-                    "authors": [],
-                    "chunkno": i,
-                    "text": data[os.path.basename(filepath).split(".")[0]]["semantic_context"],
+                    "id": table_id,
+                    "database_id" : db_id,
+                    "access_group" : "", # not yet implemented
+                    "description_text" : data["description"], # not yet implemented
+                    "embedding" : [0],
+                    "correlation_embedding" : [0],
+                    "last_updated" : int(time.time()), # current time in long int
+                    "data_hash" : "not implemented"
                 }
 
-                _upload(schema="chunk", data_id=hash_value, fields=fields)
+                _upload(schema="table_meta", data_id=table_id, fields=fields)
                 
                 print("stored: " + file.split(".")[0])
 
@@ -205,3 +205,9 @@ if __name__ == "__main__":
 
     response = query("What is GQA?")
     print(response.json["root"]["children"])
+
+    host="localhost"
+    user=os.getenv("PG_USER")
+    password=os.getenv("PG_PWD")
+
+    _db("pg", host, user, password)
