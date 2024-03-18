@@ -14,7 +14,7 @@ from unstructured.partition.pdf import partition_pdf
 from postgres import postgres_to_yamls
 
 from log import setup_logger
-from typeutils import get_pathtype
+from typeutils import get_pathtype, parse_connection_string
 
 VESPA_URL = "http://localhost:8080/"
 CELERY_BROKER_URL = "amqp://guest:guest@localhost"
@@ -84,31 +84,40 @@ def query(
     return response
 
 @celery_app.task(name="load_data_task")
-def load_data(filepath: str, read=True):    
-    # checks for illegal paths and returns type
-    pathtype = get_pathtype(filepath)
+def load_data(filepath: str, read=True):
 
-    # unstructured
-    if pathtype == "pdf":
-        _pdf(filepath, read_pdf=read)
-
-    elif pathtype == "txt":
-        pass
+    # check if input is a connection string
+    c_string = parse_connection_string(filepath)
 
     # structured
-    elif pathtype == "dir":
-        # os.walkdir
-
-        # check if database yamls
-        if os.path.basename(filepath) == "noelthomas":
-            _db()
+    if c_string: # or other structured filetypes!
+        _db(
+            db_type=c_string["database_type"],
+            host=c_string["host"],
+            user=c_string["user"],
+            password=c_string["password"],
+            )
     else:
-        logger.warning("unsupported filetype encountered.")
-        raise NotImplementedError(f"File ({pathtype}) type is not supported.")
-    
-    logger.info(f"Loading data from {pathtype}")
+        # checks for illegal paths and returns type
+        pathtype = get_pathtype(filepath)
 
-    return pathtype
+        # unstructured
+        if pathtype == "pdf":
+            _pdf(filepath, read_pdf=read)
+
+        elif pathtype == "txt":
+            pass
+
+        # mix
+        elif pathtype == "dir":
+            # recursively call load_data
+            pass
+
+        else:
+            logger.warning("unsupported filetype encountered.")
+            raise NotImplementedError(f"File ({pathtype}) type is not supported.")
+
+
     
 def _upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
 
@@ -166,7 +175,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use
-    if db_type == "pg":
+    if db_type == "postgres":
         postgres_to_yamls(host, user, password)
     else:
         raise NotImplementedError
@@ -210,4 +219,6 @@ if __name__ == "__main__":
     user=os.getenv("PG_USER")
     password=os.getenv("PG_PWD")
 
-    _db("pg", host, user, password)
+    conn_str = f'postgres://{user}:{password}@{host}'
+
+    load_data(conn_str)
