@@ -1,3 +1,17 @@
+Next:
+
+- Update container names to be more descriptive.
+- Fix search
+- Update search and feed functions
+- Define functions for any new functionality
+
+
+
+
+The following describes the set up for a multinode, high availability.
+
+
+
 In this direcory,
 
 hit: docker-compose up -d
@@ -125,3 +139,8 @@ Simple search:
 
 ```curl --data-urlencode 'yql=select * from sources * where sddocname contains "text_chunk" and chunk_text contains "chief"' \
   http://localhost:8082/search/```
+
+  BM25 Search:
+
+  curl --data-urlencode 'yql=select * from sources * where chunk_text contains "Supreme Court";' \
+  http://localhost:8082/search/
