@@ -1,0 +1,147 @@
+Next:
+
+- Update container names to be more descriptive.
+- Update search and feed functions
+- update vespautils to create the right services.xml
+- Define functions for any new functionality
+
+
+
+
+
+The following describes the set up for a multinode, high availability.
+
+
+
+In this direcory,
+
+hit: docker-compose up -d
+
+update services.xml:
+
+```
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties">
+
+    <admin version="2.0">
+        <configservers>
+            <configserver hostalias="node0" />
+            <configserver hostalias="node1" />
+            <configserver hostalias="node2" />
+        </configservers>
+        <cluster-controllers>
+            <cluster-controller hostalias="node0" jvm-options="-Xms32M -Xmx64M" /> <!-- jvm-options added only to shrink memory for testing - remove before real use -->
+            <cluster-controller hostalias="node1" jvm-options="-Xms32M -Xmx64M" />
+            <cluster-controller hostalias="node2" jvm-options="-Xms32M -Xmx64M" />
+        </cluster-controllers>
+        <slobroks>
+            <slobrok hostalias="node0" />
+            <slobrok hostalias="node1" />
+            <slobrok hostalias="node2" />
+        </slobroks>
+
+        <adminserver hostalias="node3" />
+    </admin>
+
+    <container id="feed" version="1.0">
+        <document-api/>
+        <document-processing/>
+        <nodes>
+            <jvm options="-Xms32M -Xmx128M"/> <!-- Added only to shrink memory for testing - remove before real use -->
+            <node hostalias="node4" />
+            <node hostalias="node5" />
+        </nodes>
+    </container>
+
+    <container id="query" version="1.0">
+        <search/>
+        <nodes>
+            <jvm options="-Xms32M -Xmx128M"/> <!-- Added only to shrink memory for testing - remove before real use -->
+            <node hostalias="node6" />
+            <node hostalias="node7" />
+        </nodes>
+    </container>
+
+    <content id="music" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="text_chunk" mode="index"></document>
+            <document type="document_meta" mode="index"></document>
+            <document type="table_meta" mode="index"></document>
+            <document-processing cluster="feed" />            
+        </documents>
+        <nodes>
+            <node hostalias="node8" distribution-key="0" />
+            <node hostalias="node9" distribution-key="1" />
+        </nodes>
+    </content>
+
+</services>
+```
+
+add hosts.xml:
+
+```
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<hosts>
+  <host name="node0.vespanet">
+    <alias>node0</alias>
+  </host>
+  <host name="node1.vespanet">
+    <alias>node1</alias>
+  </host>
+  <host name="node2.vespanet">
+    <alias>node2</alias>
+  </host>
+
+  <host name="node3.vespanet">
+    <alias>node3</alias>
+  </host>
+
+  <host name="node4.vespanet">
+    <alias>node4</alias>
+  </host>
+  <host name="node5.vespanet">
+    <alias>node5</alias>
+  </host>
+
+  <host name="node6.vespanet">
+    <alias>node6</alias>
+  </host>
+  <host name="node7.vespanet">
+    <alias>node7</alias>
+  </host>
+
+  <host name="node8.vespanet">
+    <alias>node8</alias>
+  </host>
+  <host name="node9.vespanet">
+    <alias>node9</alias>
+  </host>
+</hosts>
+```
+
+Inside search-config use the following to update the config:
+
+```
+zip -r - . -x "gke/*" "img/*" "scripts/*" "pki/*" "tls/*" README.md .gitignore "*.yaml" | \
+  curl --header Content-Type:application/zip --data-binary @- \
+  http://localhost:19071/application/v2/tenant/default/prepareandactivate
+```
+
+Can store using the normal stuff, try it using MS-MARCO
+
+Then use the following to count num docs:
+```docker exec node0 /opt/vespa/bin/vespa-visit -i | wc -l```
+
+Simple search:
+
+```curl --data-urlencode 'yql=select * from sources * where sddocname contains "text_chunk" and chunk_text contains "chief"' \
+  http://localhost:8082/search/```
+
+  BM25 Search:
+
+  curl --data-urlencode 'yql=select * from sources * where chunk_text contains "Supreme Court";' \
+  http://localhost:8082/search/

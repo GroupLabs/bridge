@@ -1,0 +1,5 @@
+# Use the specified version of the rabbitmq image with management plugin
+FROM rabbitmq:3.13-management
+
+# Expose the ports for AMQP and management interface
+EXPOSE 5672 15672

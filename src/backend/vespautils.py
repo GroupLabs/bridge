@@ -94,9 +94,6 @@ def create_config():
                 Field(name="data_hash", type="string", indexing=["summary", "attribute"])
             ]
         ),
-        fieldsets=[
-                FieldSet(name = "default", fields = ["description_text", "access_group"])
-            ],
         rank_profiles=[RankProfile(name="default", first_phase="nativeRank(description_text)")]
     )
 

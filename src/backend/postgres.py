@@ -158,8 +158,8 @@ def postgres_to_yamls(host, user, password):
             yamls.append(yaml_structure)
 
             yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
-            os.makedirs(f"models/pg/yamls", exist_ok=True)
-            with open(f"models/pg/yamls/{table}.yaml", 'w') as yaml_file:
+            os.makedirs(f"models/postgres/yamls", exist_ok=True)
+            with open(f"models/postgres/yamls/{table}.yaml", 'w') as yaml_file:
                 yaml_file.write(yaml_str)
 
     conn.close()
