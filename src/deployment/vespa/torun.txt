@@ -1,7 +1,6 @@
 Next:
 
 - Update container names to be more descriptive.
-- Fix search
 - Update search and feed functions
 - update vespautils to create the right services.xml
 - Define functions for any new functionality
