@@ -13,10 +13,7 @@ To get the API started on your computer, do the following:
 
 1. Ensure your Docker daemon is running. On Mac, just start Docker Desktop
 2. In your venv (or not), run: `pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx`
-3. Run: `python vespautils.py` (this configures and sets up your Vespa container)
-
-3. 
-
+3. Go to `deployment/vespa/` and run `docker-compose up -d` (this configures and sets up your Vespa containers)
 4. Start RabbitMQ: `docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management` (this may download the image if you don't have it already)
 5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead)
 6. Finally, run the API: `python api.py`
