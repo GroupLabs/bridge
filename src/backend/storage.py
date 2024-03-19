@@ -171,7 +171,7 @@ def _db(db_type, host, user, password):
                 print("stored: " + file.split(".")[0])
 
 if __name__ == "__main__":
-    load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
+    # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
     response = query("What is GQA?")
     print(response)
@@ -184,4 +184,4 @@ if __name__ == "__main__":
 
     load_data(conn_str)
 
-    print(query("table"))
+    print(query("lepton"))
