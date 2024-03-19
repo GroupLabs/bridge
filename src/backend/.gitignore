@@ -1,4 +1,6 @@
-*.xml
 *.sd
+*.xml
+
+!/search-config/**
 
 log/
