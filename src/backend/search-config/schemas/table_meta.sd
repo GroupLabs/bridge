@@ -1,0 +1,41 @@
+schema table_meta {
+    document table_meta {
+        field id type string {
+            indexing: attribute | summary
+            attribute {
+                fast-search
+            }
+        }
+        field database_id type string {
+            indexing: attribute | summary
+            attribute {
+                fast-search
+            }
+        }
+        field access_group type string {
+            indexing: summary | attribute
+        }
+        field description_text type string {
+            indexing: summary | index
+        }
+        field embedding type tensor<double>(d0[128]) {
+            indexing: attribute
+        }
+        field correlation_embedding type tensor<double>(d0[128]) {
+            indexing: attribute
+        }
+        field last_updated type long {
+            indexing: summary | attribute
+        }
+        field data_hash type string {
+            indexing: summary | attribute
+        }
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(description_text)
+            }
+        }
+    }
+}
