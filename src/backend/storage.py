@@ -4,9 +4,7 @@ import yaml
 from uuid import uuid4, uuid5, NAMESPACE_URL
 import time
 from pathlib import Path
-
-from vespa.io import VespaQueryResponse
-from vespa.application import Vespa
+import sys
 
 from celery import Celery
 
@@ -15,11 +13,14 @@ from postgres import postgres_to_yamls
 
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
+from vespautils import upload_config, upload, query
 
-VESPA_URL = "http://localhost:8080/"
+VESPA_CONFIG_PATH = "./search-config"
 CELERY_BROKER_URL = "amqp://guest:guest@localhost"
 
 logger = setup_logger("storage")
+
+# celery config
 
 celery_app = Celery(
     "worker",
@@ -27,7 +28,6 @@ celery_app = Celery(
     backend="rpc://",  # Use RPC as the backend with RabbitMQ
 )
 
-# Optional: Celery configuration
 celery_app.conf.update(
     task_serializer='json',
     accept_content=['json'],  # Ignore other content
@@ -36,14 +36,12 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-vespa_app = None
-
-def get_vespa_app():
-    global vespa_app
-    if vespa_app is None:
-        vespa_app = Vespa(url=VESPA_URL)
-        logger.info("Initialized Vespa.")
-    return vespa_app
+# vespa config
+try:
+    upload_config(VESPA_CONFIG_PATH)
+except Exception as e:
+    logger.critical(f"Failed to configure Vespa: {e}")
+    sys.exit(1)
 
 # def __len__(self) -> int:
 #     return self.app.query(
@@ -60,28 +58,6 @@ def get_vespa_app():
 
 # def __del__(self):
 #     pass
-
-
-def query(
-    query: str,
-    ):
-
-    response = vespa_app.query(
-    body={
-            "yql": 'select * from sources * where userQuery();',
-            "hits": 10,
-            "query": query,
-            "type": "any",
-            "ranking": "default"
-        }
-    )
-        
-    if not response.is_successful():
-        raise ValueError(f"Query failed with status code {response.status_code}, url={response.url} response={response.json}")
-    
-    logger.info("Query fulfilled successfully.")
-
-    return response
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
@@ -117,20 +93,6 @@ def load_data(filepath: str, read=True):
             logger.warning("unsupported filetype encountered.")
             raise NotImplementedError(f"File ({pathtype}) type is not supported.")
 
-
-    
-def _upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
-
-    app = get_vespa_app()
-
-    app.feed_data_point(
-        schema=schema,
-        namespace="all",
-        data_id=data_id,
-        fields=fields,
-        groupname=groupname
-    )
-
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
@@ -158,7 +120,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                 "last_updated" : int(time.time()) # current time in long int
             }
 
-            _upload(schema="text_chunk", data_id=chunk_id, fields=fields)
+            upload(schema="text_chunk", data_id=chunk_id, fields=fields)
     else:
         fields = {
             "id" : doc_id, 
@@ -170,7 +132,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
             "data_hash" : "not implemented"
         }
 
-        _upload(schema="document_meta", data_id=doc_id, fields=fields)
+        upload(schema="document_meta", data_id=doc_id, fields=fields)
 
 
 def _db(db_type, host, user, password):
@@ -204,16 +166,15 @@ def _db(db_type, host, user, password):
                     "data_hash" : "not implemented"
                 }
 
-                _upload(schema="table_meta", data_id=table_id, fields=fields)
+                upload(schema="table_meta", data_id=table_id, fields=fields)
                 
                 print("stored: " + file.split(".")[0])
 
 if __name__ == "__main__":
-    get_vespa_app()
     load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
     response = query("What is GQA?")
-    print(response.json["root"]["children"])
+    print(response)
 
     host="localhost"
     user=os.getenv("PG_USER")
@@ -222,3 +183,5 @@ if __name__ == "__main__":
     conn_str = f'postgres://{user}:{password}@{host}'
 
     load_data(conn_str)
+
+    print(query("table"))

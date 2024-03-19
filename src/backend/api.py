@@ -53,7 +53,7 @@ async def load_data_ep(input: Load, response: Response):
     try:
         task = load_data.delay(input.filepath)
         response.status_code = 202
-        logger.info(f"LOAD success: {input.filepath}")
+        logger.info(f"LOAD accepted: {input.filepath}")
         return {"status": "accepted", "task_id": task.id}
     except NotImplementedError:
         logger.warn(f"LOAD incomplete: {input.filepath}")
