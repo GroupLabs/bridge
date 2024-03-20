@@ -68,37 +68,34 @@ def upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
         groupname=groupname
     )
 
+    # logger.info("Upload fulfilled successfully.")
+
 def query(
     query: str = None,
-    yql: str = None
+    yql: str = "select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+    ranking: str = "colbert"
     ):
 
-    if yql and query:
-            return "Cannot define both 'query' and 'yql' parameters."
+    # eg yql
+    # yql = f'select * from sources * where chunk_text contains "{query}"'
+    # yql = 'select * from sources * where sddocname contains "text_chunk" limit 10;'
 
-    if not yql:
-        if query:
-            yql = f'select * from sources * where chunk_text contains "{query}"'
-        else:
-            yql = 'select * from sources * where sddocname contains "text_chunk" limit 10;'
-
-    # response = vespa_query.query(
-    # body={
-    #         "yql": 'select * from sources * where userQuery();',
-    #         "hits": 10,
-    #         "query": query,
-    #         "type": "any",
-    #         "ranking": "default"
-    #     }
-    # )
-    response = vespa_query.query(body={
-    'yql': yql,
-    })
+    response = vespa_query.query(
+        yql=yql,
+        groupname="all",
+        ranking=ranking,
+        query=query,
+        body={
+            "presentation.format.tensors": "short-value",
+            f"input.query(q)": 'embed(e5, "{query}")',
+            f"input.query(qt)": 'embed(colbert, "{query}")',
+        },
+    )
         
     if not response.is_successful():
         raise ValueError(f"Query failed with status code {response.status_code}, url={response.url} response={response.json}")
     
-    logger.info("Query fulfilled successfully.")
+    # logger.info("Query fulfilled successfully.")
 
     return response.json
 
@@ -115,13 +112,9 @@ if __name__ == "__main__":
         "chunk_text" : "Bridge is awesome",
         "chunking_strategy" : "none",
         "chunk_no" : 1,
-        "embedding" : [0],
         "last_updated" : 1, # current time in long int
     }
 
     upload(schema="text_chunk", data_id="a", fields=fields)
 
-    # print(query(yql='select * from sources * where sddocname contains "text_chunk" limit 10;'))
-    # print(query())
     print(query("Bridge"))
-    pass

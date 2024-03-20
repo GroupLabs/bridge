@@ -99,7 +99,10 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
     if read_pdf: # read pdf
         # elements = partition_pdf(input, strategy="fast", chunking_strategy="by_title")
-        elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
+        try:
+            elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to parse PDF elements: {e}")
 
         for i, e in enumerate(elements):
 
@@ -116,7 +119,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                 "chunk_text" : chunk,
                 "chunking_strategy" : chunking_strategy,
                 "chunk_no" : i,
-                "embedding" : [0],
+                # "embedding" : [0],
                 "last_updated" : int(time.time()) # current time in long int
             }
 
@@ -171,17 +174,17 @@ def _db(db_type, host, user, password):
                 print("stored: " + file.split(".")[0])
 
 if __name__ == "__main__":
-    # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
+    load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
     response = query("What is GQA?")
     print(response)
 
-    host="localhost"
-    user=os.getenv("PG_USER")
-    password=os.getenv("PG_PWD")
+    # host="localhost"
+    # user=os.getenv("PG_USER")
+    # password=os.getenv("PG_PWD")
 
-    conn_str = f'postgres://{user}:{password}@{host}'
+    # conn_str = f'postgres://{user}:{password}@{host}'
 
-    load_data(conn_str)
+    # load_data(conn_str)
 
-    print(query("lepton"))
+    # print(query("lepton"))
