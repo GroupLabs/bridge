@@ -25,6 +25,14 @@
     <container id="feed" version="1.0">
         <document-api/>
         <document-processing/>
+        <component id="e5" type="hugging-face-embedder">
+            <transformer-model url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"/>
+            <tokenizer-model url="https://huggingface.co/intfloat/e5-small-v2/raw/main/tokenizer.json"/>
+        </component>
+        <component id="colbert" type="colbert-embedder">
+            <transformer-model url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"/>
+            <tokenizer-model url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"/>
+        </component>
         <nodes>
             <jvm options="-Xms32M -Xmx128M"/> <!-- Added only to shrink memory for testing - remove before real use -->
             <node hostalias="node4" />
@@ -33,6 +41,14 @@
     </container>
 
     <container id="query" version="1.0">
+        <component id="e5" type="hugging-face-embedder">
+            <transformer-model url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"/>
+            <tokenizer-model url="https://huggingface.co/intfloat/e5-small-v2/raw/main/tokenizer.json"/>
+        </component>
+        <component id="colbert" type="colbert-embedder">
+            <transformer-model url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"/>
+            <tokenizer-model url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"/>
+        </component>
         <search/>
         <nodes>
             <jvm options="-Xms32M -Xmx128M"/> <!-- Added only to shrink memory for testing - remove before real use -->

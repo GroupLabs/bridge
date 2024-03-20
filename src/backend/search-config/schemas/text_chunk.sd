@@ -28,18 +28,64 @@ schema text_chunk {
         field chunk_no type int {
             indexing: summary | attribute
         }
-        field embedding type tensor<double>(d0[128]) {
-            indexing: attribute
-        }
         field last_updated type long {
             indexing: summary | attribute
         }
     }
-    rank-profile default {
+    field embedding type tensor<bfloat16>(x[384]) {
+        indexing: "passage: " . (input chunk_text || "") | embed e5 | attribute
+        attribute {
+            distance-metric: angular
+        }
+    }
+    field colbert type tensor<int8>(dt{}, x[16]) {
+        indexing: (input chunk_text || "") | embed colbert | attribute
+    }
+    rank-profile colbert {
+        inputs {
+            query(q) tensor<float>(x[384])             
+            query(qt) tensor<float>(qt{}, x[128])             
+        
+        }
+        function unpack() {
+            expression {
+                unpack_bits(attribute(colbert))
+            }
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding)
+            }
+        }
+        function max_sim() {
+            expression {
+                
+                sum(
+                    reduce(
+                        sum(
+                            query(qt) * unpack() , x
+                        ),
+                        max, dt
+                    ),
+                    qt
+                )
+                                
+            }
+        }
         first-phase {
             expression {
-                nativeRank(chunk_text)
+                cos_sim
             }
+        }
+        second-phase {
+            rerank-count: 100
+            expression {
+                max_sim
+            }
+        }
+        match-features {
+            max_sim
+            cos_sim
         }
     }
 }
