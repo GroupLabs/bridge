@@ -87,8 +87,8 @@ def query(
         query=query,
         body={
             "presentation.format.tensors": "short-value",
-            f"input.query(q)": 'embed(e5, "{query}")',
-            f"input.query(qt)": 'embed(colbert, "{query}")',
+            "input.query(q)": f'embed(e5, "{query}")',
+            "input.query(qt)": f'embed(colbert, "{query}")',
         },
     )
         
@@ -117,4 +117,29 @@ if __name__ == "__main__":
 
     upload(schema="text_chunk", data_id="a", fields=fields)
 
-    print(query("Bridge"))
+    query_str = "Bridge is awesome"
+
+    print(query(query_str))
+
+
+    response = vespa_query.query(
+        yql="select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+        groupname="all",
+        ranking="hybrid_search",  # Use the correct rank profile
+        query=query_str,
+        body={
+            "presentation.format.tensors": "short-value",
+            "ranking.features.query(q)": f'embed(e5, "{query_str}")',
+            "ranking.features.query(alpha)": 0.5,
+        },
+    )
+
+    response = vespa_query.query(
+        yql= f'select * from sources * where chunk_text contains "{query_str}"',
+        groupname="all",
+    )
+    
+    print()
+
+    print(response.json)
+    pass

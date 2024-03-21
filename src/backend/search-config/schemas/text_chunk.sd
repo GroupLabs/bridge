@@ -41,6 +41,7 @@ schema text_chunk {
     field colbert type tensor<int8>(dt{}, x[16]) {
         indexing: (input chunk_text || "") | embed colbert | attribute
     }
+
     rank-profile colbert {
         inputs {
             query(q) tensor<float>(x[384])             
@@ -86,6 +87,44 @@ schema text_chunk {
         match-features {
             max_sim
             cos_sim
+        }
+    }
+
+    rank-profile hybrid_search inherits default {
+        inputs {
+            query(q) tensor<float>(x[384])
+            query(alpha) double
+        }
+
+        function keyword_score() {
+            expression {
+                bm25(chunk_text)
+            }
+        }
+
+        function vector_score() {
+            expression {
+                closeness(field, embedding)
+            }
+        }
+
+        first-phase {
+            expression: vector_score
+        }
+
+        global-phase {
+            expression {
+                (query(alpha) * normalize_linear(vector_score)) +
+                ((1 - query(alpha)) * normalize_linear(keyword_score))
+            }
+            rerank-count: 1000
+        }
+
+        match-features {
+            bm25(chunk_text)
+            closeness(field, embedding)
+            vector_score
+            keyword_score
         }
     }
 }
