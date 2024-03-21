@@ -407,7 +407,23 @@ export const useChatHandler = () => {
         ? chatMessages[chatMessages.length - 1].message.sequence_number + 1
         : 1;
       // Simulate generating a message response (customize as needed)
-      const simulatedGeneratedText = `Echo: ${messageContent}`;
+      // const simulatedGeneratedText = `Echo: ${messageContent}`;
+
+      let responseText = `Echo: ${messageContent}`;
+
+      if (messageContent.toLowerCase() === "what is your health?") {
+        try {
+          const healthCheckResponse = await fetch('http://localhost:8000/health-check');
+          if (!healthCheckResponse.ok) {
+            // Handle non-200 responses
+            throw new Error('Health check failed');
+          }
+          const healthCheckResult = await healthCheckResponse.text();
+          responseText = `System Health: ${healthCheckResult}`;
+        } catch (error) {
+          responseText = `Failed to retrieve health check}`;
+        }
+      }
 
       const currentTime = new Date().toISOString();
 
@@ -428,11 +444,11 @@ export const useChatHandler = () => {
 
       setChatMessages(prevMessages => [...prevMessages, { message: userMessage, fileItems: [] }]);
 
-      
+
       // Simulate the generated response message object
       const generatedMessage: Tables<"messages"> = {
         id: (Date.now() + 1).toString(),
-        content: simulatedGeneratedText,
+        content: responseText,
         assistant_id: null,
         chat_id: "your_chat_id",
         created_at: currentTime,
