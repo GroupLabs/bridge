@@ -414,6 +414,7 @@ export const useChatHandler = () => {
       if (messageContent.toLowerCase() === "what is your health?") {
         try {
           const healthCheckResponse = await fetch('http://localhost:8000/health-check');
+          console.log(healthCheckResponse.ok);
           if (!healthCheckResponse.ok) {
             // Handle non-200 responses
             throw new Error('Health check failed');
@@ -421,7 +422,7 @@ export const useChatHandler = () => {
           const healthCheckResult = await healthCheckResponse.text();
           responseText = `System Health: ${healthCheckResult}`;
         } catch (error) {
-          responseText = `Failed to retrieve health check}`;
+          responseText = `Failed to retrieve health check`;
         }
       }
 

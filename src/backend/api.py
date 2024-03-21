@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -6,7 +7,8 @@ import os
 
 from log import setup_logger
 from storage import load_data, query
-from serverutils import Health, Status, Load, Query
+from serverutils import Health, Status, Load
+from serverutils import Query
 from ollama import chat
 
 
@@ -27,6 +29,20 @@ async def lifespan(app: FastAPI):
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
+
+origins = [
+    "http://localhost:3000",  # Add the origin(s) you want to allow
+    # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Specifies which origins are permitted
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
 
 @app.get("/health-check")
 async def health_endpoint():
@@ -77,15 +93,34 @@ async def nl_query(input: Query):
         prompt += " ".join(context_list)
 
     logger.info(f"QUERY success: {input.query}")
+    return resp
     return {"health": health, "status" : "success", "resp" : [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
-@app.get("/llm")
-async def llm_query(input: Query):
-    messages = [{"role": "user", "content": input.query}]
-    
-    chat_stream = chat(messages) # asynchronous generator
+# from typing import Optional
+# from fastapi import Query, FastAPI
 
-    return StreamingResponse(chat_stream, media_type="text/plain")
+# @app.get("/query")
+# async def nl_query(query_str: str = Query(..., alias="query"), use_llm: Optional[bool] = False):
+#     resp = query(query_str)
+
+#     if use_llm:
+#         context_list = [x["fields"]["text"] for x in resp.hits]
+#         prompt = f"{query_str}\n"
+#         prompt += "Use the following for context:\n"
+#         prompt += " ".join(context_list)
+
+#     logger.info(f"QUERY success: {query_str}")
+#     return resp
+    # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
+
+
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
 
 
 if __name__ == "__main__":
