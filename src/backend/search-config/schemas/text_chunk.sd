@@ -31,18 +31,21 @@ schema text_chunk {
         field last_updated type long {
             indexing: summary | attribute
         }
-    }
-    field embedding type tensor<bfloat16>(x[384]) {
-        indexing: "passage: " . (input chunk_text || "") | embed e5 | attribute
-        attribute {
-            distance-metric: angular
+        field e5 type tensor<bfloat16>(x[384]) {
+            indexing: attribute
+            attribute {
+                distance-metric: angular
+            }
+        }
+        field colbert type tensor<int8>(dt{}, x[16]) {
+            indexing: attribute
+            attribute {
+                distance-metric: angular
+            }
         }
     }
-    field colbert type tensor<int8>(dt{}, x[16]) {
-        indexing: (input chunk_text || "") | embed colbert | attribute
-    }
 
-    rank-profile colbert {
+    rank-profile colbertande5 {
         inputs {
             query(q) tensor<float>(x[384])             
             query(qt) tensor<float>(qt{}, x[128])             
@@ -55,7 +58,7 @@ schema text_chunk {
         }
         function cos_sim() {
             expression {
-                closeness(field, embedding)
+                closeness(field, e5)
             }
         }
         function max_sim() {
@@ -104,7 +107,7 @@ schema text_chunk {
 
         function vector_score() {
             expression {
-                closeness(field, embedding)
+                closeness(field, e5)
             }
         }
 
@@ -122,9 +125,25 @@ schema text_chunk {
 
         match-features {
             bm25(chunk_text)
-            closeness(field, embedding)
+            closeness(field, e5)
             vector_score
             keyword_score
+        }
+    }
+
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(chunk_text)
+            }
+        }
+    }
+
+    rank-profile bm25 {
+        first-phase {
+            expression {
+                bm25(chunk_text)
+            }
         }
     }
 }

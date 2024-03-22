@@ -103,7 +103,7 @@ get_vespa_feed()
 get_vespa_query()
 
 if __name__ == "__main__":
-    # upload_config("./search-config")
+    upload_config("./search-config")
 
     fields = {
         "id" : "a", 
@@ -113,26 +113,83 @@ if __name__ == "__main__":
         "chunking_strategy" : "none",
         "chunk_no" : 1,
         "last_updated" : 1, # current time in long int
+        "e5" : [i for i in range(384)],
+        "colbert" : {}
     }
 
     upload(schema="text_chunk", data_id="a", fields=fields)
 
+    fields = {
+        "id" : "b", 
+        "document_id" : "abc", # document id from path
+        "access_group" : "", # not yet implemented
+        "chunk_text" : "Bridge is great",
+        "chunking_strategy" : "none",
+        "chunk_no" : 1,
+        "last_updated" : 1, # current time in long int
+        "e5" : [i+0.3 for i in range(384)],
+        "colbert" : {}
+    }
+
+    upload(schema="text_chunk", data_id="b", fields=fields)
+
+    fields = {
+        "id" : "c", 
+        "document_id" : "abcd", # document id from path
+        "access_group" : "", # not yet implemented
+        "chunk_text" : "Bridge is amazing",
+        "chunking_strategy" : "none",
+        "chunk_no" : 1,
+        "last_updated" : 1, # current time in long int
+        "e5" : [-i for i in range(384)],
+        "colbert" : {}
+    }
+
+    upload(schema="text_chunk", data_id="c", fields=fields)
+
     query_str = "Bridge is awesome"
 
-    print(query(query_str))
+    # response = vespa_query.query(
+    #     yql="select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(e5,q))",
+    #     groupname="all",
+    #     ranking="hybrid_search",
+    #     query=query,
+    #     body={
+    #         "presentation.format.tensors": "short-value",
+    #         "input.query(q)": [i for i in range(384)],
+    #         "input.query(alpha)": 0.5,
+    #     },
+    # )
+
+    # print(response.json)
+
+    print()
+
+    # response = vespa_query.query(
+    #     body={
+    #         "yql": 'select * from text_chunk where userQuery();',
+    #         # "yql": 'select * from sources * where userQuery();', can be this if all .sd has same rank-profiles
+    #         "hits": 10,
+    #         "query": query_str
+    #         "type": "any",
+    #         "ranking": "default"
+    #     }
+    # )
+
+    # print(response.json)
 
 
-    response = vespa_query.query(
-        yql="select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
-        groupname="all",
-        ranking="hybrid_search",  # Use the correct rank profile
-        query=query_str,
-        body={
-            "presentation.format.tensors": "short-value",
-            "ranking.features.query(q)": f'embed(e5, "{query_str}")',
-            "ranking.features.query(alpha)": 0.5,
-        },
-    )
+    # response = vespa_query.query(
+    #     yql="select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
+    #     groupname="all",
+    #     ranking="hybrid_search",  # Use the correct rank profile
+    #     query=query_str,
+    #     body={
+    #         "presentation.format.tensors": "short-value",
+    #         "ranking.features.query(q)": f'embed(e5, "{query_str}")',
+    #         "ranking.features.query(alpha)": 0.5,
+    #     },
+    # )
 
     response = vespa_query.query(
         yql= f'select * from sources * where chunk_text contains "{query_str}"',
@@ -142,4 +199,4 @@ if __name__ == "__main__":
     print()
 
     print(response.json)
-    pass
+    # pass
