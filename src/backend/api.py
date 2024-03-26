@@ -9,9 +9,6 @@ from storage import load_data, query
 from serverutils import Health, Status, Load, Query
 from ollama import chat
 
-
-PROD = True
-
 logger = setup_logger("api")
 logger.info("LOGGER READY")
 
