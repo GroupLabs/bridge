@@ -6,6 +6,8 @@ import zipfile
 from vespa.io import VespaQueryResponse
 from vespa.application import Vespa
 
+from e5_small import embed_passage, embed_query
+
 from log import setup_logger
 
 logger = setup_logger("vespa")
@@ -55,6 +57,8 @@ def upload_config(search_config_path):
     else:
         # should retry, or graceful exit api.
         logger.warn(f"Vespa Config Upload Failed ({response.status_code}): {response.text}")
+    
+    # TODO: Wait until containers are configured (blocking)
 
 def upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
 
@@ -71,9 +75,9 @@ def upload(schema: str, data_id: str, fields: dict, groupname: str = "all"):
     # logger.info("Upload fulfilled successfully.")
 
 def query(
-    query: str = None,
-    yql: str = "select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(embedding,q))",
-    ranking: str = "colbert"
+    query_str: str = None,
+    yql: str = "select id,chunk_text from text_chunk where userQuery() or ({targetHits:10}nearestNeighbor(e5,q))",
+    ranking: str = "hybrid_search"
     ):
 
     # eg yql
@@ -84,11 +88,11 @@ def query(
         yql=yql,
         groupname="all",
         ranking=ranking,
-        query=query,
+        query=query_str,
         body={
             "presentation.format.tensors": "short-value",
-            f"input.query(q)": 'embed(e5, "{query}")',
-            f"input.query(qt)": 'embed(colbert, "{query}")',
+            "input.query(q)": embed_query(query_str).tolist()[0],
+            "input.query(alpha)": 0.5,
         },
     )
         
@@ -103,18 +107,87 @@ get_vespa_feed()
 get_vespa_query()
 
 if __name__ == "__main__":
-    # upload_config("./search-config")
+    upload_config("./search-config")
 
     fields = {
         "id" : "a", 
         "document_id" : "ab", # document id from path
         "access_group" : "", # not yet implemented
+        "title" : "", # not yet implemented
         "chunk_text" : "Bridge is awesome",
         "chunking_strategy" : "none",
         "chunk_no" : 1,
         "last_updated" : 1, # current time in long int
+        "e5" : embed_passage("Bridge is awesome").tolist()[0],
+        "colbert" : {}
     }
 
     upload(schema="text_chunk", data_id="a", fields=fields)
 
-    print(query("Bridge"))
+    fields = {
+        "id" : "b", 
+        "document_id" : "abc", # document id from path
+        "access_group" : "", # not yet implemented
+        "title" : "", # not yet implemented
+        "chunk_text" : "Bridge is great",
+        "chunking_strategy" : "none",
+        "chunk_no" : 1,
+        "last_updated" : 1, # current time in long int
+        "e5" : embed_passage("Bridge is great").tolist()[0],
+        "colbert" : {}
+    }
+
+    upload(schema="text_chunk", data_id="b", fields=fields)
+
+    fields = {
+        "id" : "c", 
+        "document_id" : "abcd", # document id from path
+        "access_group" : "", # not yet implemented
+        "title" : "", # not yet implemented
+        "chunk_text" : "Bridge is amazing",
+        "chunking_strategy" : "none",
+        "chunk_no" : 1,
+        "last_updated" : 1, # current time in long int
+        "e5" : embed_passage("Bridge is amazing").tolist()[0],
+        "colbert" : {}
+    }
+
+    upload(schema="text_chunk", data_id="c", fields=fields)
+
+    ### QUERIES
+
+    query_str = "Bridge is" # exact match
+
+    # hybrid search (e5, bm25)
+
+    response = query(query_str)
+
+    print()
+
+    print(response)
+
+    response = vespa_query.query(
+        yql= f'select * from sources * where chunk_text contains "{query_str}"',
+        groupname="all",
+    )
+
+    print(response.json)
+
+    query_str = "Describe bridge" # semantic match
+
+    # hybrid search (e5, bm25)
+
+    response = query(query_str)
+
+    print()
+
+    print(response)
+
+    response = vespa_query.query(
+        yql= f'select * from sources * where chunk_text contains "{query_str}"',
+        groupname="all",
+    )
+    
+    print()
+
+    print(response.json)
