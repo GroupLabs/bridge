@@ -15,6 +15,9 @@ schema text_chunk {
         field access_group type string {
             indexing: summary | attribute
         }
+        field title type string {
+            indexing: summary | index
+        }
         field chunk_text type string {
             indexing: summary | index
             index: enable-bm25
@@ -132,18 +135,21 @@ schema text_chunk {
     }
 
     rank-profile default {
-        first-phase {
+        function keyword_score() {
             expression {
                 nativeRank(chunk_text)
             }
         }
-    }
 
-    rank-profile bm25 {
         first-phase {
             expression {
-                bm25(chunk_text)
+                keyword_score
             }
+        }
+
+        match-features {
+            bm25(chunk_text)
+            keyword_score
         }
     }
 }
