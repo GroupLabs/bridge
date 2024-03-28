@@ -9,15 +9,15 @@ import sys
 from celery import Celery
 
 from unstructured.partition.pdf import partition_pdf
-from postgres import postgres_to_yamls
 
+from connect.postgres import postgres_to_yamls
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
-from e5_small import embed_query
 
 CELERY_BROKER_URL = "amqp://guest:guest@localhost"
 
+# logger
 logger = setup_logger("storage")
 
 # celery config
@@ -35,6 +35,7 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+# elasticsearch
 es = Search()
 
 @celery_app.task(name="load_data_task")
@@ -146,7 +147,7 @@ def _db(db_type, host, user, password):
                 print("stored: " + file.split(".")[0])
 
 if __name__ == "__main__":
-    load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
+    # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
     response = es.search(
         # query={

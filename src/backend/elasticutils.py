@@ -6,12 +6,13 @@ import time
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch, BadRequestError
 
-from e5_small import embed_passage, embed_query
+from embed.e5_small import embed_passage, embed_query
 
 # TODO: add logging
 
 load_dotenv()
 
+# TODO: add to config
 ELASTIC_PASSWORD="v4Ci+biLJxCFS=s5arr1"
 ELASTIC_CA_CERT_PATH="/Users/noelthomas/Documents/GitHub/Bridge/http_ca.crt"
 ELASTIC_USER="elastic"
@@ -83,7 +84,7 @@ class Search:
         return self.es.get(index=index, id=id)
     
     def hybrid_search(self, query: str, index: str):
-        match_response = es.search(
+        match_response = self.es.search(
             query={
                 'match': {
                     'title': {
@@ -96,7 +97,7 @@ class Search:
 
         match_results = match_response['hits']['hits']
 
-        knn_response = es.search(
+        knn_response = self.es.search(
             knn={
                 'field': 'e5',
                 'query_vector': embed_query(query).tolist()[0],
@@ -195,4 +196,6 @@ if __name__ == "__main__":
     # pprint(resp['hits'])
 
     print(es)
+
+    print(es.retrieve_document_by_id("iI78g44BIew1j5poztvp", "text_chunk"))
 

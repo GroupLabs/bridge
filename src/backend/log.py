@@ -1,6 +1,7 @@
 import logging
 import os
 
+# TODO: add to config
 LOG_LEVEL = "INFO"
 
 def get_log_level_from_str(log_level_str: str = LOG_LEVEL) -> int:
