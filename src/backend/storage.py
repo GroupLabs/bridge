@@ -13,15 +13,13 @@ from postgres import postgres_to_yamls
 
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
-from vespautils import upload_config, upload, query
+from elasticutils import Search
 
-VESPA_CONFIG_PATH = "./search-config"
 CELERY_BROKER_URL = "amqp://guest:guest@localhost"
 
 logger = setup_logger("storage")
 
 # celery config
-
 celery_app = Celery(
     "worker",
     broker=CELERY_BROKER_URL,  # Default RabbitMQ credentials
@@ -35,13 +33,6 @@ celery_app.conf.update(
     timezone='Europe/London',
     enable_utc=True,
 )
-
-# vespa config
-try:
-    upload_config(VESPA_CONFIG_PATH)
-except Exception as e:
-    logger.critical(f"Failed to configure Vespa: {e}")
-    sys.exit(1)
 
 # def __len__(self) -> int:
 #     return self.app.query(
