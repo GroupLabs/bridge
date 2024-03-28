@@ -43,7 +43,7 @@ class Search:
                         'chunk_no': {'type': 'integer'},
                         # 'last_updated': {'type': 'date'}, # auto created by es
                         'e5': {'type': 'dense_vector'},
-                        'colbert': {'type': 'object', 'enabled': False}  # Disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
                     }
                 })
         except BadRequestError as e:
@@ -51,10 +51,17 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 raise
 
-    # load
+    def __repr__(self):
+        r = ""
+        r = r + "Search: \n"
+        r = r + f".... status: {'HEALTHY' if self.es.ping() else 'DISCONNECTED'}\n"
+        r = r + f".... [text_chunk] storing {self.es.count(index='text_chunk')['count']} value(s)"
+        return r
+    
+    # load ops
     def insert_document(self, document: any, index: str):
 
-        # adding embeddings
+        # add embeddings
         if index == "text_chunk":
             document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
             document['colbert'] = {}
@@ -68,7 +75,7 @@ class Search:
             operations.append(document)
         return self.es.bulk(operations=operations)
 
-    # query
+    # query ops
     def search(self, index: str, **query_args):
         return self.es.search(index=index, **query_args)
 
@@ -80,71 +87,73 @@ if __name__ == "__main__":
     
     es = Search()
 
-    # es.es.indices.delete(index="test")
+    # # es.es.indices.delete(index="test")
 
-    document = {
-        # "id" : "a",
-        "document_id" : "ab", # document id from path
-        "access_group" : "", # not yet implemented
-        "title" : "", # not yet implemented
-        "chunk_text" : "Bridge is awesome",
-        "chunking_strategy" : "none",
-        "chunk_no" : 1,
-        # "last_updated" : 1, # current time in long int
-        # "e5" : embed_passage("Bridge is awesome").tolist()[0],
-        # "colbert" : {}
-    }
+    # document = {
+    #     # "id" : "a",
+    #     "document_id" : "ab", # document id from path
+    #     "access_group" : "", # not yet implemented
+    #     "title" : "", # not yet implemented
+    #     "chunk_text" : "Bridge is awesome",
+    #     "chunking_strategy" : "none",
+    #     "chunk_no" : 1,
+    #     # "last_updated" : 1, # current time in long int
+    #     # "e5" : embed_passage("Bridge is awesome").tolist()[0],
+    #     # "colbert" : {}
+    # }
 
-    resp = es.insert_document(document, "test")
+    # resp = es.insert_document(document, "test")
 
-    print()
-    pprint(resp)
+    # print()
+    # pprint(resp)
 
-    resp = es.retrieve_document_by_id(
-        resp['_id'],
-        index='test'
-    )
+    # resp = es.retrieve_document_by_id(
+    #     resp['_id'],
+    #     index='test'
+    # )
 
-    print()
-    pprint(resp)
+    # print()
+    # pprint(resp)
 
-    resp = es.search(
-        query={
-            'match': {
-                'chunk_text': {
-                    'query': 'Bridge'
-                }
-            }
-        },
-        index='test'
-    )
+    # resp = es.search(
+    #     query={
+    #         'match': {
+    #             'chunk_text': {
+    #                 'query': 'Bridge'
+    #             }
+    #         }
+    #     },
+    #     index='test'
+    # )
 
-    print()
-    pprint(resp['hits'])
+    # print()
+    # pprint(resp['hits'])
 
-    print()
-    pprint(es.es.indices.get_mapping(index='test')["test"])
+    # print()
+    # pprint(es.es.indices.get_mapping(index='test')["test"])
 
-    resp = es.search(
-        # query={
-        #     'match': {
-        #         'title': {
-        #             'query': 'describe bridge'
-        #         }
-        #     }
-        # },
-        knn={
-            'field': 'e5',
-            'query_vector': embed_query("describe bridge").tolist()[0],
-            'k': 10,
-            'num_candidates': 50
-        },
-        # rank={
-        #     'rrf': {}
-        # },
-        index='test'
-    )
+    # resp = es.search(
+    #     # query={
+    #     #     'match': {
+    #     #         'title': {
+    #     #             'query': 'describe bridge'
+    #     #         }
+    #     #     }
+    #     # },
+    #     knn={
+    #         'field': 'e5',
+    #         'query_vector': embed_query("describe bridge").tolist()[0],
+    #         'k': 10,
+    #         'num_candidates': 50
+    #     },
+    #     # rank={
+    #     #     'rrf': {}
+    #     # },
+    #     index='test'
+    # )
 
-    print()
-    pprint(resp['hits'])
+    # print()
+    # pprint(resp['hits'])
+
+    print(es)
 

@@ -12,11 +12,13 @@ We want to use whatever is available that gets the job done. At least for now, n
 To get the API started on your computer, do the following:
 
 1. Ensure your Docker daemon is running. On Mac, just start Docker Desktop
-2. In your venv (or not), run: `python --version` to find the version. The code is tested on 3.11 (stable), and 3.8 (experimental). Then run: `pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx`
+2. In your venv (or not), run: `python --version` to find the version. The code is tested on 3.11 (stable), and 3.8 (experimental). Then run: `pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx psycopg2-binary openai`
 3. Go to `deployment/vespa/` and run `docker-compose up -d` (this configures and sets up your Vespa containers)
 4. Start RabbitMQ: `docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management` (this may download the image if you don't have it already)
-5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead)
-6. Finally, run the API: `python api.py`
+5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead). Should be done in the backend dir.
+6. Install poppler. On mac this is `brew install poppler`
+7. Install tesseract. On mac this is `brew install tesseract`
+7. Finally, run the API: `python api.py`
 
 
 ### Other fun stuff:
@@ -24,6 +26,19 @@ To get the API started on your computer, do the following:
 gives 10 threads, and 2 unique workers. task assignment is handled
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker1@%h &
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker2@%h &
+
+To download punkt: 
+import nltk
+import ssl
+
+# try:
+#     _create_unverified_https_context = ssl._create_unverified_context
+# except AttributeError:
+#     pass
+# else:
+#     ssl._create_default_https_context = _create_unverified_https_context
+
+# nltk.download()
 
 
 ### Misc:
