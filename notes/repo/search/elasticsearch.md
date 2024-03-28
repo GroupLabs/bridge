@@ -4,7 +4,7 @@ Why are we using ES?
 - full text search, and vector search
 - 
 
-
+ES STARTUP NOTES ------------
 
 
 docker network create elastic
@@ -25,6 +25,19 @@ docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kib
 use kibana enrollment token
 
 use user=elastic, password=ELASTIC_PASSWORD
+
+
+
+----------
+
+
+
+
+
+
+
+
+
 
 
 
