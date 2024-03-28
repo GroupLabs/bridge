@@ -81,7 +81,46 @@ class Search:
 
     def retrieve_document_by_id(self, id, index):
         return self.es.get(index=index, id=id)
+    
+    def hybrid_search(self, query: str, index: str):
+        match_response = es.search(
+            query={
+                'match': {
+                    'title': {
+                        'query': query
+                    }
+                }
+            },
+            index=index
+        )
 
+        match_results = match_response['hits']['hits']
+
+        knn_response = es.search(
+            knn={
+                'field': 'e5',
+                'query_vector': embed_query(query).tolist()[0],
+                'k': 10,
+                'num_candidates': 50
+            },
+            index=index
+        )
+
+        knn_results = knn_response['hits']['hits']
+
+        # rrf
+        combined_results = {}
+        k = 60
+
+        for rank, result in enumerate(match_results, 1):
+            combined_results[result['_id']] = 1 / (k + rank)
+
+        for rank, result in enumerate(knn_results, 1):
+            combined_results[result['_id']] = combined_results.get(result['_id'], 0) + 1 / (k + rank)
+
+        sorted_results = sorted(combined_results.items(), key=lambda item: item[1], reverse=True)
+
+        return sorted_results
 
 if __name__ == "__main__":
     

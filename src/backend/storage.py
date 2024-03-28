@@ -52,8 +52,9 @@ def load_data(filepath: str, read=True):
             password=c_string["password"],
             )
     else:
-        # checks for illegal paths and returns type
-        pathtype = get_pathtype(filepath)
+        filepath = Path(filepath).absolute().as_posix() # standardize path
+
+        pathtype = get_pathtype(filepath) # checks for illegal paths and returns type
 
         # unstructured
         if pathtype == "pdf":
@@ -166,7 +167,22 @@ if __name__ == "__main__":
         # },
         index='text_chunk'
     )
+
     print(response)
+    print()
+    print()
+
+
+    response = es.hybrid_search("What is GQA?", "text_chunk")
+
+    print()
+    print()
+    print()
+    print()
+    print()
+    print(response)
+
+    
 
     # host="localhost"
     # user=os.getenv("PG_USER")
