@@ -45,7 +45,7 @@ def get_tables_and_columns(db_name):
     """
     return pd.read_sql(query, mydb)
 
-# Main database for the process
+# Main database for the process // EXCLUDED sys 'world' db for azure vm testing
 system_mysql_dbs = ['information_schema', 'mysql', 'performance_schema','sakila','sys']
 
 all_dbs = pd.read_sql("SHOW DATABASES", mydb)
