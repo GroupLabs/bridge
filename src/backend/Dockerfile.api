@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+COPY serverutils.py ollama.py storage.py typeutils.py vespautils.py postgres.py auto_description.py requirements.txt log.py api.py ./
+
+# Environment variables for Elasticsearch URL and for RabbitMQ URL
+# ENV ELASTICSEARCH_URL=http://elasticsearch:9200
+# ENV RABBITMQ_URL=amqp://user:password@rabbitmq:5672/
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+EXPOSE 80
+
+CMD ["python", "api.py"]
