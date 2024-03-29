@@ -72,6 +72,12 @@ def load_data(filepath: str, read=True):
         else:
             logger.warning("unsupported filetype encountered.")
             raise NotImplementedError(f"File ({pathtype}) type is not supported.")
+    
+    if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
+            os.remove(filepath)
+
+def query(q: str, index: str):
+    es.hybrid_search(q, index)
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     

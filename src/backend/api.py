@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, Response
+from fastapi import Depends, FastAPI, Response, File, UploadFile
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -45,10 +45,25 @@ async def get_task_result(task_id: str):
 # accepts path to data (unstructurded | structured)
 # returns ok
 
-@app.post("/load")
-async def load_data_ep(input: Load, response: Response):
+@app.post("/load_by_path")
+async def load_data_by_path(input: Load, response: Response):
     try:
         task = load_data.delay(input.filepath)
+        response.status_code = 202
+        logger.info(f"LOAD accepted: {input.filepath}")
+        return {"status": "accepted", "task_id": task.id}
+    except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {input.filepath}")
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
+@app.post("/load")
+async def load_data_ep(response: Response, file: UploadFile = File(...)):
+    try:
+        with open(f"temp/{file.filename}", "wb") as temp_file: # not sure if a temp file is needed
+            temp_file.write(await file.read())
+
+        task = load_data.delay(temp_file)
         response.status_code = 202
         logger.info(f"LOAD accepted: {input.filepath}")
         return {"status": "accepted", "task_id": task.id}

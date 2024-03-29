@@ -52,11 +52,16 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 raise
 
+        self.registered_indices = [
+            "text_chunk"
+        ]
+
     def __repr__(self):
         r = ""
         r = r + "Search: \n"
         r = r + f".... status: {'HEALTHY' if self.es.ping() else 'DISCONNECTED'}\n"
-        r = r + f".... [text_chunk] storing {self.es.count(index='text_chunk')['count']} value(s)"
+        for idx in self.registered_indices:
+            r = r + f".... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
         return r
     
     # load ops
@@ -197,5 +202,5 @@ if __name__ == "__main__":
 
     print(es)
 
-    print(es.retrieve_document_by_id("iI78g44BIew1j5poztvp", "text_chunk"))
+    # print(es.retrieve_document_by_id("iI78g44BIew1j5poztvp", "text_chunk"))
 
