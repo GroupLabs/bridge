@@ -1,8 +1,3 @@
-import json
-from pprint import pprint
-import os
-import time
-
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch, BadRequestError
 
@@ -27,7 +22,7 @@ class Search:
         )
         client_info = self.es.info()
         print('Connected to Elasticsearch!')
-        pprint(client_info.body)
+        # pprint(client_info.body)
 
         # configure
         try:
@@ -129,6 +124,7 @@ class Search:
         return sorted_results
 
 if __name__ == "__main__":
+    from pprint import pprint
     
     es = Search()
 
