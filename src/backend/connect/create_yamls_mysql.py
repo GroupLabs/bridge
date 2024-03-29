@@ -7,13 +7,21 @@ import pandas as pd
 import mysql.connector
 import os
 import yaml
-from desc_gen import desc_gen
+import sys
+from pathlib import Path
 
-# Establish database connection using environment variables
+# Get the absolute path of the parent directory
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(parent_dir))
+
+from auto_description import desc_gen
+
+
+# Establish database connection using environment variables // TESTING W AZURE VM
 mydb = mysql.connector.connect(
-    host="localhost",
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PWD"),
+    host="20.42.102.160",
+    user='root',
+    password="password",
     database="information_schema"  # Use the information_schema database for metadata queries
 )
 
@@ -38,7 +46,7 @@ def get_tables_and_columns(db_name):
     return pd.read_sql(query, mydb)
 
 # Main database for the process
-system_mysql_dbs = ['information_schema', 'mysql', 'performance_schema','sakila','sys', 'world']
+system_mysql_dbs = ['information_schema', 'mysql', 'performance_schema','sakila','sys']
 
 all_dbs = pd.read_sql("SHOW DATABASES", mydb)
 all_dbs = all_dbs['Database'].values.tolist()
@@ -55,9 +63,9 @@ for db_name in dbs_to_process:
 
     # Process and create a YAML structure for each table
     tables = df['table_name'].unique()
-    for table in tables:
-        description = desc_gen(table)
+    for table in tables:        
         table_df = df[df['table_name'] == table]
+        description = desc_gen(table_df)
         table_constraints_df = df_constraints[df_constraints['table_name'] == table]
         primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
         foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']
@@ -97,6 +105,30 @@ mydb.close()
 
 # TO DO - ADD DESCRIPTIONS
 # TO DO - ADD ERROR HANDLING, RUN THROUGH ALL DBs, NOT JUST ONE
+
+#TESTIN
+
+# config = {
+#   'user': 'root',
+#   'password': 'password',
+#   'host': '20.42.102.160',  # Or your server's IP address/domain if remote
+#   'database': 'world',
+#   'raise_on_warnings': True
+# }
+
+# try:
+#     cnx = mysql.connector.connect(**config)
+#     print("Connection successful")
+# except mysql.connector.Error as err:
+#     print(f"Error: {err}")
+    
+    
+# cnx.execute("""
+#             SELECT *
+#             FROM world
+#             """)
+    
+
 
 
 

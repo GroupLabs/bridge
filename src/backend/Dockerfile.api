@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-COPY serverutils.py ollama.py storage.py typeutils.py vespautils.py postgres.py auto_description.py requirements.txt log.py api.py ./
+COPY serverutils.py ollama.py storage.py typeutils.py elasticutils.py auto_description.py requirements.txt log.py api.py ./
 
 # Environment variables for Elasticsearch URL and for RabbitMQ URL
 # ENV ELASTICSEARCH_URL=http://elasticsearch:9200
