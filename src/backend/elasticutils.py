@@ -1,11 +1,12 @@
 from elasticsearch import Elasticsearch, BadRequestError
 
 from config import config
+from log import setup_logger
 from embed.e5_small import embed_passage, embed_query
 
-# TODO: add logging
+# logger
+logger = setup_logger("elastic")
 
-# TODO: add to config
 ELASTIC_PASSWORD=config.ELASTIC_PASSWORD
 ELASTIC_CA_CERT_PATH=config.ELASTIC_CA_CERT_PATH
 ELASTIC_USER=config.ELASTIC_USER
@@ -19,8 +20,8 @@ class Search:
             basic_auth=(ELASTIC_USER, ELASTIC_PASSWORD)
         )
         client_info = self.es.info()
-        print('Connected to Elasticsearch!')
-        # pprint(client_info.body)
+        logger.info("Connected.")
+        logger.info(str(client_info))
 
         # configure text_chunk
         try:
@@ -41,8 +42,8 @@ class Search:
                     }
                 })
         except BadRequestError as e:
-            # TODO: should be logged
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
                 raise
         
         # configure table_meta
@@ -66,14 +67,18 @@ class Search:
                     }
                 })
         except BadRequestError as e:
-            # TODO: should be logged
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
                 raise
+
+        logger.info("Configured.")
 
         self.registered_indices = [
             "text_chunk",
             "table_meta"
         ]
+
+        logger.info("Indices Registered.")
 
     def __repr__(self):
         r = ""
@@ -95,6 +100,8 @@ class Search:
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
+
+        logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
 
@@ -149,6 +156,8 @@ class Search:
             combined_results[result['_id']] = combined_results.get(result['_id'], 0) + 1 / (k + rank)
 
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1], reverse=True)
+
+        logger.info(f"Hybrid search returned {len(sorted_results.keys())} elements.")
 
         return sorted_results
 
