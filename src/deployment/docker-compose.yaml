@@ -120,16 +120,27 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama:/root/.ollama
+      - ${OLLAMA_PATH}:/root/.ollama
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s http://localhost:11434 | grep -q 'Ollama is running'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
 
   api:
-    image: acrbridge.azurecr.io/api-multiarch
+    image: api
     networks:
       - bridge-net
     environment:
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - ELASTIC_CA_CERT_PATH=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - ELASTIC_URL=https://es01:9200
+      - LLM_URL=http://ollama:11434/api/
+      - LLM_MODEL=${LLM_MODEL}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672/
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
@@ -145,7 +156,6 @@ services:
         python api.py"
 
 volumes:
-  ollama:
   certs:
     driver: local
   esdata:

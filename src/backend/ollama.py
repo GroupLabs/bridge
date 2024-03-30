@@ -31,7 +31,7 @@ async def chat(messages):
     
 def gen(prompt: str):
     data = {
-        "model": "llama2",
+        "model": LLM_MODEL,
         "prompt": prompt
     }
 
@@ -57,9 +57,7 @@ def gen(prompt: str):
 
 if __name__ == "__main__":
     # print(chat([{"role": "user", "content": "when is the best time to water my plants?"}]))
-    print()
-    print()
-    print(gen("why is the sky blue?", stream=False))
-    print()
-    print()
+    # print()
+    print(gen("why is the sky blue?"))
+    # print()
     # print(chat("why is the sky blue?"))
