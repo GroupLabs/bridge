@@ -9,10 +9,12 @@ from pathlib import Path
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
 
-from auto_description import desc_gen
+from auto_description import describe_table
 
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(".env"))
+
+from .correlation import correlation_embedding
 
 # Function to fetch constraints data, adapted for PostgreSQL
 def get_constraints(db_name, table_name, conn):
@@ -133,7 +135,7 @@ def postgres_to_yamls(host, user, password):
         
         for table in tables:
             columns = get_columns(db_name=db, table_name=table, conn=conn)
-            description = desc_gen(str(columns))
+            description = describe_table(str(columns))
             constraints = get_constraints(db_name=db, table_name=table, conn=conn)
             primary_keys = constraints[constraints["constraint_type"] == "PRIMARY KEY"]["column_name"].tolist()
             foreign_keys = constraints[constraints["constraint_type"] == "FOREIGN KEY"]
@@ -141,6 +143,21 @@ def postgres_to_yamls(host, user, password):
             dimensions = []
             for _, row in columns.iterrows():
                 column = {"name": row["column_name"], "type": row["data_type"], "sql": row["column_name"]}
+
+                # Before running the query, ensure the column name is correctly formatted
+                column_name = row['column_name']
+                quoted_column_name = f'"{column_name}"'  # Enclose the column name in double quotes
+
+                # Use the quoted column name in the SQL query
+                query = f"SELECT {quoted_column_name} FROM \"{table}\""
+                column_data = pd.read_sql(query, conn)
+
+                # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
+                embedding = correlation_embedding(column_data[column_name].values)
+
+                column["embedding"] = embedding.tolist()  # Assuming the output can be converted to a list
+
+
                 if row["column_name"] in primary_keys:
                     column["primary_key"] = True
                 elif row["column_name"] in foreign_keys["column_name"].tolist():
@@ -165,7 +182,7 @@ def postgres_to_yamls(host, user, password):
 
             yamls.append(yaml_structure)
 
-            yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
+            yaml_str = yaml.dump(yaml_structure, default_flow_style=None, sort_keys=False)
             os.makedirs(f"models/postgres/yamls", exist_ok=True)
             with open(f"models/postgres/yamls/{table}.yaml", 'w') as yaml_file:
                 yaml_file.write(yaml_str)

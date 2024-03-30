@@ -125,6 +125,8 @@ def _db(db_type, host, user, password):
     # figure out which db connector to use
     if db_type == "postgres":
         postgres_to_yamls(host, user, password)
+    elif db_type == "mysql":
+        raise NotImplementedError
     else:
         raise NotImplementedError
 
@@ -133,19 +135,29 @@ def _db(db_type, host, user, password):
 
     data = {}
 
-    for i, file in enumerate(os.listdir(node_name)):
+    for i, file in enumerate(os.listdir(node_name)): # TODO: does this need to be enumerated?
         filepath = os.path.join(node_name, file)
         if file.endswith('.yaml') and os.path.isfile(filepath):
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
 
-                table_id = str(uuid4())
+                column_embeddings = {}
+                if 'dimensions' in data:
+                    for dimension in data['dimensions']:
+                        column_name = dimension.get('name')
+                        embedding = dimension.get('embedding')
+                        if column_name and embedding:
+                            column_embeddings[column_name] = embedding
 
                 fields = {
                     "database_id" : db_id,
                     "access_group" : "", # not yet implemented
-                    "description_text" : data["description"], # not yet implemented
-                    "data_hash" : "not implemented" # for integrity check
+                    "table_name" : data["sql_name"],
+                    "description_text" : data["description"],
+                    "correlation_embedding" : column_embeddings,
+                    "chunking_strategy" : "", # not chunked rn
+                    "chunking_no" : "", # not chunked rn
+                    "data_hash" : "not implemented", # for integrity check
                 }
 
                 es.insert_document(fields, index="table_meta")

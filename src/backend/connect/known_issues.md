@@ -1,0 +1,2 @@
+- not sure if current connection is safe, may need to use SQLAlchemy. See:
+    backend/postgres.py:153: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.

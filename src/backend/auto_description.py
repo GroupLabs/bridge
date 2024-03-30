@@ -1,24 +1,7 @@
-import os
-from openai import OpenAI
-from config import config
+from ollama import gen
 
-OPENAI_KEY = config.OPENAI_KEY
+def describe_table(input):
 
-def desc_gen(input):
+    resp = gen(f"The following is a table. Look at the columns and infer what the table is about. Return just the description - as detailed as possible, but keep it straight to the point: {input}")
 
-    client = OpenAI(
-        api_key = OPENAI_KEY
-    )
-
-    chat_completion = client.chat.completions.create(
-        messages = [
-            {
-                "role": "user",
-              
-                "content": f"If the input's structure is pandas dataframe, then infer what the table description. if the format is text only, then please describe it as a pdf file. Here is the input {input}. Return just the description - as detailed as possible, but keep it straight to the point"
-            }
-        ],
-        model = "gpt-4-0125-preview",
-    ) 
-
-    return chat_completion.choices[0].message.content
+    return resp

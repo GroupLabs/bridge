@@ -22,7 +22,7 @@ class Search:
         print('Connected to Elasticsearch!')
         # pprint(client_info.body)
 
-        # configure
+        # configure text_chunk
         try:
             self.es.indices.create( # may fail if index exists
                 index='text_chunk', 
@@ -31,12 +31,37 @@ class Search:
                         # 'id': {'type': 'keyword'}, # auto created by es
                         'document_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
-                        'title': {'type': 'text'},
+                        'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
                         # 'last_updated': {'type': 'date'}, # auto created by es
                         'e5': {'type': 'dense_vector'},
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                    }
+                })
+        except BadRequestError as e:
+            # TODO: should be logged
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                raise
+        
+        # configure table_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='table_meta', 
+                mappings={
+                    'properties': {
+                        # 'id': {'type': 'keyword'}, # auto created by es
+                        'database_id': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'table_name': {'type': 'text'},
+                        'description_text': {'type': 'text'},
+                        'chunking_strategy': {'type': 'keyword'},
+                        'chunk_no': {'type': 'integer'},
+                        'data_hash': {'type': 'keyword'},
+                        # 'last_updated': {'type': 'date'}, # auto created by es
+                        'e5': {'type': 'dense_vector'},
+                        'correlation_embedding': {'type': 'dense_vector'},
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
                     }
                 })
@@ -64,6 +89,11 @@ class Search:
         if index == "text_chunk":
             document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
             document['colbert'] = {}
+
+        if index == "table_meta":
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['colbert'] = {}
+            # correlation embeddings are handled at storage
 
         return self.es.index(index=index, body=document)
 
