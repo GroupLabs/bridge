@@ -71,15 +71,16 @@ class Search:
                 raise
 
         self.registered_indices = [
-            "text_chunk"
+            "text_chunk",
+            "table_meta"
         ]
 
     def __repr__(self):
         r = ""
         r = r + "Search: \n"
-        r = r + f".... status: {'HEALTHY' if self.es.ping() else 'DISCONNECTED'}\n"
+        r = r + f".... status: {'HEALTHY' if self.es.ping() else 'DISCONNECTED'}"
         for idx in self.registered_indices:
-            r = r + f".... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
+            r = r + f"\n.... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
         return r
     
     # load ops

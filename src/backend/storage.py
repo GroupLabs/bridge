@@ -167,39 +167,17 @@ def _db(db_type, host, user, password):
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
-    response = es.search(
-        # query={
-        #     'match': {
-        #         'title': {
-        #             'query': 'describe bridge'
-        #         }
-        #     }
-        # },
-        knn={
-            'field': 'e5',
-            'query_vector': embed_query("what is GQA?").tolist()[0],
-            'k': 10,
-            'num_candidates': 50
-        },
-        # rank={
-        #     'rrf': {}
-        # },
-        index='text_chunk'
-    )
+    # response = es.hybrid_search("What is GQA?", "text_chunk")
 
-    print(response)
-    print()
-    print()
+    # print(response)
+
+    # print()
+ 
+    print(es)
+    print(es.registered_indices)
 
 
-    response = es.hybrid_search("What is GQA?", "text_chunk")
 
-    print()
-    print()
-    print()
-    print()
-    print()
-    print(response)
 
     
 
