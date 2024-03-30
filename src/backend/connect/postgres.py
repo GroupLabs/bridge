@@ -2,7 +2,15 @@ import pandas as pd
 import psycopg2
 import os
 import yaml
+import sys
+from pathlib import Path
+
+# Get the absolute path of the parent directory
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(parent_dir))
+
 from auto_description import desc_gen
+
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(".env"))
 
@@ -174,3 +182,35 @@ if __name__ == "__main__":
     password=os.getenv("PG_PWD")
 
     postgres_to_yamls(host, user, password)
+
+    
+#TESTING AZURE VM
+
+# hostname = '20.42.102.160'
+# database = 'postgres'
+# username = 'postgres'
+# password = 'password'
+# port_id = 5432  # Default PostgreSQL port is 5432
+
+# # Establishing the connection
+# conn = psycopg2.connect(
+#     database=database,
+#     user=username,
+#     password=password,
+#     host=hostname,
+#     port=port_id
+# )
+
+# # Create a cursor object
+# cur = conn.cursor()
+
+# # Execute a query
+# cur.execute('SELECT version();')
+
+# # Fetch and print the result
+# db_version = cur.fetchone()
+# print(db_version)
+
+# # Close the cursor and connection
+# cur.close()
+# conn.close()
