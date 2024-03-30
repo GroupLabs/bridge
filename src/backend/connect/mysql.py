@@ -1,7 +1,4 @@
-# NOT IMPLEMENTED
-
-
-
+# IMPLEMENTED - NEED TO CHANGE CREDENTIALS TO ENV VARS
 
 import pandas as pd
 import mysql.connector
@@ -16,17 +13,8 @@ sys.path.append(str(parent_dir))
 
 from auto_description import desc_gen
 
-
-# Establish database connection using environment variables // TESTING W AZURE VM
-mydb = mysql.connector.connect(
-    host="20.42.102.160",
-    user='root',
-    password="password",
-    database="information_schema"  # Use the information_schema database for metadata queries
-)
-
 # Function to fetch constraints data
-def get_constraints(db_name):
+def get_constraints(db_name, mydb):
     query = f"""
     SELECT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
     FROM KEY_COLUMN_USAGE 
@@ -36,7 +24,7 @@ def get_constraints(db_name):
     return pd.read_sql(query, mydb)
 
 # Function to fetch tables and columns data
-def get_tables_and_columns(db_name):
+def get_tables_and_columns(db_name, mydb):
     query = f"""
     SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
     FROM COLUMNS 
@@ -45,63 +33,86 @@ def get_tables_and_columns(db_name):
     """
     return pd.read_sql(query, mydb)
 
-# Main database for the process // EXCLUDED sys 'world' db for azure vm testing
-system_mysql_dbs = ['information_schema', 'mysql', 'performance_schema','sakila','sys']
+def mysql_to_yamls(host, user, password):
+    # Establish database connection using environment variables // TESTING W AZURE VM
+    mydb = mysql.connector.connect(
+        host=host,
+        user=user,
+        password=password,
+        database="information_schema"  # Use the information_schema database for metadata queries
+    )
 
-all_dbs = pd.read_sql("SHOW DATABASES", mydb)
-all_dbs = all_dbs['Database'].values.tolist()
+    # Main database for the process // EXCLUDED sys 'world' db for azure vm testing
+    system_mysql_dbs = ['information_schema', 'mysql', 'performance_schema','sakila','sys']
 
-dbs_to_process = [db for db in all_dbs if db not in system_mysql_dbs]
+    all_dbs = pd.read_sql("SHOW DATABASES", mydb)
+    all_dbs = all_dbs['Database'].values.tolist()
 
-for db_name in dbs_to_process:
+    dbs_to_process = [db for db in all_dbs if db not in system_mysql_dbs]
 
-    # Fetching necessary data
-    df = get_tables_and_columns(db_name)
-    df_constraints = get_constraints(db_name)
-    df.columns = df.columns.str.lower()
-    df_constraints.columns = df_constraints.columns.str.lower()
+    yamls = []
 
-    # Process and create a YAML structure for each table
-    tables = df['table_name'].unique()
-    for table in tables:        
-        table_df = df[df['table_name'] == table]
-        description = desc_gen(table_df)
-        table_constraints_df = df_constraints[df_constraints['table_name'] == table]
-        primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
-        foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']
+    for db_name in dbs_to_process:
 
-        dimensions = []
-        for _, row in table_df.iterrows():
-            column = {"name": row["column_name"], "type": row["data_type"], "sql": row["column_name"]}
-            if row["column_name"] in primary_keys:
-                column["primary_key"] = True
-            elif row["column_name"] in foreign_keys['column_name'].values:
-                column["foreign_key"] = True
-            dimensions.append(column)
+        # Fetching necessary data
+        df = get_tables_and_columns(db_name, mydb)
+        df_constraints = get_constraints(db_name, mydb)
+        df.columns = df.columns.str.lower()
+        df_constraints.columns = df_constraints.columns.str.lower()
 
-        joins = []
-        for _, fk_row in foreign_keys.iterrows():
-            join = {
-                "name": fk_row["referenced_table_name"],
-                "sql": f"{{{table}}}.{fk_row['column_name']} = {{{fk_row['referenced_table_name']}}}.{fk_row['referenced_column_name']}"
+        # Process and create a YAML structure for each table
+        tables = df['table_name'].unique()
+        for table in tables:        
+            table_df = df[df['table_name'] == table]
+            description = desc_gen(table_df)
+            table_constraints_df = df_constraints[df_constraints['table_name'] == table]
+            primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
+            foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']
+
+            dimensions = []
+            for _, row in table_df.iterrows():
+                column = {"name": row["column_name"], "type": row["data_type"], "sql": row["column_name"]}
+                if row["column_name"] in primary_keys:
+                    column["primary_key"] = True
+                elif row["column_name"] in foreign_keys['column_name'].values:
+                    column["foreign_key"] = True
+                dimensions.append(column)
+
+            joins = []
+            for _, fk_row in foreign_keys.iterrows():
+                join = {
+                    "name": fk_row["referenced_table_name"],
+                    "sql": f"{{{table}}}.{fk_row['column_name']} = {{{fk_row['referenced_table_name']}}}.{fk_row['referenced_column_name']}"
+                }
+                joins.append(join)
+
+            yaml_structure = {
+                "name": table,
+                "sql_name": f"{db_name}.{table}",
+                "dimensions": dimensions,
+                **({"joins": joins} if joins else {}),
+                "description":description
             }
-            joins.append(join)
 
-        yaml_structure = {
-            "name": table,
-            "sql_name": f"{db_name}.{table}",
-            "dimensions": dimensions,
-            **({"joins": joins} if joins else {}),
-            "description":description
-        }
+            yamls.append(yaml_structure)
+            
+            yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
+            os.makedirs("models/yamls", exist_ok=True)
+            with open(f"models/yamls/{table}_yaml.yaml", 'w') as yaml_file:
+                yaml_file.write(yaml_str)
 
-        yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
-        os.makedirs("models/yamls", exist_ok=True)
-        with open(f"models/yamls/{table}_yaml.yaml", 'w') as yaml_file:
-            yaml_file.write(yaml_str)
+    # Closing the database connection
+    mydb.close()
+    
+    return yamls
 
-# Closing the database connection
-mydb.close()
+if __name__ == "__main__":
+
+    host="20.42.102.160"
+    user='root'
+    password="password"
+
+    mysql_to_yamls(host, user, password)
 
 # TO DO - ADD DESCRIPTIONS
 # TO DO - ADD ERROR HANDLING, RUN THROUGH ALL DBs, NOT JUST ONE
