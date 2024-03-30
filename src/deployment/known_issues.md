@@ -1,2 +1,3 @@
 - need to adjust encryption key in .env
 - celery workers are being run as super users
+- ollama needs to be run manually
