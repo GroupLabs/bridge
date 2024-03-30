@@ -22,11 +22,10 @@ class config:
     LLM_MODEL = str(os.getenv('LLM_MODEL', "mistral"))
 
     # storage
-    VESPA_CONFIG_PATH = str(os.getenv('VESPA_CONFIG_PATH', "./search-config"))
     CELERY_BROKER_URL = str(os.getenv('VESPA_CONFIG_PATH', "amqp://guest:guest@localhost"))
 
-    # vespautils
-    VESPA_CONFIG_URL = str(os.getenv('VESPA_CONFIG_PATH', "http://localhost:19071/"))
-    VESPA_PREPAREANDACTIVATE_ENDP = str(os.getenv('VESPA_PREPAREANDACTIVATE_ENDP', VESPA_CONFIG_URL + "application/v2/tenant/default/prepareandactivate"))
-    VESPA_FEED_URL = str(os.getenv('VESPA_FEED_URL', "http://localhost:8080/"))
-    VESPA_QUERY_URL = str(os.getenv('VESPA_QUERY_URL', "http://localhost:8082/"))
+    # elasticutils
+    ELASTIC_PASSWORD = str(os.getenv('ELASTIC_PASSWORD', "HJTOXtwMSNZ-URZOi=Fm"))
+    ELASTIC_CA_CERT_PATH = str(os.getenv('ELASTIC_CA_CERT_PATH', "/Users/noelthomas/Documents/GitHub/Bridge/http_ca.crt"))
+    ELASTIC_USER = str(os.getenv('ELASTIC_USER', "elastic"))
+    ELASTIC_URL = str(os.getenv('ELASTIC_URL', "https://localhost:9200"))

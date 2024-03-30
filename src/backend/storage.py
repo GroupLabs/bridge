@@ -4,18 +4,18 @@ import yaml
 from uuid import uuid4, uuid5, NAMESPACE_URL
 import time
 from pathlib import Path
-import sys
 
 from celery import Celery
 
 from unstructured.partition.pdf import partition_pdf
 
 from connect.postgres import postgres_to_yamls
+from config import config
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 
-CELERY_BROKER_URL = "amqp://guest:guest@localhost"
+CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
 # logger
 logger = setup_logger("storage")

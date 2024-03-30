@@ -1,8 +1,9 @@
 import logging
 import os
+from config import config
 
 # TODO: add to config
-LOG_LEVEL = "INFO"
+LOG_LEVEL = config.LOG_LEVEL
 
 def get_log_level_from_str(log_level_str: str = LOG_LEVEL) -> int:
     log_level_dict = {

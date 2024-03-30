@@ -1,8 +1,6 @@
 from fastapi import Depends, FastAPI, Response, File, UploadFile
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
-import os
 
 from log import setup_logger
 from storage import load_data, query
@@ -102,16 +100,13 @@ async def llm_query(input: Query):
 
 if __name__ == "__main__":
     import uvicorn
+    from config import config
 
-    load_dotenv()
-    
-    PORT = int(os.getenv('API_PORT', 8000))
-
-    if not os.getenv('ENV'): # requires environment declaration
+    if not config.ENV: # requires environment declaration
         print("Missing environment variable.")
         exit(1)
 
-    if os.getenv('ENV') == "DEBUG":
+    if config.ENV == "DEBUG":
         import socket
 
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -120,15 +115,15 @@ if __name__ == "__main__":
             s.connect(("8.8.8.8", 80))
             ip_address = s.getsockname()[0]
 
-            print("\n\nServer available @ http://" + ip_address + ":" + str(PORT) + "\n\n")
+            print("\n\nServer available @ http://" + ip_address + ":" + str(config.PORT) + "\n\n")
         except OSError as e:
             print(e)
 
-    if os.getenv('ENV') == "PROD":
+    if config.ENV == "PROD":
         print("Please consider the following command to start the server:")
         print("\t EXPERIMENTAL: uvicorn your_app_module:app --workers 3")
         
     global health 
-    health = Health(status=Status.OK, ENV=os.getenv('ENV'))
+    health = Health(status=Status.OK, ENV=config.ENV)
     logger.info("SYSTEM READY")
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=config.PORT)

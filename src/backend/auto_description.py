@@ -1,10 +1,8 @@
 import os
 from openai import OpenAI
-from dotenv import load_dotenv
+from config import config
 
-load_dotenv()
-
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_KEY = config.OPENAI_KEY
 
 def desc_gen(input):
 

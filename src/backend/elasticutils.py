@@ -1,17 +1,15 @@
-from dotenv import load_dotenv
 from elasticsearch import Elasticsearch, BadRequestError
 
+from config import config
 from embed.e5_small import embed_passage, embed_query
 
 # TODO: add logging
 
-load_dotenv()
-
 # TODO: add to config
-ELASTIC_PASSWORD="HJTOXtwMSNZ-URZOi=Fm"
-ELASTIC_CA_CERT_PATH="/Users/noelthomas/Documents/GitHub/Bridge/http_ca.crt"
-ELASTIC_USER="elastic"
-ELASTIC_URL="https://localhost:9200"
+ELASTIC_PASSWORD=config.ELASTIC_PASSWORD
+ELASTIC_CA_CERT_PATH=config.ELASTIC_CA_CERT_PATH
+ELASTIC_USER=config.ELASTIC_USER
+ELASTIC_URL=config.ELASTIC_URL
 
 class Search:
     def __init__(self):
