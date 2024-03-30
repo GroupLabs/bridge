@@ -71,19 +71,23 @@ gives 10 threads, and 2 unique workers. task assignment is handled
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker1@%h &
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker2@%h &
 
+---
 To download punkt: 
+
+```
 import nltk
 import ssl
 
-# try:
-#     _create_unverified_https_context = ssl._create_unverified_context
-# except AttributeError:
-#     pass
-# else:
-#     ssl._create_default_https_context = _create_unverified_https_context
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
 
-# nltk.download()
-
+nltk.download()
+```
+---
 
 ### Misc:
 

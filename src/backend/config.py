@@ -22,10 +22,10 @@ class config:
     LLM_MODEL = str(os.getenv('LLM_MODEL', "mistral"))
 
     # storage
-    CELERY_BROKER_URL = str(os.getenv('VESPA_CONFIG_PATH', "amqp://guest:guest@localhost"))
+    CELERY_BROKER_URL = str(os.getenv('CELERY_BROKER_URL', "amqp://guest:guest@localhost"))
 
     # elasticutils
-    ELASTIC_PASSWORD = str(os.getenv('ELASTIC_PASSWORD', "HJTOXtwMSNZ-URZOi=Fm"))
+    ELASTIC_PASSWORD = str(os.getenv('ELASTIC_PASSWORD'))
     ELASTIC_CA_CERT_PATH = str(os.getenv('ELASTIC_CA_CERT_PATH', "/Users/noelthomas/Documents/GitHub/Bridge/http_ca.crt"))
     ELASTIC_USER = str(os.getenv('ELASTIC_USER', "elastic"))
     ELASTIC_URL = str(os.getenv('ELASTIC_URL', "https://localhost:9200"))

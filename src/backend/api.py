@@ -77,17 +77,17 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
 @app.get("/query")
 async def nl_query(input: Query):
 
-    resp = query(input.query)
+    resp = query(input.query, input.index)
 
     if input.use_llm:
-        context_list = [x["fields"]["text"] for x in resp.hits]
+        # context_list = [x["fields"]["text"] for x in resp.hits] this is for vespa, need to switch to es
 
         prompt = f"{input.query}\n"
         prompt += "Use the following for context:\n"
-        prompt += " ".join(context_list)
+        # prompt += " ".join(context_list) this is for vespa, need to switch to es
 
     logger.info(f"QUERY success: {input.query}")
-    return {"health": health, "status" : "success", "resp" : [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
+    return {"health": health, "status" : "success", "resp" : resp}
 
 @app.get("/llm")
 async def llm_query(input: Query):
