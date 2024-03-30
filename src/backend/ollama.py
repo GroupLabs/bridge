@@ -1,9 +1,10 @@
 import requests
 import json
 import httpx
+from config import config
 
-LLM_URL = "http://localhost:11434/api/"
-LLM_MODEL = "mistral"
+LLM_URL = config.LLM_URL
+LLM_MODEL = config.LLM_MODEL
 
 async def chat(messages):
     data = {

@@ -1,8 +1,6 @@
-from fastapi import Depends, FastAPI, Response
+from fastapi import Depends, FastAPI, Response, File, UploadFile
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
-import os
 
 from log import setup_logger
 from storage import load_data, query
@@ -45,10 +43,25 @@ async def get_task_result(task_id: str):
 # accepts path to data (unstructurded | structured)
 # returns ok
 
-@app.post("/load")
-async def load_data_ep(input: Load, response: Response):
+@app.post("/load_by_path")
+async def load_data_by_path(input: Load, response: Response):
     try:
         task = load_data.delay(input.filepath)
+        response.status_code = 202
+        logger.info(f"LOAD accepted: {input.filepath}")
+        return {"status": "accepted", "task_id": task.id}
+    except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {input.filepath}")
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
+@app.post("/load")
+async def load_data_ep(response: Response, file: UploadFile = File(...)):
+    try:
+        with open(f"temp/{file.filename}", "wb") as temp_file: # not sure if a temp file is needed
+            temp_file.write(await file.read())
+
+        task = load_data.delay(temp_file)
         response.status_code = 202
         logger.info(f"LOAD accepted: {input.filepath}")
         return {"status": "accepted", "task_id": task.id}
@@ -64,17 +77,17 @@ async def load_data_ep(input: Load, response: Response):
 @app.get("/query")
 async def nl_query(input: Query):
 
-    resp = query(input.query)
+    resp = query(input.query, input.index)
 
     if input.use_llm:
-        context_list = [x["fields"]["text"] for x in resp.hits]
+        # context_list = [x["fields"]["text"] for x in resp.hits] this is for vespa, need to switch to es
 
         prompt = f"{input.query}\n"
         prompt += "Use the following for context:\n"
-        prompt += " ".join(context_list)
+        # prompt += " ".join(context_list) this is for vespa, need to switch to es
 
     logger.info(f"QUERY success: {input.query}")
-    return {"health": health, "status" : "success", "resp" : [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
+    return {"health": health, "status" : "success", "resp" : resp}
 
 @app.get("/llm")
 async def llm_query(input: Query):
@@ -87,16 +100,13 @@ async def llm_query(input: Query):
 
 if __name__ == "__main__":
     import uvicorn
+    from config import config
 
-    load_dotenv()
-    
-    PORT = int(os.getenv('API_PORT', 8000))
-
-    if not os.getenv('ENV'): # requires environment declaration
+    if not config.ENV: # requires environment declaration
         print("Missing environment variable.")
         exit(1)
 
-    if os.getenv('ENV') == "DEBUG":
+    if config.ENV == "DEBUG":
         import socket
 
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -105,15 +115,15 @@ if __name__ == "__main__":
             s.connect(("8.8.8.8", 80))
             ip_address = s.getsockname()[0]
 
-            print("\n\nServer available @ http://" + ip_address + ":" + str(PORT) + "\n\n")
+            print("\n\nServer available @ http://" + ip_address + ":" + str(config.PORT) + "\n\n")
         except OSError as e:
             print(e)
 
-    if os.getenv('ENV') == "PROD":
+    if config.ENV == "PROD":
         print("Please consider the following command to start the server:")
         print("\t EXPERIMENTAL: uvicorn your_app_module:app --workers 3")
         
     global health 
-    health = Health(status=Status.OK, ENV=os.getenv('ENV'))
+    health = Health(status=Status.OK, ENV=config.ENV)
     logger.info("SYSTEM READY")
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=config.PORT)
