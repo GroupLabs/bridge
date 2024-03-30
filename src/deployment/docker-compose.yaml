@@ -113,6 +113,15 @@ services:
     volumes:
       - rabbitdata:/var/lib/rabbitmq
 
+  ollama:
+    image: ollama/ollama
+    networks:
+      - bridge-net
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
   api:
     image: acrbridge.azurecr.io/api-multiarch
     networks:
@@ -136,6 +145,7 @@ services:
         python api.py"
 
 volumes:
+  ollama:
   certs:
     driver: local
   esdata:

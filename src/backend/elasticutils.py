@@ -1,11 +1,12 @@
 from elasticsearch import Elasticsearch, BadRequestError
 
 from config import config
+from log import setup_logger
 from embed.e5_small import embed_passage, embed_query
 
-# TODO: add logging
+# logger
+logger = setup_logger("elastic")
 
-# TODO: add to config
 ELASTIC_PASSWORD=config.ELASTIC_PASSWORD
 ELASTIC_CA_CERT_PATH=config.ELASTIC_CA_CERT_PATH
 ELASTIC_USER=config.ELASTIC_USER
@@ -19,10 +20,10 @@ class Search:
             basic_auth=(ELASTIC_USER, ELASTIC_PASSWORD)
         )
         client_info = self.es.info()
-        print('Connected to Elasticsearch!')
-        # pprint(client_info.body)
+        logger.info("Connected.")
+        logger.info(str(client_info))
 
-        # configure
+        # configure text_chunk
         try:
             self.es.indices.create( # may fail if index exists
                 index='text_chunk', 
@@ -31,7 +32,7 @@ class Search:
                         # 'id': {'type': 'keyword'}, # auto created by es
                         'document_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
-                        'title': {'type': 'text'},
+                        'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
@@ -41,20 +42,50 @@ class Search:
                     }
                 })
         except BadRequestError as e:
-            # TODO: should be logged
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+        
+        # configure table_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='table_meta', 
+                mappings={
+                    'properties': {
+                        # 'id': {'type': 'keyword'}, # auto created by es
+                        'database_id': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'table_name': {'type': 'text'},
+                        'description_text': {'type': 'text'},
+                        'chunking_strategy': {'type': 'keyword'},
+                        'chunk_no': {'type': 'integer'},
+                        'data_hash': {'type': 'keyword'},
+                        # 'last_updated': {'type': 'date'}, # auto created by es
+                        'e5': {'type': 'dense_vector'},
+                        'correlation_embedding': {'type': 'dense_vector'},
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
                 raise
 
+        logger.info("Configured.")
+
         self.registered_indices = [
-            "text_chunk"
+            "text_chunk",
+            "table_meta"
         ]
+
+        logger.info("Indices Registered.")
 
     def __repr__(self):
         r = ""
         r = r + "Search: \n"
-        r = r + f".... status: {'HEALTHY' if self.es.ping() else 'DISCONNECTED'}\n"
+        r = r + f".... status: {'HEALTHY' if self.es.ping() else 'DISCONNECTED'}"
         for idx in self.registered_indices:
-            r = r + f".... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
+            r = r + f"\n.... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
         return r
     
     # load ops
@@ -64,6 +95,13 @@ class Search:
         if index == "text_chunk":
             document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
             document['colbert'] = {}
+
+        if index == "table_meta":
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['colbert'] = {}
+            # correlation embeddings are handled at storage
+
+        logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
 
@@ -118,6 +156,8 @@ class Search:
             combined_results[result['_id']] = combined_results.get(result['_id'], 0) + 1 / (k + rank)
 
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1], reverse=True)
+
+        logger.info(f"Hybrid search returned {len(sorted_results.keys())} elements.")
 
         return sorted_results
 
