@@ -4,7 +4,6 @@ from config import config
 
 # NOTE: Will not accept log names greater than 12 chars.
 
-# TODO: add to config
 LOG_LEVEL = config.LOG_LEVEL
 
 def get_log_level_from_str(log_level_str: str = LOG_LEVEL) -> int:

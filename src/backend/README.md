@@ -9,6 +9,28 @@ This README is designed to give you the rundown. The backend consists of:
 
 We want to use whatever is available that gets the job done. At least for now, no reinventing the wheel.
 
+To get the API started in a containerized environment, use the following instructions:
+
+0. Make sure you have the appropriate .env files!
+
+1. Create an image called `api`:
+
+i. Switch to the backend directory.
+
+ii. Run: `docker build -t api .`
+
+2. Start the docker-compose:
+
+i. Switch to the deployment directory.
+
+ii. Run: `docker-compose up -d`
+
+> Note: This will start a few different containers, each are exposed to localhost. If you've never used ollama before, you may need to wait while it downloads an llm. Not sure if it will even download it by itself. The setup node should exit, and the console should indicate that all the processes have completed successfully. The Kibana container will look live on Docker Desktop, but it can take a while to get fully set up. However, you can start sending requests once the celery process in the api container is ready. When idling, the memory usage should be around 1.6GB. It should spin up to use all CPU resources under load.
+>
+> To see if it's up send a GET request to http://0.0.0.0:8000/health-check.
+
+Use the following instructions to run everything locally (non-containerized):
+
 To get the API started on your computer, do the following:
 
 1. Ensure your Docker daemon is running. On Mac, just start Docker Desktop
