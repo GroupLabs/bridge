@@ -47,7 +47,8 @@ def gen(prompt: str):
             if line_message.get("done", False):
                 break
             else:
-                message = message + line_message.get('response')
+                if line_message.get('response'):
+                    message = message + line_message.get('response')
 
     if response.status_code == 200:
         return message

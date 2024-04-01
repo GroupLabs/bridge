@@ -1,11 +1,14 @@
 from fastapi import Depends, FastAPI, Response, File, UploadFile
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
+import os
 
 from log import setup_logger
 from storage import load_data, query
 from serverutils import Health, Status, Load, Query
 from ollama import chat
+
+TEMP_DIR = "./temp"
 
 logger = setup_logger("api")
 logger.info("LOGGER READY")
@@ -58,15 +61,17 @@ async def load_data_by_path(input: Load, response: Response):
 @app.post("/load")
 async def load_data_ep(response: Response, file: UploadFile = File(...)):
     try:
-        with open(f"temp/{file.filename}", "wb") as temp_file: # not sure if a temp file is needed
+        os.makedirs(TEMP_DIR, exist_ok=True)
+
+        with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
             temp_file.write(await file.read())
 
-        task = load_data.delay(temp_file)
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
         response.status_code = 202
-        logger.info(f"LOAD accepted: {input.filepath}")
+        logger.info(f"LOAD accepted: {file.filename}")
         return {"status": "accepted", "task_id": task.id}
     except NotImplementedError:
-        logger.warn(f"LOAD incomplete: {input.filepath}")
+        logger.warn(f"LOAD incomplete: {file.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 

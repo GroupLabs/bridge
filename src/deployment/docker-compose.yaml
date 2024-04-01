@@ -108,6 +108,8 @@ services:
       es01:
         condition: service_healthy
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    networks:
+      - bridge-net
     labels:
       co.elastic.logs/module: kibana
     volumes:
@@ -154,10 +156,9 @@ services:
     volumes:
       - ${OLLAMA_PATH}:/root/.ollama
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -s http://localhost:11434 | grep -q 'Ollama is running'",
+      test: [
+        "CMD-SHELL", 
+        "curl -X POST -H 'Content-Type: application/json' -d '{\"name\":\"llama2\"}' http://localhost:11434/api/pull | grep -q '{\"status\":\"success\"}'"
         ]
       interval: 10s
       timeout: 10s
@@ -172,7 +173,6 @@ services:
       - ELASTIC_CA_CERT_PATH=/usr/share/elasticsearch/config/certs/ca/ca.crt
       - ELASTIC_URL=https://es01:9200
       - LLM_URL=http://ollama:11434/api/
-      - LLM_MODEL=${LLM_MODEL}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672/
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
