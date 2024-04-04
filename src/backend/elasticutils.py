@@ -125,14 +125,20 @@ class Search:
         return self.es.get(index=index, id=id)
     
     def hybrid_search(self, query: str, index: str):
+        # Determine the field to use based on the index
+        _field = 'description_text' if index == 'table_meta' else 'chunk_text' if index == 'text_chunk' else None
+
+        if _field is None:
+            raise NotImplementedError
+
+        # Use _field in the match query and to specify the _source fields to fetch
         match_response = self.es.search(
             query={
                 'match': {
-                    'title': {
-                        'query': query
-                    }
+                    _field: query
                 }
             },
+            _source=[_field],  # Correctly fetch the specific field
             index=index
         )
 
@@ -145,6 +151,7 @@ class Search:
                 'k': 10,
                 'num_candidates': 50
             },
+            _source=[_field],  # Correctly fetch the specific field
             index=index
         )
 
@@ -155,24 +162,42 @@ class Search:
         k = 60
 
         for rank, result in enumerate(match_results, 1):
-            combined_results[result['_id']] = 1 / (k + rank)
+            combined_results[result['_id']] = {
+                "score": 1 / (k + rank),
+                "text": result["_source"].get(_field, '')
+            }
 
         for rank, result in enumerate(knn_results, 1):
-            combined_results[result['_id']] = combined_results.get(result['_id'], 0) + 1 / (k + rank)
+            if result['_id'] in combined_results:
+                combined_results[result['_id']]["score"] += 1 / (k + rank)
+            else:
+                combined_results[result['_id']] = {
+                    "score": 1 / (k + rank),
+                    "text": result["_source"].get(_field, '')
+                }
 
-        sorted_results = sorted(combined_results.items(), key=lambda item: item[1], reverse=True)
+        sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
 
-        if not bool(sorted_results):
-            logger.info(f"Hybrid search returned {len(sorted_results.keys())} elements.")
+        logger.info(f"Hybrid search returned {len(sorted_results)} elements.")
 
         return sorted_results
+
 
 if __name__ == "__main__":
     from pprint import pprint
     
     es = Search()
 
-    es.hybrid_search("What is sliding GQA?", "text_chunk")
+    response = es.hybrid_search("What is sliding GQA?", "text_chunk")
+
+    # response = es.search(
+    #     index="text_chunk",
+    #     query={
+    #         "match": {"title": "What is GQA?"}
+    #     },
+    #     _source=["_id", "chunk_text"]  # Fetch only these fields
+    # )
+
 
     # # es.es.indices.delete(index="test")
     
