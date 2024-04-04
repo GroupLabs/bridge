@@ -162,7 +162,8 @@ class Search:
 
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1], reverse=True)
 
-        logger.info(f"Hybrid search returned {len(sorted_results.keys())} elements.")
+        if not bool(sorted_results):
+            logger.info(f"Hybrid search returned {len(sorted_results.keys())} elements.")
 
         return sorted_results
 
@@ -170,6 +171,8 @@ if __name__ == "__main__":
     from pprint import pprint
     
     es = Search()
+
+    es.hybrid_search("What is sliding GQA?", "text_chunk")
 
     # # es.es.indices.delete(index="test")
     

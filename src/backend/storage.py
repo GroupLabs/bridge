@@ -77,7 +77,7 @@ def load_data(filepath: str, read=True):
             os.remove(filepath)
 
 def query(q: str, index: str):
-    es.hybrid_search(q, index)
+    return es.hybrid_search(q, index)
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -169,9 +169,9 @@ def _db(db_type, host, user, password):
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
-    # response = es.hybrid_search("What is GQA?", "text_chunk")
+    response = es.hybrid_search("What is GQA?", "text_chunk")
 
-    # print(response)
+    print(response)
 
     # print()
  
