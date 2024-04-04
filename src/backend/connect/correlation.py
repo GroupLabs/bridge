@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.linalg import norm
 
+CORR_EMBEDDING_DIM = 256
+
 def correlation_embedding(column: np.array):
     fft_magnitude = np.abs(np.fft.fft(column))
 
@@ -9,7 +11,7 @@ def correlation_embedding(column: np.array):
     else:
         normalized_magnitude = fft_magnitude / norm(fft_magnitude)
 
-    return normalized_magnitude
+    return normalized_magnitude.tolist()[:CORR_EMBEDDING_DIM]
 
 
 if __name__ == "__main__":

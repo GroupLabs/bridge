@@ -62,7 +62,12 @@ class Search:
                         'data_hash': {'type': 'keyword'},
                         # 'last_updated': {'type': 'date'}, # auto created by es
                         'e5': {'type': 'dense_vector'},
-                        'correlation_embedding': {'type': 'dense_vector'},
+                        "correlation_embedding": {
+                            "type": "nested",
+                            "properties": {
+                                "key": {"type": "keyword"},
+                            }
+                        },
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
                     }
                 })
@@ -167,24 +172,7 @@ if __name__ == "__main__":
     es = Search()
 
     # # es.es.indices.delete(index="test")
-
-    # document = {
-    #     # "id" : "a",
-    #     "document_id" : "ab", # document id from path
-    #     "access_group" : "", # not yet implemented
-    #     "title" : "", # not yet implemented
-    #     "chunk_text" : "Bridge is awesome",
-    #     "chunking_strategy" : "none",
-    #     "chunk_no" : 1,
-    #     # "last_updated" : 1, # current time in long int
-    #     # "e5" : embed_passage("Bridge is awesome").tolist()[0],
-    #     # "colbert" : {}
-    # }
-
-    # resp = es.insert_document(document, "test")
-
-    # print()
-    # pprint(resp)
+    
 
     # resp = es.retrieve_document_by_id(
     #     resp['_id'],

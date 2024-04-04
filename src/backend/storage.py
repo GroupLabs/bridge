@@ -156,7 +156,7 @@ def _db(db_type, host, user, password):
                     "access_group" : "", # not yet implemented
                     "table_name" : data["sql_name"],
                     "description_text" : data["description"],
-                    # "correlation_embedding" : column_embeddings,
+                    "correlation_embedding" : column_embeddings,
                     "chunking_strategy" : "", # not chunked rn
                     "chunking_no" : "", # not chunked rn
                     "data_hash" : "not implemented", # for integrity check
