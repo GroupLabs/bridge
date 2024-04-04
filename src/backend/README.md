@@ -1,7 +1,7 @@
 This README is designed to give you the rundown. The backend consists of:
 
 - Celery[RabbitMQ]
-- Vespa
+- Elasticsearch
 - Triton (not implemented)
 - Ollama (partially implemented)
 - API
@@ -9,14 +9,82 @@ This README is designed to give you the rundown. The backend consists of:
 
 We want to use whatever is available that gets the job done. At least for now, no reinventing the wheel.
 
+To get the API started in a containerized environment, use the following instructions:
+
+0. Make sure you have the appropriate .env files!
+
+1. Create an image called `api`:
+
+i. Switch to the backend directory.
+
+ii. Run: `docker build -t api .`
+
+2. Start the docker-compose:
+
+i. Switch to the deployment directory.
+
+ii. Run: `docker-compose up -d`
+
+> Note: This will start a few different containers, each are exposed to localhost. If you've never used ollama before, you may need to wait while it downloads an llm. Not sure if it will even download it by itself. The setup node should exit, and the console should indicate that all the processes have completed successfully. The Kibana container will look live on Docker Desktop, but it can take a while to get fully set up. However, you can start sending requests once the celery process in the api container is ready. When idling, the memory usage should be around 1.6GB. It should spin up to use all CPU resources under load.
+>
+> To see if it's up send a GET request to http://0.0.0.0:8000/health-check.
+
+Use the following instructions to run everything locally (non-containerized):
+
 To get the API started on your computer, do the following:
 
 1. Ensure your Docker daemon is running. On Mac, just start Docker Desktop
-2. In your venv (or not), run: `pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx`
-3. Go to `deployment/vespa/` and run `docker-compose up -d` (this configures and sets up your Vespa containers)
+2. In your venv (or not), run: `python --version` to find the version. The code is tested on 3.11 (stable), and 3.8 (experimental). Then run: `pip install magika FastAPI python-dotenv "unstructured[pdf]" pyvespa uvicorn requests celery httpx psycopg2-binary openai`
+3. a. Run the following commands in order to start ES:
+
+i. Create a network:
+`docker network create elastic`
+
+ii. Start a single node elastic-search:
+```
+docker run --name es01 --net elastic \
+  -p 9200:9200 -p 9300:9300 \
+  -e "discovery.type=single-node" \
+  -e "xpack.license.self_generated.type: basic" \
+  -t docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+```
+This starts and configures an ES container with basic licensing. If you use another license, GL IS NOT LIABLE.
+
+This will a produce a password, and an enrollment token. These will be useful in the next steps.
+
+iii. Add the elastic password as an environment variable:
+`export ELASTIC_PASSWORD=v4Ci+biLJx`
+
+iv. Get the CA CERT:
+`docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .`
+
+This will download http_ca.crt to your current directory. Don't be alarmed, I don't think it's malware. It should help authenticate you to send requests to ES.
+
+v. Everything you need to communicate with ES is now available. If you run into any issues refer to the documentation.
+
+b. Follow these steps to start Kibana (optional):
+
+i. Run the Kibana container in the same network:
+`docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:8.13.0`
+
+ii. Access the UI:
+For some reason the URL that's generated in the Kibana logs does not take you to the UI.
+
+Instead, try going to Docker Desktop, and hitting the '5601:5601' under the Port(s) column.
+
+iii. Enter the Kibana enrollment token (remember I said it would be useful?).
+
+iv. Enter your credentials:
+username=elastic
+password=generatedintheESlogs
+
+v. You're ready to rock and roll!
+
 4. Start RabbitMQ: `docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management` (this may download the image if you don't have it already)
-5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead)
-6. Finally, run the API: `python api.py`
+5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead). Should be done in the backend dir.
+6. Install poppler. On mac this is `brew install poppler`
+7. Install tesseract. On mac this is `brew install tesseract`
+7. Finally, run the API: `python api.py`
 
 
 ### Other fun stuff:
@@ -25,6 +93,23 @@ gives 10 threads, and 2 unique workers. task assignment is handled
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker1@%h &
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker2@%h &
 
+---
+To download punkt: 
+
+```
+import nltk
+import ssl
+
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+nltk.download()
+```
+---
 
 ### Misc:
 

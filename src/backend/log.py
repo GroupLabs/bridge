@@ -1,7 +1,10 @@
 import logging
 import os
+from config import config
 
-LOG_LEVEL = "INFO"
+# NOTE: Will not accept log names greater than 12 chars.
+
+LOG_LEVEL = config.LOG_LEVEL
 
 def get_log_level_from_str(log_level_str: str = LOG_LEVEL) -> int:
     log_level_dict = {

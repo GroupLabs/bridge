@@ -1,9 +1,10 @@
 import requests
 import json
 import httpx
+from config import config
 
-LLM_URL = "http://localhost:11434/api/"
-LLM_MODEL = "mistral"
+LLM_URL = config.LLM_URL
+LLM_MODEL = config.LLM_MODEL
 
 async def chat(messages):
     data = {
@@ -30,30 +31,34 @@ async def chat(messages):
     
 def gen(prompt: str):
     data = {
-        "model": "llama2",
+        "model": LLM_MODEL,
         "prompt": prompt
     }
 
     response = requests.post(LLM_URL+"generate", json=data, stream=True)
 
     # Handle streaming responses
+    message = ""
+
     for line in response.iter_lines():
         if line:  # filter out keep-alive new lines
             decoded_line = line.decode('utf-8')
-            print(decoded_line)
-            message = json.loads(decoded_line)
-            if message.get("done", False):
+            line_message = json.loads(decoded_line)
+            if line_message.get("done", False):
                 break
-
+            else:
+                if line_message.get('response'):
+                    message = message + line_message.get('response')
 
     if response.status_code == 200:
-        return response.text
+        return message
     else:
         raise Exception
  
 
 if __name__ == "__main__":
     # print(chat([{"role": "user", "content": "when is the best time to water my plants?"}]))
-    print()
-    print()
+    # print()
     print(gen("why is the sky blue?"))
+    # print()
+    # print(chat("why is the sky blue?"))

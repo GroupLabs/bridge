@@ -17,6 +17,7 @@ class Health():
     
 class Query(BaseModel):
     query: str
+    index: str
     use_llm: Optional[bool] = False
 
 class Load(BaseModel):

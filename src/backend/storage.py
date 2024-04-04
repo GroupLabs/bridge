@@ -4,24 +4,23 @@ import yaml
 from uuid import uuid4, uuid5, NAMESPACE_URL
 import time
 from pathlib import Path
-import sys
 
 from celery import Celery
 
 from unstructured.partition.pdf import partition_pdf
-from postgres import postgres_to_yamls
 
+from connect.postgres import postgres_to_yamls
+from config import config
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
-from vespautils import upload_config, upload, query
+from elasticutils import Search
 
-VESPA_CONFIG_PATH = "./search-config"
-CELERY_BROKER_URL = "amqp://guest:guest@localhost"
+CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
+# logger
 logger = setup_logger("storage")
 
 # celery config
-
 celery_app = Celery(
     "worker",
     broker=CELERY_BROKER_URL,  # Default RabbitMQ credentials
@@ -36,28 +35,8 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-# vespa config
-try:
-    upload_config(VESPA_CONFIG_PATH)
-except Exception as e:
-    logger.critical(f"Failed to configure Vespa: {e}")
-    sys.exit(1)
-
-# def __len__(self) -> int:
-#     return self.app.query(
-#         yql="select * from sources * where true",
-#         groupname="all"
-#     ).number_documents_indexed
-
-# def __repr__(self) -> str:
-#     r = ""
-#     r = r + "Search: \n"
-#     r = r + f".... status: {self.app.get_application_status()}\n"
-#     r = r + f".... storing {len(self)} value(s)"
-#     return r
-
-# def __del__(self):
-#     pass
+# elasticsearch
+es = Search()
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
@@ -74,8 +53,9 @@ def load_data(filepath: str, read=True):
             password=c_string["password"],
             )
     else:
-        # checks for illegal paths and returns type
-        pathtype = get_pathtype(filepath)
+        filepath = Path(filepath).absolute().as_posix() # standardize path
+
+        pathtype = get_pathtype(filepath) # checks for illegal paths and returns type
 
         # unstructured
         if pathtype == "pdf":
@@ -92,38 +72,44 @@ def load_data(filepath: str, read=True):
         else:
             logger.warning("unsupported filetype encountered.")
             raise NotImplementedError(f"File ({pathtype}) type is not supported.")
+    
+    if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
+            os.remove(filepath)
+
+def query(q: str, index: str):
+    return es.hybrid_search(q, index)
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
-
+    
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
     if read_pdf: # read pdf
-        # elements = partition_pdf(input, strategy="fast", chunking_strategy="by_title")
-        elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
+        # elements = partition(input, strategy="fast", chunking_strategy="by_title")
 
-        for i, e in enumerate(elements):
+        elements = None
+        try:
+            elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to parse PDF elements: {e}")
 
-            chunk = "".join(
-                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-            )  # remove control characters
+        if elements is not None:
+            for i, e in enumerate(elements):
 
-            chunk_id = str(uuid4()) # random id
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
 
-            fields = {
-                "id" : chunk_id, 
-                "document_id" : doc_id, # document id from path
-                "access_group" : "", # not yet implemented
-                "chunk_text" : chunk,
-                "chunking_strategy" : chunking_strategy,
-                "chunk_no" : i,
-                "embedding" : [0],
-                "last_updated" : int(time.time()) # current time in long int
-            }
+                fields = {
+                    "document_id" : doc_id, # document id from path
+                    "access_group" : "", # not yet implemented
+                    "chunk_text" : chunk,
+                    "chunking_strategy" : chunking_strategy,
+                    "chunk_no" : i,
+                }
 
-            upload(schema="text_chunk", data_id=chunk_id, fields=fields)
+                es.insert_document(fields, index="text_chunk")
     else:
         fields = {
-            "id" : doc_id, 
             "access_group" : "", # not yet implemented
             "description_text" : "", # not yet implemented
             "file_path" : filepath,
@@ -132,13 +118,17 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
             "data_hash" : "not implemented"
         }
 
-        upload(schema="document_meta", data_id=doc_id, fields=fields)
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
 
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use
     if db_type == "postgres":
         postgres_to_yamls(host, user, password)
+    elif db_type == "mysql":
+        raise NotImplementedError
     else:
         raise NotImplementedError
 
@@ -147,41 +137,58 @@ def _db(db_type, host, user, password):
 
     data = {}
 
-    for i, file in enumerate(os.listdir(node_name)):
+    for i, file in enumerate(os.listdir(node_name)): # TODO: does this need to be enumerated?
         filepath = os.path.join(node_name, file)
         if file.endswith('.yaml') and os.path.isfile(filepath):
             with open(filepath, 'r') as f:
                 data = yaml.safe_load(f)
 
-                table_id = str(uuid4())
+                column_embeddings = {}
+                if 'dimensions' in data:
+                    for dimension in data['dimensions']:
+                        column_name = dimension.get('name')
+                        embedding = dimension.get('embedding')
+                        if column_name and embedding:
+                            column_embeddings[column_name] = embedding
 
                 fields = {
-                    "id": table_id,
                     "database_id" : db_id,
                     "access_group" : "", # not yet implemented
-                    "description_text" : data["description"], # not yet implemented
-                    "embedding" : [0],
-                    "correlation_embedding" : [0],
-                    "last_updated" : int(time.time()), # current time in long int
-                    "data_hash" : "not implemented"
+                    "table_name" : data["sql_name"],
+                    "description_text" : data["description"],
+                    "correlation_embedding" : column_embeddings,
+                    "chunking_strategy" : "", # not chunked rn
+                    "chunking_no" : "", # not chunked rn
+                    "data_hash" : "not implemented", # for integrity check
                 }
 
-                upload(schema="table_meta", data_id=table_id, fields=fields)
+                es.insert_document(fields, index="table_meta")
                 
                 print("stored: " + file.split(".")[0])
 
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
-    response = query("What is GQA?")
+    response = es.hybrid_search("What is GQA?", "text_chunk")
+
     print(response)
 
-    host="localhost"
-    user=os.getenv("PG_USER")
-    password=os.getenv("PG_PWD")
+    # print()
+ 
+    print(es)
+    print(es.registered_indices)
 
-    conn_str = f'postgres://{user}:{password}@{host}'
 
-    load_data(conn_str)
 
-    print(query("lepton"))
+
+    
+
+    # host="localhost"
+    # user=os.getenv("PG_USER")
+    # password=os.getenv("PG_PWD")
+
+    # conn_str = f'postgres://{user}:{password}@{host}'
+
+    # load_data(conn_str)
+
+    # print(query("lepton"))
