@@ -159,6 +159,7 @@ class Search:
         knn_results = knn_response['hits']['hits']
 
         # rrf
+        # TODO: is the scores for each normalized? If not normalize relatively here with min-max (or other)
         combined_results = {}
         k = 60
 
