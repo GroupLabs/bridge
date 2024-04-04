@@ -126,6 +126,7 @@ class Search:
     
     def hybrid_search(self, query: str, index: str):
         # Determine the field to use based on the index
+        # TODO: make this better so it can be set up once
         _field = 'description_text' if index == 'table_meta' else 'chunk_text' if index == 'text_chunk' else None
 
         if _field is None:
