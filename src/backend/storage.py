@@ -169,9 +169,11 @@ def _db(db_type, host, user, password):
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
 
+    from pprint import pprint
+
     response = es.hybrid_search("What is GQA?", "text_chunk")
 
-    print(response)
+    pprint(response)
 
     # print()
  
