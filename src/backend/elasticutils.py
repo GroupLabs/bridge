@@ -29,15 +29,18 @@ class Search:
                 index='text_chunk', 
                 mappings={
                     'properties': {
-                        # 'id': {'type': 'keyword'}, # auto created by es
                         'document_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
-                        # 'last_updated': {'type': 'date'}, # auto created by es
-                        'e5': {'type': 'dense_vector'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
                     }
                 })
@@ -52,7 +55,6 @@ class Search:
                 index='table_meta', 
                 mappings={
                     'properties': {
-                        # 'id': {'type': 'keyword'}, # auto created by es
                         'database_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'table_name': {'type': 'text'},
@@ -60,8 +62,12 @@ class Search:
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
                         'data_hash': {'type': 'keyword'},
-                        # 'last_updated': {'type': 'date'}, # auto created by es
-                        'e5': {'type': 'dense_vector'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
                         "correlation_embedding": {
                             "type": "nested",
                             "properties": {
@@ -118,13 +124,15 @@ class Search:
         return self.es.bulk(operations=operations)
 
     # query ops
-    def search(self, index: str, **query_args):
-        return self.es.search(index=index, **query_args)
-
     def retrieve_document_by_id(self, id, index):
         return self.es.get(index=index, id=id)
+
+    def search(self, index: str, **query_args):
+        return self.es.search(index=index, **query_args)
     
     def hybrid_search(self, query: str, index: str):
+        INSPECT = False
+
         # Determine the field to use based on the index
         # TODO: make this better so it can be set up once
         _field = 'description_text' if index == 'table_meta' else 'chunk_text' if index == 'text_chunk' else None
@@ -132,19 +140,26 @@ class Search:
         if _field is None:
             raise NotImplementedError
 
-        # Use _field in the match query and to specify the _source fields to fetch
         match_response = self.es.search(
             query={
                 'match': {
                     _field: query
                 }
             },
-            _source=[_field],  # Correctly fetch the specific field
+            _source=[_field],
             index=index
         )
 
+        if INSPECT:
+            print("MATCH")
+            for hit in match_response['hits']['hits']:
+                # Print the ID, score, and a snippet of the description_text for each hits
+                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
+
+
         match_results = match_response['hits']['hits']
 
+        # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
         knn_response = self.es.search(
             knn={
                 'field': 'e5',
@@ -152,16 +167,23 @@ class Search:
                 'k': 10,
                 'num_candidates': 50
             },
-            _source=[_field],  # Correctly fetch the specific field
+            _source=[_field],
             index=index
         )
+        
+        if INSPECT:
+            print("KNN")
+            for hit in knn_response['hits']['hits']:
+                # Print the ID, score, and a snippet of the description_text for each hits
+                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
 
         knn_results = knn_response['hits']['hits']
 
         # rrf
-        # TODO: is the scores for each normalized? If not normalize relatively here with min-max (or other)
+        # TODO: is the scores for each normalized? If not, decide if it should be normalized
+        # then it can be normalize relatively here with min-max (or other).
         combined_results = {}
-        k = 60
+        k = 15
 
         for rank, result in enumerate(match_results, 1):
             combined_results[result['_id']] = {
@@ -190,15 +212,24 @@ if __name__ == "__main__":
     
     es = Search()
 
-    response = es.hybrid_search("What is sliding GQA?", "text_chunk")
+    # response = es.hybrid_search("What is sliding GQA?", "text_chunk")
 
-    # response = es.search(
-    #     index="text_chunk",
-    #     query={
-    #         "match": {"title": "What is GQA?"}
-    #     },
-    #     _source=["_id", "chunk_text"]  # Fetch only these fields
-    # )
+    response = es.search(
+        index="text_chunk",
+        query={
+            "match": {"chunk_text": "What is GQA?"}
+        },
+        _source=["_id", "chunk_text"]  # Fetch these fields
+    )
+
+
+    print("F")
+
+    # print(response)
+
+    for hit in response['hits']['hits']:
+        # Print the ID, score, and a snippet of the description_text for each hits
+        print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
 
 
     # # es.es.indices.delete(index="test")
