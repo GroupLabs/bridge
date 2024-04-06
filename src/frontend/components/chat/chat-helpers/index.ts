@@ -144,6 +144,31 @@ export const createTempMessages = (
   }
 }
 
+export const fetchFromQueryEndpoint = async () => {
+  try {
+    const requestOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: "What is sliding GQA?",
+        index: "table_meta"
+        // "use_llm": true  // Uncomment if you need to send this
+      })
+    };
+
+    const response = await fetch('http://localhost:8000/query', requestOptions);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching data from localhost:8000/query', error);
+    throw error;  // Re-throw to handle it in the calling function
+  }
+}
+
 export const handleLocalChat = async (
   payload: ChatPayload,
   profile: Tables<"profiles">,

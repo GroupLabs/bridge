@@ -19,7 +19,8 @@ import {
   handleLocalChat,
   handleRetrieval,
   processResponse,
-  validateChatSettings
+  validateChatSettings,
+  fetchFromQueryEndpoint
 } from "../chat-helpers"
 
 export const useChatHandler = () => {
@@ -188,290 +189,209 @@ export const useChatHandler = () => {
     }
   }
 
-  // const handleSendMessage = async (
-  //   messageContent: string,
-  //   chatMessages: ChatMessage[],
-  //   isRegeneration: boolean
-  // ) => {
-  //   const startingInput = messageContent
-
-  //   try {
-  //     setUserInput("")
-  //     setIsGenerating(true)
-  //     setIsPromptPickerOpen(false)
-  //     setIsFilePickerOpen(false)
-  //     setNewMessageImages([])
-
-  //     const newAbortController = new AbortController()
-  //     setAbortController(newAbortController)
-
-  //     const modelData = [
-  //       ...models.map(model => ({
-  //         modelId: model.model_id as LLMID,
-  //         modelName: model.name,
-  //         provider: "custom" as ModelProvider,
-  //         hostedId: model.id,
-  //         platformLink: "",
-  //         imageInput: false
-  //       })),
-  //       ...LLM_LIST,
-  //       ...availableLocalModels,
-  //       ...availableOpenRouterModels
-  //     ].find(llm => llm.modelId === chatSettings?.model)
-
-  //     validateChatSettings(
-  //       chatSettings,
-  //       modelData,
-  //       profile,
-  //       selectedWorkspace,
-  //       messageContent
-  //     )
-
-  //     let currentChat = selectedChat ? { ...selectedChat } : null
-
-  //     const b64Images = newMessageImages.map(image => image.base64)
-
-  //     let retrievedFileItems: Tables<"file_items">[] = []
-
-  //     if (
-  //       (newMessageFiles.length > 0 || chatFiles.length > 0) &&
-  //       useRetrieval
-  //     ) {
-  //       setToolInUse("retrieval")
-
-  //       retrievedFileItems = await handleRetrieval(
-  //         userInput,
-  //         newMessageFiles,
-  //         chatFiles,
-  //         chatSettings!.embeddingsProvider,
-  //         sourceCount
-  //       )
-  //     }
-
-  //     const { tempUserChatMessage, tempAssistantChatMessage } =
-  //       createTempMessages(
-  //         messageContent,
-  //         chatMessages,
-  //         chatSettings!,
-  //         b64Images,
-  //         isRegeneration,
-  //         setChatMessages,
-  //         selectedAssistant
-  //       )
-
-  //     let payload: ChatPayload = {
-  //       chatSettings: chatSettings!,
-  //       workspaceInstructions: selectedWorkspace!.instructions || "",
-  //       chatMessages: isRegeneration
-  //         ? [...chatMessages]
-  //         : [...chatMessages, tempUserChatMessage],
-  //       assistant: selectedChat?.assistant_id ? selectedAssistant : null,
-  //       messageFileItems: retrievedFileItems,
-  //       chatFileItems: chatFileItems
-  //     }
-
-  //     let generatedText = ""
-
-  //     if (selectedTools.length > 0) {
-  //       setToolInUse("Tools")
-
-  //       const formattedMessages = await buildFinalMessages(
-  //         payload,
-  //         profile!,
-  //         chatImages
-  //       )
-
-  //       // const response = await fetch("/api/chat/tools", {
-  //       //   method: "POST",
-  //       //   headers: {
-  //       //     "Content-Type": "application/json"
-  //       //   },
-  //       //   body: JSON.stringify({
-  //       //     chatSettings: payload.chatSettings,
-  //       //     messages: formattedMessages,
-  //       //     selectedTools
-  //       //   })
-  //       // })
-
-  //       const response = await fetch("http://localhost:8000/health-check", {
-  //         method: "GET"
-  //         // No body or headers required for a typical health check GET request
-  //       });
-
-
-  //       setToolInUse("none")
-
-  //       generatedText = await processResponse(
-  //         response,
-  //         isRegeneration
-  //           ? payload.chatMessages[payload.chatMessages.length - 1]
-  //           : tempAssistantChatMessage,
-  //         true,
-  //         newAbortController,
-  //         setFirstTokenReceived,
-  //         setChatMessages,
-  //         setToolInUse
-  //       )
-  //     } else {
-  //       if (modelData!.provider === "ollama") {
-  //         generatedText = await handleLocalChat(
-  //           payload,
-  //           profile!,
-  //           chatSettings!,
-  //           tempAssistantChatMessage,
-  //           isRegeneration,
-  //           newAbortController,
-  //           setIsGenerating,
-  //           setFirstTokenReceived,
-  //           setChatMessages,
-  //           setToolInUse
-  //         )
-  //       } else {
-  //         generatedText = await handleHostedChat(
-  //           payload,
-  //           profile!,
-  //           modelData!,
-  //           tempAssistantChatMessage,
-  //           isRegeneration,
-  //           newAbortController,
-  //           newMessageImages,
-  //           chatImages,
-  //           setIsGenerating,
-  //           setFirstTokenReceived,
-  //           setChatMessages,
-  //           setToolInUse
-  //         )
-  //       }
-  //     }
-
-  //     if (!currentChat) {
-  //       currentChat = await handleCreateChat(
-  //         chatSettings!,
-  //         profile!,
-  //         selectedWorkspace!,
-  //         messageContent,
-  //         selectedAssistant!,
-  //         newMessageFiles,
-  //         setSelectedChat,
-  //         setChats,
-  //         setChatFiles
-  //       )
-  //     } else {
-  //       const updatedChat = await updateChat(currentChat.id, {
-  //         updated_at: new Date().toISOString()
-  //       })
-
-  //       setChats(prevChats => {
-  //         const updatedChats = prevChats.map(prevChat =>
-  //           prevChat.id === updatedChat.id ? updatedChat : prevChat
-  //         )
-
-  //         return updatedChats
-  //       })
-  //     }
-
-  //     await handleCreateMessages(
-  //       chatMessages,
-  //       currentChat,
-  //       profile!,
-  //       modelData!,
-  //       messageContent,
-  //       generatedText,
-  //       newMessageImages,
-  //       isRegeneration,
-  //       retrievedFileItems,
-  //       setChatMessages,
-  //       setChatFileItems,
-  //       setChatImages,
-  //       selectedAssistant
-  //     )
-
-  //     setIsGenerating(false)
-  //     setFirstTokenReceived(false)
-  //     setUserInput("")
-  //   } catch (error) {
-  //     setIsGenerating(false)
-  //     setFirstTokenReceived(false)
-  //     setUserInput(startingInput)
-  //   }
-  // }
-
-  const handleSendMessage = async (messageContent: string) => {
-    console.log(messageContent); // Print the message to the console
-
-    setIsGenerating(true);
+  const handleSendMessage = async (
+    messageContent: string,
+    chatMessages: ChatMessage[],
+    isRegeneration: boolean
+  ) => {
+    const startingInput = messageContent
 
     try {
+      setUserInput("")
+      setIsGenerating(true)
+      setIsPromptPickerOpen(false)
+      setIsFilePickerOpen(false)
+      setNewMessageImages([])
 
-      const nextSequenceNumber = chatMessages.length > 0
-        ? chatMessages[chatMessages.length - 1].message.sequence_number + 1
-        : 1;
-      // Simulate generating a message response (customize as needed)
-      // const simulatedGeneratedText = `Echo: ${messageContent}`;
+      const newAbortController = new AbortController()
+      setAbortController(newAbortController)
 
-      let responseText = `Echo: ${messageContent}`;
+      const modelData = [
+        ...models.map(model => ({
+          modelId: model.model_id as LLMID,
+          modelName: model.name,
+          provider: "custom" as ModelProvider,
+          hostedId: model.id,
+          platformLink: "",
+          imageInput: false
+        })),
+        ...LLM_LIST,
+        ...availableLocalModels,
+        ...availableOpenRouterModels
+      ].find(llm => llm.modelId === chatSettings?.model)
 
-      if (messageContent.toLowerCase() === "what is your health?") {
-        try {
-          const healthCheckResponse = await fetch('http://localhost:8000/health-check');
-          console.log(healthCheckResponse.ok);
-          if (!healthCheckResponse.ok) {
-            // Handle non-200 responses
-            throw new Error('Health check failed');
-          }
-          const healthCheckResult = await healthCheckResponse.text();
-          responseText = `System Health: ${healthCheckResult}`;
-        } catch (error) {
-          responseText = `Failed to retrieve health check`;
+      validateChatSettings(
+        chatSettings,
+        modelData,
+        profile,
+        selectedWorkspace,
+        messageContent
+      )
+
+      let currentChat = selectedChat ? { ...selectedChat } : null
+
+      const b64Images = newMessageImages.map(image => image.base64)
+
+      let retrievedFileItems: Tables<"file_items">[] = []
+
+      if (
+        (newMessageFiles.length > 0 || chatFiles.length > 0) &&
+        useRetrieval
+      ) {
+        setToolInUse("retrieval")
+
+        retrievedFileItems = await handleRetrieval(
+          userInput,
+          newMessageFiles,
+          chatFiles,
+          chatSettings!.embeddingsProvider,
+          sourceCount
+        )
+      }
+
+      const { tempUserChatMessage, tempAssistantChatMessage } =
+        createTempMessages(
+          messageContent,
+          chatMessages,
+          chatSettings!,
+          b64Images,
+          isRegeneration,
+          setChatMessages,
+          selectedAssistant
+        )
+
+      let payload: ChatPayload = {
+        chatSettings: chatSettings!,
+        workspaceInstructions: selectedWorkspace!.instructions || "",
+        chatMessages: isRegeneration
+          ? [...chatMessages]
+          : [...chatMessages, tempUserChatMessage],
+        assistant: selectedChat?.assistant_id ? selectedAssistant : null,
+        messageFileItems: retrievedFileItems,
+        chatFileItems: chatFileItems
+      }
+
+      let generatedText = ""
+
+      console.log(fetchFromQueryEndpoint())
+
+      if (selectedTools.length > 0) {
+        setToolInUse("Tools")
+
+        const formattedMessages = await buildFinalMessages(
+          payload,
+          profile!,
+          chatImages
+        )
+
+        const response = await fetch("/api/chat/tools", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            chatSettings: payload.chatSettings,
+            messages: formattedMessages,
+            selectedTools
+          })
+        })
+
+        setToolInUse("none")
+
+        generatedText = await processResponse(
+          response,
+          isRegeneration
+            ? payload.chatMessages[payload.chatMessages.length - 1]
+            : tempAssistantChatMessage,
+          true,
+          newAbortController,
+          setFirstTokenReceived,
+          setChatMessages,
+          setToolInUse
+        )
+      } else {
+        if (modelData!.provider === "ollama") {
+          generatedText = await handleLocalChat(
+            payload,
+            profile!,
+            chatSettings!,
+            tempAssistantChatMessage,
+            isRegeneration,
+            newAbortController,
+            setIsGenerating,
+            setFirstTokenReceived,
+            setChatMessages,
+            setToolInUse
+          )
+        } else {
+          generatedText = await handleHostedChat(
+            payload,
+            profile!,
+            modelData!,
+            tempAssistantChatMessage,
+            isRegeneration,
+            newAbortController,
+            newMessageImages,
+            chatImages,
+            setIsGenerating,
+            setFirstTokenReceived,
+            setChatMessages,
+            setToolInUse
+          )
         }
       }
 
-      const currentTime = new Date().toISOString();
+      if (!currentChat) {
+        currentChat = await handleCreateChat(
+          chatSettings!,
+          profile!,
+          selectedWorkspace!,
+          messageContent,
+          selectedAssistant!,
+          newMessageFiles,
+          setSelectedChat,
+          setChats,
+          setChatFiles
+        )
+      } else {
+        const updatedChat = await updateChat(currentChat.id, {
+          updated_at: new Date().toISOString()
+        })
 
-      // Construct the user message object
-      const userMessage: Tables<"messages"> = {
-        id: Date.now().toString(),
-        content: messageContent,
-        assistant_id: null,
-        chat_id: "your_chat_id",
-        created_at: currentTime,
-        image_paths: [],
-        model: "your_model_name",
-        role: "user",
-        sequence_number: nextSequenceNumber, // This should be dynamically calculated if needed
-        updated_at: null,
-        user_id: "your_user_id",
-      };
+        setChats(prevChats => {
+          const updatedChats = prevChats.map(prevChat =>
+            prevChat.id === updatedChat.id ? updatedChat : prevChat
+          )
 
-      setChatMessages(prevMessages => [...prevMessages, { message: userMessage, fileItems: [] }]);
+          return updatedChats
+        })
+      }
 
+      await handleCreateMessages(
+        chatMessages,
+        currentChat,
+        profile!,
+        modelData!,
+        messageContent,
+        generatedText,
+        newMessageImages,
+        isRegeneration,
+        retrievedFileItems,
+        setChatMessages,
+        setChatFileItems,
+        setChatImages,
+        selectedAssistant
+      )
 
-      // Simulate the generated response message object
-      const generatedMessage: Tables<"messages"> = {
-        id: (Date.now() + 1).toString(),
-        content: responseText,
-        assistant_id: null,
-        chat_id: "your_chat_id",
-        created_at: currentTime,
-        image_paths: [],
-        model: "your_model_name",
-        role: "assistant",
-        sequence_number: nextSequenceNumber + 1, // This should be dynamically calculated if needed
-        updated_at: null,
-        user_id: "your_user_id",
-      };
-
-      // Update the chat UI with the new message and the generated response
-      setChatMessages(prevMessages => [...prevMessages, { message: generatedMessage, fileItems: [] }]);
-
-      setUserInput(""); // Clear the input field
+      setIsGenerating(false)
+      setFirstTokenReceived(false)
+      setUserInput("")
     } catch (error) {
-      console.error("Failed to handle the message:", error);
-    } finally {
-      setIsGenerating(false);
+      setIsGenerating(false)
+      setFirstTokenReceived(false)
+      setUserInput(startingInput)
     }
-  };
-
+  }
 
   const handleSendEdit = async (
     editedContent: string,
@@ -491,7 +411,7 @@ export const useChatHandler = () => {
 
     setChatMessages(filteredMessages)
 
-    // handleSendMessage(editedContent, filteredMessages, false)
+    handleSendMessage(editedContent, filteredMessages, false)
   }
 
   return {
@@ -504,3 +424,86 @@ export const useChatHandler = () => {
     handleSendEdit
   }
 }
+
+
+
+
+
+
+
+
+  // const handleSendMessage = async (messageContent: string) => {
+  //   console.log(messageContent); // Print the message to the console
+
+  //   setIsGenerating(true);
+
+  //   try {
+
+  //     const nextSequenceNumber = chatMessages.length > 0
+  //       ? chatMessages[chatMessages.length - 1].message.sequence_number + 1
+  //       : 1;
+  //     // Simulate generating a message response (customize as needed)
+  //     // const simulatedGeneratedText = `Echo: ${messageContent}`;
+
+  //     let responseText = `Echo: ${messageContent}`;
+
+  //     if (messageContent.toLowerCase() === "what is your health?") {
+  //       try {
+  //         const healthCheckResponse = await fetch('http://localhost:8000/health-check');
+  //         console.log(healthCheckResponse.ok);
+  //         if (!healthCheckResponse.ok) {
+  //           // Handle non-200 responses
+  //           throw new Error('Health check failed');
+  //         }
+  //         const healthCheckResult = await healthCheckResponse.text();
+  //         responseText = `System Health: ${healthCheckResult}`;
+  //       } catch (error) {
+  //         responseText = `Failed to retrieve health check`;
+  //       }
+  //     }
+
+  //     const currentTime = new Date().toISOString();
+
+  //     // Construct the user message object
+  //     const userMessage: Tables<"messages"> = {
+  //       id: Date.now().toString(),
+  //       content: messageContent,
+  //       assistant_id: null,
+  //       chat_id: "your_chat_id",
+  //       created_at: currentTime,
+  //       image_paths: [],
+  //       model: "your_model_name",
+  //       role: "user",
+  //       sequence_number: nextSequenceNumber, // This should be dynamically calculated if needed
+  //       updated_at: null,
+  //       user_id: "your_user_id",
+  //     };
+
+  //     setChatMessages(prevMessages => [...prevMessages, { message: userMessage, fileItems: [] }]);
+
+
+  //     // Simulate the generated response message object
+  //     const generatedMessage: Tables<"messages"> = {
+  //       id: (Date.now() + 1).toString(),
+  //       content: responseText,
+  //       assistant_id: null,
+  //       chat_id: "your_chat_id",
+  //       created_at: currentTime,
+  //       image_paths: [],
+  //       model: "your_model_name",
+  //       role: "assistant",
+  //       sequence_number: nextSequenceNumber + 1, // This should be dynamically calculated if needed
+  //       updated_at: null,
+  //       user_id: "your_user_id",
+  //     };
+
+  //     // Update the chat UI with the new message and the generated response
+  //     setChatMessages(prevMessages => [...prevMessages, { message: generatedMessage, fileItems: [] }]);
+
+  //     setUserInput(""); // Clear the input field
+  //   } catch (error) {
+  //     console.error("Failed to handle the message:", error);
+  //   } finally {
+  //     setIsGenerating(false);
+  //   }
+  // };
