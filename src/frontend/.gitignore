@@ -8,7 +8,7 @@
 
 !package.json
 !tsconfig.json
-!public/locales
+!public/**
 
 # testing
 /coverage
