@@ -20,7 +20,7 @@ import {
   handleRetrieval,
   processResponse,
   validateChatSettings,
-  fetchFromQueryEndpoint
+  queryBridge
 } from "../chat-helpers"
 
 export const useChatHandler = () => {
@@ -196,6 +196,8 @@ export const useChatHandler = () => {
   ) => {
     const startingInput = messageContent
 
+    console.log(queryBridge(startingInput))
+
     try {
       setUserInput("")
       setIsGenerating(true)
@@ -273,8 +275,6 @@ export const useChatHandler = () => {
 
       let generatedText = ""
 
-      console.log(fetchFromQueryEndpoint())
-
       if (selectedTools.length > 0) {
         setToolInUse("Tools")
 
@@ -324,20 +324,27 @@ export const useChatHandler = () => {
             setToolInUse
           )
         } else {
-          generatedText = await handleHostedChat(
-            payload,
-            profile!,
-            modelData!,
-            tempAssistantChatMessage,
-            isRegeneration,
-            newAbortController,
-            newMessageImages,
-            chatImages,
-            setIsGenerating,
-            setFirstTokenReceived,
-            setChatMessages,
-            setToolInUse
-          )
+
+          const result = await queryBridge(startingInput);
+          generatedText = JSON.stringify(result);
+
+          // FOR TESTING, not using hosted llms
+          // FOR PROD, not using external apis. please use llm provided by api!
+
+          // generatedText = await handleHostedChat(
+          //   payload,
+          //   profile!,
+          //   modelData!,
+          //   tempAssistantChatMessage,
+          //   isRegeneration,
+          //   newAbortController,
+          //   newMessageImages,
+          //   chatImages,
+          //   setIsGenerating,
+          //   setFirstTokenReceived,
+          //   setChatMessages,
+          //   setToolInUse
+          // )
         }
       }
 

@@ -144,7 +144,7 @@ export const createTempMessages = (
   }
 }
 
-export const fetchFromQueryEndpoint = async () => {
+export const queryBridge = async (q: string) => {
   try {
     const requestOptions = {
       method: 'POST',
@@ -152,8 +152,8 @@ export const fetchFromQueryEndpoint = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        query: "What is sliding GQA?",
-        index: "table_meta"
+        query: q,
+        index: "text_chunk"
         // "use_llm": true  // Uncomment if you need to send this
       })
     };
