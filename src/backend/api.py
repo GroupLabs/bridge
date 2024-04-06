@@ -96,7 +96,7 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
 # accepts NL query
 # returns distance
 
-@app.get("/query")
+@app.post("/query")
 async def nl_query(input: Query):
 
     resp = query(input.query, input.index)
