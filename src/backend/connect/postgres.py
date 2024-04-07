@@ -11,11 +11,7 @@ parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
 
 from auto_description import describe_table
-
-from dotenv import load_dotenv, find_dotenv
-load_dotenv(find_dotenv(".env"))
-
-from correlation import correlation_embedding
+from .correlation import correlation_embedding
 
 # Function to fetch constraints data, adapted for PostgreSQL
 def get_constraints(db_name, table_name, conn):
@@ -338,6 +334,8 @@ def postgres_to_croissant(host, user, password, auto_describe=True):
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(".env"))
 
     host="localhost"
     user=os.getenv("PG_USER")
