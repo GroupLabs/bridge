@@ -23,6 +23,7 @@ __pycache__/
 *.pkl
 *.json
 
+!k8sbridge.y*ml
 *.yaml
 *.yml
 ##testing
