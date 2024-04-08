@@ -1,0 +1,474 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+--- 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kibana-certs-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kibana-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+--- 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi  # Adjust the size according to your needs
+
+--- 
+apiVersion: v1
+kind: Secret 
+metadata: 
+  name: elastic-pwd-secret
+type: Opaque
+data:
+  ELASTIC_PASSWORD: dGhpc2lzYXJhbmRvbXBhc3N3b3Jk
+
+--- 
+apiVersion: v1
+kind: Secret
+metadata: 
+  name: encryption_key
+type: Opaque
+data:
+  ENCRYPTION_KEY: YzM0ZDM4YjNhMTQ5NTYxMjFmZjIxNzBlNTAzMGI0NzE1NTEzNzAxNzhmNDNlNTYyNmVlYzU4YjA0YTMwZmFlMg==
+
+---  
+apiVersion: v1
+kind: Secret 
+metadata: 
+  name: kibana-pwd-secret
+type: Opaque
+data:
+  KIBANA_PASSWORD: Y2hhbmdlbWU=
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stack_ver_config
+data:
+  STACK_VERSION: 8.13.0
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster_name_config
+data:
+  CLUSTER_NAME: bridge-cluster
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: license_config
+data:
+  LICENSE: basic
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: es_port_config
+data:
+  ES_PORT: 9200
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana_port_config
+data:
+  KIBANA_PORT: 5601
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: es_mem_limit_config
+data:
+  ES_MEM_LIMIT: 1073741824
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kb_mem_limit_config
+data:
+  KB_MEM_LIMIT: 1073741824
+
+---  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ls_mem_limit_config
+data:
+  LS_MEM_LIMIT: 1073741824
+
+--- 
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      initContainers:
+      - name: elasticsearch-setup
+        image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            # Check if ELASTIC_PASSWORD and KIBANA_PASSWORD are set
+            if [ -z "${ELASTIC_PASSWORD}" ] || [ -z "${KIBANA_PASSWORD}" ]; then
+              echo "ELASTIC_PASSWORD and KIBANA_PASSWORD must be set"
+              exit 1
+            fi
+
+            # Path where certificates are stored
+            CERTS_DIR=/usr/share/elasticsearch/config/certs
+
+            # Generate CA if it doesn't exist
+            if [ ! -f $CERTS_DIR/ca.zip ]; then
+              echo "Creating CA"
+              elasticsearch-certutil ca --silent --pem -out $CERTS_DIR/ca.zip
+              unzip $CERTS_DIR/ca.zip -d $CERTS_DIR
+            fi
+
+            # Generate certificates if they don't exist
+            if [ ! -f $CERTS_DIR/certs.zip ]; then
+              echo "Creating Elasticsearch certificates"
+              echo -ne "instances:\n  - name: es01\n    dns:\n      - es01\n      - localhost\n    ip:\n      - 127.0.0.1\n" > $CERTS_DIR/instances.yml
+              elasticsearch-certutil cert --silent --pem -out $CERTS_DIR/certs.zip --in $CERTS_DIR/instances.yml --ca-cert $CERTS_DIR/ca/ca.crt --ca-key $CERTS_DIR/ca/ca.key
+              unzip $CERTS_DIR/certs.zip -d $CERTS_DIR
+            fi
+
+            # Set file permissions
+            echo "Setting file permissions"
+            chown -R elasticsearch:elasticsearch $CERTS_DIR
+            chmod -R 750 $CERTS_DIR
+            find $CERTS_DIR -type f -exec chmod 640 {} \;
+
+        volumeMounts:
+        - name: certs
+          mountPath: /usr/share/elasticsearch/config/certs
+        
+        env:
+          - name: STACK_VERSION
+            valueFrom:
+            secretKeyRef:
+              name: stack_ver_config
+              key: STACK_VERSION
+          - name: ELASTIC_PASSWORD
+            valueFrom:
+            secretKeyRef:
+              name: elastic-pwd-secret
+              key: ELASTIC_PASSWORD
+          - name: STACK_VERSION
+            valueFrom:
+            secretKeyRef:
+              name: stack_ver_config
+              key: STACK_VERSION
+      
+      containers:
+      - name: es01
+        image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+        ports:
+        - containerPort: 9200
+        - containerPort: 9300
+        resources:
+          limits:
+            memory: "${ES_MEM_LIMIT}"
+        env:
+          - name: node.name
+            value: "es01"
+          - name: discovery.type
+            value: "single-node"
+          - name: bootstrap.memory_lock
+            value: true
+          - name: xpack.security.enabled
+            value: true
+          - name: xpack.security.http.ssl.enabled
+            value: true
+          - name: xpack.security.http.ssl.key
+            value: "certs/es01/es01.key"
+          - name: xpack.security.http.ssl.certificate
+            value: "certs/es01/es01.crt"
+          - name: xpack.security.http.ssl.certificate_authorities
+            value: "certs/ca/ca.crt"
+          - name: xpack.security.transport.ssl.enabled
+            value: true
+          - name: xpack.security.transport.ssl.key
+            value: "certs/es01/es01.key"
+          - name: xpack.security.transport.ssl.certificate
+            value: "certs/es01/es01.crt"
+          - name: xpack.security.transport.ssl.certificate_authorities
+            value: "certs/ca/ca.crt"
+          - name: xpack.security.transport.ssl.verification_mode
+            value: certificate
+          - name: ES_MEM_LIMIT
+            valueFrom:
+              secrectKeyRef:
+                name: es_mem_limit_config
+                key: ES_MEM_LIMIT
+          - name: cluster.name
+            valueFrom:
+              configMapKeyRef:
+                name: cluster-config
+                key: CLUSTER_NAME
+          - name: LICENSE
+            valueFrom:
+              configMapKeyRef:
+                name: licence_config
+                key: LICENSE
+          - name: ELASTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: elastic-pwd-secret
+                key: ELASTIC_PASSWORD
+          - name: KIBANA_PASSWORD
+            valueFrom: 
+              secretKeyRef:
+                name: kibana-pwd-secret
+                key: KIBANA_PASSWORD
+          - name: STACK_VERSION
+            valueFrom:
+              secretKeyRef:
+                name: stack_ver_config
+                key: STACK_VERSION
+        
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          
+          volumeMounts:
+          - name: certs
+            mountPath: /usr/share/elasticsearch/config/certs      
+        
+  volumeClaimTemplates:
+  - metadata:
+      name: certs
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+
+--- 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+          ports:
+            - containerPort: 5601 
+          resources:
+            limits:
+              memory: "${KB_MEM_LIMIT}"  
+          env:
+            - name: KB_MEM_LIMIT
+              valueFrom:
+                configMapKeyRef:
+                  name: kb_mem_limit_config
+                  key: KB_MEM_LIMIT
+            - name: SERVERNAME
+              value: "kibana"
+            - name: ELASTICSEARCH_HOSTS
+              value: "https://es01:9200" 
+            - name: ELASTICSEARCH_USERNAME
+              value: "kibana_system"
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kibana-pwd-secret  
+                  key: KIBANA_PASSWORD
+            - name: ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES
+              value: "/usr/share/kibana/config/certs/ca/ca.crt" 
+            - name: XPACK_SECURITY_ENCRYPTIONKEY
+              valueFrom:
+                secrectKeyRef: 
+                  name: encryption_key  
+                  key: ENCRYPTION_KEY
+            - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+              valueFrom:
+                secrectKeyRef: 
+                  name: encryption_key  
+                  key: ENCRYPTION_KEY
+            - name: XPACK_REPORTING_ENCRYPTIONKEY
+              valueFrom:
+                secrectKeyRef: 
+                  name: encryption_key  
+                  key: ENCRYPTION_KEY
+          volumeMounts:
+            - name: certs
+              mountPath: "/usr/share/kibana/config/certs"
+            - name: kibanadata
+              mountPath: "/usr/share/kibana/data"
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'"
+            initialDelaySeconds: 10  # Wait 10 seconds before first probe
+            periodSeconds: 10        # Check every 10 seconds
+            timeoutSeconds: 10       # Timeout after 10 seconds
+            failureThreshold: 120    # Number of retries before marking the container as Unready
+
+    volumes:
+      - name: certs
+        persistentVolumeClaim:
+          claimName: kibana-certs-pvc  # Ensure you have a PVC set up for Kibana certificates
+      - name: kibanadata
+        persistentVolumeClaim:
+          claimName: kibana-data-pvc  # Ensure you have a PVC for Kibana data
+
+--- 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+spec:
+  replicas: 3 
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.13-management
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+      volumes:
+      - name: rabbitmq-data
+        persistentVolumeClaim:
+          claimName: rabbitmq-data-pvc
+
+--- 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama
+          ports:
+            - containerPort: 11434
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+          readinessProbe:
+            exec:
+              command:
+                - curl
+                - -X
+                - POST
+                - -H
+                - "Content-Type: application/json"
+                - -d
+                - "{\"name\":\"llama2\"}"
+                - http://localhost:11434/api/pull
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 12
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-data-pvc
+
+---   
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bridge-api
+  labels:
+    app: bridge-api
+spec:
+  replicas: 3
+  selector: 
+    matchLabels:
+      app: bridge-api
+  template:
+    metadata:
+      labels:
+        app: bridge-api
+    spec:
+      containers:
+      - name: api_acr
+        image: acrbridge.azurecr.io/api:v1
+        ports:
+        - containerPort: 8000
+        env:
