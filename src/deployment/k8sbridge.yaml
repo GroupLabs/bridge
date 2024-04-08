@@ -20,6 +20,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
+
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -31,6 +32,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
+
 --- 
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -41,7 +43,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi  # Adjust the size according to your needs
+      storage: 1Gi
 
 --- 
 apiVersion: v1
@@ -56,7 +58,7 @@ data:
 apiVersion: v1
 kind: Secret
 metadata: 
-  name: encryption_key
+  name: encryption-key
 type: Opaque
 data:
   ENCRYPTION_KEY: YzM0ZDM4YjNhMTQ5NTYxMjFmZjIxNzBlNTAzMGI0NzE1NTEzNzAxNzhmNDNlNTYyNmVlYzU4YjA0YTMwZmFlMg==
@@ -74,15 +76,15 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: stack_ver_config
+  name: stack-ver-config  
 data:
-  STACK_VERSION: 8.13.0
+  STACK_VERSION: "8.13.0"  
 
 ---  
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cluster_name_config
+  name: cluster-name-config 
 data:
   CLUSTER_NAME: bridge-cluster
 
@@ -90,7 +92,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: license_config
+  name: license-config 
 data:
   LICENSE: basic
 
@@ -98,41 +100,41 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: es_port_config
+  name: es-port-config  
 data:
-  ES_PORT: 9200
+  ES_PORT: "9200" 
 
 ---  
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kibana_port_config
+  name: kibana-port-config  
 data:
-  KIBANA_PORT: 5601
+  KIBANA_PORT: "5601" 
 
 ---  
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: es_mem_limit_config
+  name: es-mem-limit-config  
 data:
-  ES_MEM_LIMIT: 1073741824
+  ES_MEM_LIMIT: "1073741824"  
 
 ---  
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kb_mem_limit_config
+  name: kb-mem-limit-config  
 data:
-  KB_MEM_LIMIT: 1073741824
+  KB_MEM_LIMIT: "1073741824"  
 
 ---  
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ls_mem_limit_config
+  name: ls-mem-limit-config  
 data:
-  LS_MEM_LIMIT: 1073741824
+  LS_MEM_LIMIT: "1073741824"  
 
 --- 
 apiVersion: apps/v1
@@ -193,7 +195,7 @@ spec:
           - name: STACK_VERSION
             valueFrom:
             secretKeyRef:
-              name: stack_ver_config
+              name: stack-ver-config
               key: STACK_VERSION
           - name: ELASTIC_PASSWORD
             valueFrom:
@@ -203,7 +205,7 @@ spec:
           - name: STACK_VERSION
             valueFrom:
             secretKeyRef:
-              name: stack_ver_config
+              name: stack-ver-config
               key: STACK_VERSION
       
       containers:
@@ -214,7 +216,7 @@ spec:
         - containerPort: 9300
         resources:
           limits:
-            memory: "${ES_MEM_LIMIT}"
+            memory: ${ES_MEM_LIMIT}
         env:
           - name: node.name
             value: "es01"
@@ -244,18 +246,18 @@ spec:
             value: certificate
           - name: ES_MEM_LIMIT
             valueFrom:
-              secrectKeyRef:
-                name: es_mem_limit_config
+              secretKeyRef:
+                name: es-mem-limit-config
                 key: ES_MEM_LIMIT
           - name: cluster.name
             valueFrom:
               configMapKeyRef:
-                name: cluster-config
+                name: cluster-name-config
                 key: CLUSTER_NAME
           - name: LICENSE
             valueFrom:
               configMapKeyRef:
-                name: licence_config
+                name: license-config
                 key: LICENSE
           - name: ELASTIC_PASSWORD
             valueFrom:
@@ -270,21 +272,21 @@ spec:
           - name: STACK_VERSION
             valueFrom:
               secretKeyRef:
-                name: stack_ver_config
+                name: stack-ver-config
                 key: STACK_VERSION
         
-          readinessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'
-            initialDelaySeconds: 10
-            periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'
+          initialDelaySeconds: 10
+          periodSeconds: 10
           
-          volumeMounts:
-          - name: certs
-            mountPath: /usr/share/elasticsearch/config/certs      
+        volumeMounts:
+        - name: certs
+          mountPath: /usr/share/elasticsearch/config/certs      
         
   volumeClaimTemplates:
   - metadata:
@@ -317,12 +319,12 @@ spec:
             - containerPort: 5601 
           resources:
             limits:
-              memory: "${KB_MEM_LIMIT}"  
+              memory: ${KB_MEM_LIMIT}  
           env:
             - name: KB_MEM_LIMIT
               valueFrom:
                 configMapKeyRef:
-                  name: kb_mem_limit_config
+                  name: kb-mem-limit-config
                   key: KB_MEM_LIMIT
             - name: SERVERNAME
               value: "kibana"
@@ -340,17 +342,17 @@ spec:
             - name: XPACK_SECURITY_ENCRYPTIONKEY
               valueFrom:
                 secrectKeyRef: 
-                  name: encryption_key  
+                  name: encryption-key  
                   key: ENCRYPTION_KEY
             - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
               valueFrom:
                 secrectKeyRef: 
-                  name: encryption_key  
+                  name: encryption-key  
                   key: ENCRYPTION_KEY
             - name: XPACK_REPORTING_ENCRYPTIONKEY
               valueFrom:
                 secrectKeyRef: 
-                  name: encryption_key  
+                  name: encryption-key  
                   key: ENCRYPTION_KEY
           volumeMounts:
             - name: certs
@@ -472,3 +474,39 @@ spec:
         ports:
         - containerPort: 8000
         env:
+          - name: ELASTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: elastic-pwd-secret
+                key: ELASTIC_PASSWORD
+          - name: ELASTIC_CA_CERT_PATH
+            value: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
+          - name: ELASTIC_URL
+            value: "https://es01:9200"
+          - name: LLM_URL
+            value: "http://ollama:11434/api/"
+          - name: CELERY_BROKER_URL
+            value: "amqp://guest:guest@rabbitmq:5672/"
+        volumeMounts:
+          - name: certs
+            mountPath: "/usr/share/elasticsearch/config/certs"
+        command: ["/bin/sh", "-c"]
+        args:
+          - "celery -A storage worker --loglevel=info -P threads & python api.py"
+    volumes:
+      - name: certs
+        persistentVolumeClaim:
+          claimName: elasticsearch-certs-pvc
+
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: bridge-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: bridge-api
