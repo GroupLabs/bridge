@@ -25,11 +25,11 @@ export const MessageMarkdown: FC<MessageMarkdownProps> = ({ content }) => {
       {jsonContent.resp.map(([id, details]: [string, { score: number; text: string }]) => (
         <div key={id} className="border-b border-gray-200 bg-white rounded-lg px-4 py-5 sm:px-6 my-3">
           <div className="-ml-4 -mt-4 flex flex-wrap items-center justify-between sm:flex-nowrap">
-            <div className="ml-4 mt-4">
+            <div className="ml-4 mt-4 grow">
 
               <div className="flex flex-wrap items-center justify-between">
                 <h3 className="text-base font-semibold leading-6 text-gray-900 py-2">{id}</h3>
-                <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
                   {Number(details.score).toFixed(4)}
                 </span>
               </div>
