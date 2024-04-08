@@ -1,1 +1,3 @@
-We're vulnerable to CORS!
+- We're vulnerable to CORS!
+- need to limit num results returned (by top cluster)
+- max score -> 0.125; likely due to rrf
