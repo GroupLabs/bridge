@@ -5,3 +5,6 @@ For speed, we're opting to fork [Mckay Wrigley's Chatbot-UI](https://github.com/
 Instead, we are considering integrating with user management platforms that can provide other forms of user management like SSO, etc. We're considering products like: Clerk, WorkOS.
 
 Further, it makes a lot of sense to nuke the current frontend in favor of a [minimal project](https://sdk.vercel.ai/docs/getting-started) and add in interesting and useful features over time.My understanding is that we should be able to port over the changes we make to the current template, to the new UI without much hassle.
+
+Other things to look at:
+- https://vercel.com/blog/ai-sdk-3-generative-ui
