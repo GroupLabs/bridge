@@ -29,7 +29,7 @@ class Search:
                 index='text_chunk', 
                 mappings={
                     'properties': {
-                        'document_id': {'type': 'keyword'},
+                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'access_group': {'type': 'keyword'},
                         'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
