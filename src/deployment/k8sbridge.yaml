@@ -9,7 +9,7 @@ spec:
     requests:
       storage: 5Gi
 
---- 
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -52,7 +52,7 @@ metadata:
   name: elastic-pwd-secret
 type: Opaque
 data:
-  ELASTIC_PASSWORD: dGhpc2lzYXJhbmRvbXBhc3N3b3Jk
+  ELASTIC_PASSWORD: "dGhpc2lzYXJhbmRvbXBhc3N3b3Jk"
 
 --- 
 apiVersion: v1
@@ -61,7 +61,7 @@ metadata:
   name: encryption-key
 type: Opaque
 data:
-  ENCRYPTION_KEY: YzM0ZDM4YjNhMTQ5NTYxMjFmZjIxNzBlNTAzMGI0NzE1NTEzNzAxNzhmNDNlNTYyNmVlYzU4YjA0YTMwZmFlMg==
+  ENCRYPTION_KEY: "YzM0ZDM4YjNhMTQ5NTYxMjFmZjIxNzBlNTAzMGI0NzE1NTEzNzAxNzhmNDNlNTYyNmVlYzU4YjA0YTMwZmFlMg=="
 
 ---  
 apiVersion: v1
@@ -70,7 +70,7 @@ metadata:
   name: kibana-pwd-secret
 type: Opaque
 data:
-  KIBANA_PASSWORD: Y2hhbmdlbWU=
+  KIBANA_PASSWORD: "Y2hhbmdlbWU="
 
 ---  
 apiVersion: v1
@@ -86,7 +86,7 @@ kind: ConfigMap
 metadata:
   name: cluster-name-config 
 data:
-  CLUSTER_NAME: bridge-cluster
+  CLUSTER_NAME: "bridge-cluster"
 
 ---  
 apiVersion: v1
@@ -94,7 +94,7 @@ kind: ConfigMap
 metadata:
   name: license-config 
 data:
-  LICENSE: basic
+  LICENSE: "basic"
 
 ---  
 apiVersion: v1
@@ -142,6 +142,7 @@ kind: StatefulSet
 metadata:
   name: elasticsearch
 spec:
+  serviceName: "elasticsearch"
   replicas: 3
   selector:
     matchLabels:
@@ -153,39 +154,51 @@ spec:
     spec:
       initContainers:
       - name: elasticsearch-setup
-        image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+        image: docker.elastic.co/elasticsearch/elasticsearch:$STACK_VERSION
         command: ["/bin/bash", "-c"]
         args:
           - |
-            # Check if ELASTIC_PASSWORD and KIBANA_PASSWORD are set
-            if [ -z "${ELASTIC_PASSWORD}" ] || [ -z "${KIBANA_PASSWORD}" ]; then
-              echo "ELASTIC_PASSWORD and KIBANA_PASSWORD must be set"
-              exit 1
-            fi
-
-            # Path where certificates are stored
-            CERTS_DIR=/usr/share/elasticsearch/config/certs
-
-            # Generate CA if it doesn't exist
-            if [ ! -f $CERTS_DIR/ca.zip ]; then
-              echo "Creating CA"
-              elasticsearch-certutil ca --silent --pem -out $CERTS_DIR/ca.zip
-              unzip $CERTS_DIR/ca.zip -d $CERTS_DIR
-            fi
-
-            # Generate certificates if they don't exist
-            if [ ! -f $CERTS_DIR/certs.zip ]; then
-              echo "Creating Elasticsearch certificates"
-              echo -ne "instances:\n  - name: es01\n    dns:\n      - es01\n      - localhost\n    ip:\n      - 127.0.0.1\n" > $CERTS_DIR/instances.yml
-              elasticsearch-certutil cert --silent --pem -out $CERTS_DIR/certs.zip --in $CERTS_DIR/instances.yml --ca-cert $CERTS_DIR/ca/ca.crt --ca-key $CERTS_DIR/ca/ca.key
-              unzip $CERTS_DIR/certs.zip -d $CERTS_DIR
-            fi
-
-            # Set file permissions
-            echo "Setting file permissions"
-            chown -R elasticsearch:elasticsearch $CERTS_DIR
-            chmod -R 750 $CERTS_DIR
-            find $CERTS_DIR -type f -exec chmod 640 {} \;
+            if [ "x${ELASTIC_PASSWORD}" == "x" ]; then
+              echo "Set the ELASTIC_PASSWORD environment variable in the env section";
+              exit 1;
+            elif [ "x${KIBANA_PASSWORD}" == "x" ]; then
+              echo "Set the KIBANA_PASSWORD environment variable in the env section";
+              exit 1;
+            fi;
+            if [ ! -f /usr/share/elasticsearch/config/certs/ca.zip ]; then
+              echo "Creating CA";
+              /usr/share/elasticsearch/bin/elasticsearch-certutil ca --silent --pem -out /usr/share/elasticsearch/config/certs/ca.zip;
+              unzip /usr/share/elasticsearch/config/certs/ca.zip -d /usr/share/elasticsearch/config/certs;
+            fi;
+            if [ ! -f /usr/share/elasticsearch/config/certs/certs.zip ]; then
+              echo "Creating certs";
+              echo -ne \
+              "instances:\n"\
+              "  - name: es01\n"\
+              "    dns:\n"\
+              "      - es01\n"\
+              "      - localhost\n"\
+              "    ip:\n"\
+              "      - 127.0.0.1\n"\
+              "  - name: kibana\n"\
+              "    dns:\n"\
+              "      - kibana\n"\
+              "      - localhost\n"\
+              "    ip:\n"\
+              "      - 127.0.0.1\n"\
+              > /usr/share/elasticsearch/config/certs/instances.yml;
+              /usr/share/elasticsearch/bin/elasticsearch-certutil cert --silent --pem -out /usr/share/elasticsearch/config/certs/certs.zip --in /usr/share/elasticsearch/config/certs/instances.yml --ca-cert /usr/share/elasticsearch/config/certs/ca/ca.crt --ca-key /usr/share/elasticsearch/config/certs/ca/ca.key;
+              unzip /usr/share/elasticsearch/config/certs/certs.zip -d /usr/share/elasticsearch/config/certs;
+            fi;
+            echo "Setting file permissions";
+            chown -R root:root /usr/share/elasticsearch/config/certs;
+            find /usr/share/elasticsearch/config -type d -exec chmod 750 {} \;
+            find /usr/share/elasticsearch/config -type f -exec chmod 640 {} \;
+            echo "Waiting for Elasticsearch availability";
+            until curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+            echo "Setting kibana_system password";
+            until curl -s -X POST --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
+            echo "All done!";
 
         volumeMounts:
         - name: certs
@@ -194,19 +207,19 @@ spec:
         env:
           - name: STACK_VERSION
             valueFrom:
-            secretKeyRef:
-              name: stack-ver-config
-              key: STACK_VERSION
+              configMapKeyRef:
+                name: stack-ver-config
+                key: STACK_VERSION
           - name: ELASTIC_PASSWORD
             valueFrom:
-            secretKeyRef:
-              name: elastic-pwd-secret
-              key: ELASTIC_PASSWORD
+              secretKeyRef:
+                name: elastic-pwd-secret
+                key: ELASTIC_PASSWORD
           - name: STACK_VERSION
             valueFrom:
-            secretKeyRef:
-              name: stack-ver-config
-              key: STACK_VERSION
+              secretKeyRef:
+                name: stack-ver-config
+                key: STACK_VERSION
       
       containers:
       - name: es01
@@ -216,18 +229,18 @@ spec:
         - containerPort: 9300
         resources:
           limits:
-            memory: ${ES_MEM_LIMIT}
+            memory: 1Gi
         env:
           - name: node.name
             value: "es01"
           - name: discovery.type
             value: "single-node"
           - name: bootstrap.memory_lock
-            value: true
+            value: "true"
           - name: xpack.security.enabled
-            value: true
+            value: "true"
           - name: xpack.security.http.ssl.enabled
-            value: true
+            value: "true"
           - name: xpack.security.http.ssl.key
             value: "certs/es01/es01.key"
           - name: xpack.security.http.ssl.certificate
@@ -235,7 +248,7 @@ spec:
           - name: xpack.security.http.ssl.certificate_authorities
             value: "certs/ca/ca.crt"
           - name: xpack.security.transport.ssl.enabled
-            value: true
+            value: "true"
           - name: xpack.security.transport.ssl.key
             value: "certs/es01/es01.key"
           - name: xpack.security.transport.ssl.certificate
@@ -243,7 +256,7 @@ spec:
           - name: xpack.security.transport.ssl.certificate_authorities
             value: "certs/ca/ca.crt"
           - name: xpack.security.transport.ssl.verification_mode
-            value: certificate
+            value: "certificate"
           - name: ES_MEM_LIMIT
             valueFrom:
               configMapKeyRef:
@@ -319,7 +332,7 @@ spec:
             - containerPort: 5601 
           resources:
             limits:
-              memory: ${KB_MEM_LIMIT}  
+              memory: 1Gi  
           env:
             - name: KB_MEM_LIMIT
               valueFrom:
@@ -335,23 +348,23 @@ spec:
             - name: ELASTICSEARCH_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: kibana-pwd-secret  
+                  name: kibana-pwd-secret
                   key: KIBANA_PASSWORD
             - name: ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES
               value: "/usr/share/kibana/config/certs/ca/ca.crt" 
             - name: XPACK_SECURITY_ENCRYPTIONKEY
               valueFrom:
-                secrectKeyRef: 
+                secretKeyRef: 
                   name: encryption-key  
                   key: ENCRYPTION_KEY
             - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
               valueFrom:
-                secrectKeyRef: 
+                secretKeyRef: 
                   name: encryption-key  
                   key: ENCRYPTION_KEY
             - name: XPACK_REPORTING_ENCRYPTIONKEY
               valueFrom:
-                secrectKeyRef: 
+                secretKeyRef: 
                   name: encryption-key  
                   key: ENCRYPTION_KEY
           volumeMounts:
@@ -370,13 +383,13 @@ spec:
             periodSeconds: 10        # Check every 10 seconds
             timeoutSeconds: 10       # Timeout after 10 seconds
             failureThreshold: 120    # Number of retries before marking the container as Unready
-
-      - name: certs
-        persistentVolumeClaim:
-          claimName: kibana-certs-pvc  # Ensure you have a PVC set up for Kibana certificates
-      - name: kibanadata
-        persistentVolumeClaim:
-          claimName: kibana-data-pvc  # Ensure you have a PVC for Kibana data
+      volumes:
+        - name: certs
+          persistentVolumeClaim:
+            claimName: kibana-certs-pvc  # Ensure you have a PVC set up for Kibana certificates
+        - name: kibanadata
+          persistentVolumeClaim:
+            claimName: kibana-data-pvc  # Ensure you have a PVC for Kibana data
 
 --- 
 apiVersion: apps/v1
@@ -402,9 +415,11 @@ spec:
         volumeMounts:
         - name: rabbitmq-data
           mountPath: /var/lib/rabbitmq
+      volumes:
       - name: rabbitmq-data
         persistentVolumeClaim:
           claimName: rabbitmq-data-pvc
+
 
 --- 
 apiVersion: apps/v1
@@ -412,7 +427,7 @@ kind: Deployment
 metadata:
   name: ollama
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: ollama
@@ -444,9 +459,11 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 12
+      volumes:
         - name: ollama-data
           persistentVolumeClaim:
             claimName: ollama-data-pvc
+
 
 ---   
 apiVersion: apps/v1
@@ -466,7 +483,7 @@ spec:
         app: bridge-api
     spec:
       containers:
-      - name: api_acr
+      - name: api-acr
         image: acrbridge.azurecr.io/api:v1
         ports:
         - containerPort: 8000
@@ -490,9 +507,11 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
           - "celery -A storage worker --loglevel=info -P threads & python api.py"
-      - name: certs
-        persistentVolumeClaim:
-          claimName: elasticsearch-certs-pvc
+      volumes:
+        - name: certs
+          persistentVolumeClaim:
+            claimName: elasticsearch-certs-pvc
+
 
 --- 
 apiVersion: v1
@@ -506,3 +525,24 @@ spec:
       targetPort: 8000
   selector:
     app: bridge-api
+
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  labels:
+    app: elasticsearch
+spec:
+  ports:
+  - port: 9200
+    name: http
+    protocol: TCP
+    targetPort: 9200
+  - port: 9300
+    name: transport
+    protocol: TCP
+    targetPort: 9300
+  clusterIP: None  # This specifies a Headless Service
+  selector:
+    app: elasticsearch
