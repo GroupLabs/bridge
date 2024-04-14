@@ -4,10 +4,22 @@ metadata:
   name: ollama-data-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 5Gi
+
+--- 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-certs-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
 
 ---
 apiVersion: v1
@@ -16,7 +28,7 @@ metadata:
   name: kibana-certs-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 1Gi
@@ -28,7 +40,7 @@ metadata:
   name: kibana-data-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 1Gi
@@ -40,7 +52,7 @@ metadata:
   name: rabbitmq-data-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 1Gi
@@ -298,7 +310,7 @@ spec:
           periodSeconds: 10
           
         volumeMounts:
-        - name: certs
+        - name: elasticsearch-certs-pvc
           mountPath: /usr/share/elasticsearch/config/certs      
         
   volumeClaimTemplates:
@@ -325,6 +337,8 @@ spec:
       labels:
         app: kibana
     spec:
+      securityContext:
+          fsGroup: 1000
       containers:
         - name: kibana
           image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
