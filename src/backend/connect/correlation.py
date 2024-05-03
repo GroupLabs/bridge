@@ -17,10 +17,10 @@ def correlation_embedding(column: np.array, dim: int=CORR_EMBEDDING_DIM):
 if __name__ == "__main__":
     import pandas as pd
 
-    target_df = pd.read_parquet("../../data/datasets/higgs/target.parquet")
-    m_df = pd.read_parquet("../../data/datasets/higgs/m.parquet")
+    target_df = pd.read_parquet("../../../data/datasets/higgs/target.parquet")
+    m_df = pd.read_parquet("../../../data/datasets/higgs/m.parquet")
     lepton_df = pd.read_parquet("../../data/datasets/higgs/lepton.parquet")
-    jet_df = pd.read_parquet("../../data/datasets/higgs/jet.parquet")
+    jet_df = pd.read_parquet("../../../data/datasets/higgs/jet.parquet")
 
     mat_a = correlation_embedding(target_df["target"].to_numpy())
     mat_b = correlation_embedding(m_df["m_bb"].to_numpy()) # highest pearson correlation
