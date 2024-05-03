@@ -19,11 +19,8 @@ if __name__ == "__main__":
 
     target_df = pd.read_parquet("../../../data/datasets/higgs/target.parquet")
     m_df = pd.read_parquet("../../../data/datasets/higgs/m.parquet")
-<<<<<<< HEAD
     lepton_df = pd.read_parquet("../../../data/datasets/higgs/lepton.parquet")
-=======
     lepton_df = pd.read_parquet("../../data/datasets/higgs/lepton.parquet")
->>>>>>> f030e7c33c95471cc232d34052df2d3e2f2ded0c
     jet_df = pd.read_parquet("../../../data/datasets/higgs/jet.parquet")
 
     mat_a = correlation_embedding(target_df["target"].to_numpy())
