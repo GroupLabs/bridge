@@ -131,7 +131,7 @@ class Search:
         return self.es.search(index=index, **query_args)
     
     def hybrid_search(self, query: str, index: str):
-        INSPECT = False
+        INSPECT = True
 
         # Determine the field to use based on the index
         # TODO: make this better so it can be set up once
@@ -183,24 +183,46 @@ class Search:
         # TODO: is the scores for each normalized? If not, decide if it should be normalized
         # then it can be normalize relatively here with min-max (or other).
         combined_results = {}
-        k = 15
+        k = 60
+
+        # We can add RLHF here
+        weights = {
+            "match" : 1,
+            "knn" : 1
+        }
 
         for rank, result in enumerate(match_results, 1):
             combined_results[result['_id']] = {
-                "score": 1 / (k + rank),
+                "score": weights["match"] / (k + rank),
                 "text": result["_source"].get(_field, '')
             }
 
         for rank, result in enumerate(knn_results, 1):
             if result['_id'] in combined_results:
-                combined_results[result['_id']]["score"] += 1 / (k + rank)
+                combined_results[result['_id']]["score"] += weights["knn"] / (k + rank)
             else:
                 combined_results[result['_id']] = {
-                    "score": 1 / (k + rank),
+                    "score": weights["knn"] / (k + rank),
                     "text": result["_source"].get(_field, '')
                 }
 
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
+
+        # TODO start - is there a point in calculating the normalized score?
+        rrf_scores = [item[1]["score"] for item in sorted_results]
+
+        min_rrf = min(rrf_scores)
+        max_rrf = max(rrf_scores)
+
+        for rank, (_, result) in enumerate(sorted_results, 1):
+            normalized_score = (result["score"] - min_rrf) / (max_rrf - min_rrf)
+            result["normalized_score"] = normalized_score
+        
+        if INSPECT:
+            print("FINAL")
+            for res in sorted_results:
+                print(f"ID: {res[0]}, Score: {str(res[1]['score'])[:6]}, Snippet: {res[1]['text'][:100]}...")
+        # TODO end
 
         logger.info(f"Hybrid search returned {len(sorted_results)} elements.")
 
