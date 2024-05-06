@@ -131,7 +131,7 @@ class Search:
         return self.es.search(index=index, **query_args)
     
     def hybrid_search(self, query: str, index: str):
-        INSPECT = True
+        INSPECT = False
 
         # Determine the field to use based on the index
         # TODO: make this better so it can be set up once
