@@ -187,12 +187,30 @@ services:
       sh -c "celery -A storage worker --loglevel=info -P threads &
         python api.py"
 
+  triton:
+    image: nvcr.io/nvidia/tritonserver:22.08-py3
+    depends_on:
+      es01:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - bridge-net
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+      - "9002:9002"
+    volumes:
+      - ${MODEL_REPOSITORY_PATH}:/models
+    command: tritonserver --model-repository=/models --http-port=9000 --grpc-port=9001
+
 volumes:
   certs:
     driver: local
   esdata:
   kibanadata:
   rabbitdata:
+  tritondata:
 
 networks:
   bridge-net:

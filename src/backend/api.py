@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 import os
 
 from log import setup_logger
-from storage import load_data, query
+from storage import load_data, load_model, query
 from serverutils import Health, Status, Load
 from serverutils import Query
 from ollama import chat
@@ -89,6 +89,26 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         return {"status": "accepted", "task_id": task.id}
     except NotImplementedError:
         logger.warn(f"LOAD incomplete: {file.filename}")
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+    
+@app.post("/load_model")
+async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...)):
+    try:
+        os.makedirs(f"{TEMP_DIR}/models", exist_ok=True)
+
+        with open(f"{TEMP_DIR}/models/{model.filename}", "wb") as temp_file:
+            temp_file.write(await model.read())
+
+        with open(f"{TEMP_DIR}/models/{config.filename}", "wb") as temp_file:
+            temp_file.write(await config.read())
+
+        task = load_model.delay(model=f"{TEMP_DIR}/models/{model.filename}", config=f"{TEMP_DIR}/models/{config.filename}")
+        response.status_code = 202
+        logger.info(f"LOAD accepted: {model.filename}")
+        return {"status": "accepted", "task_id": task.id}
+    except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {model.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 

@@ -61,7 +61,39 @@ class Search:
                         'description_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
-                        'data_hash': {'type': 'keyword'},
+                        'table_hash': {'type': 'keyword'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        "correlation_embedding": {
+                            "type": "nested",
+                            "properties": {
+                                "key": {"type": "keyword"},
+                            }
+                        },
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+        # configure model_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='model_meta', 
+                mappings={
+                    'properties': {
+                        'model_id': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'model_name': {'type': 'text'},
+                        'description_text': {'type': 'text'},
+                        'chunking_strategy': {'type': 'keyword'},
+                        'model_hash': {'type': 'keyword'},
                         # embeddings
                         'e5': {
                             'type': 'dense_vector',
@@ -86,7 +118,8 @@ class Search:
 
         self.registered_indices = [
             "text_chunk",
-            "table_meta"
+            "table_meta",
+            "model_meta"
         ]
 
         logger.info("Indices Registered.")
@@ -112,6 +145,10 @@ class Search:
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
+        if index == "model_meta":
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['colbert'] = {}
+            
         logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
@@ -135,9 +172,13 @@ class Search:
 
         # Determine the field to use based on the index
         # TODO: make this better so it can be set up once
-        _field = 'description_text' if index == 'table_meta' else 'chunk_text' if index == 'text_chunk' else None
-
-        if _field is None:
+        if index == 'text_chunk':
+            _field = "chunk_text"
+        elif index == 'table_meta':
+            _field = "description_text"
+        elif index == 'model_meta':
+            _field = "description_text"
+        else:
             raise NotImplementedError
 
         match_response = self.es.search(
@@ -183,33 +224,53 @@ class Search:
         # TODO: is the scores for each normalized? If not, decide if it should be normalized
         # then it can be normalize relatively here with min-max (or other).
         combined_results = {}
-        k = 15
+        k = 60
+
+        # We can add RLHF here
+        weights = {
+            "match" : 1,
+            "knn" : 1
+        }
 
         for rank, result in enumerate(match_results, 1):
             combined_results[result['_id']] = {
-                "score": 1 / (k + rank),
+                "score": weights["match"] / (k + rank),
                 "text": result["_source"].get(_field, '')
             }
 
         for rank, result in enumerate(knn_results, 1):
             if result['_id'] in combined_results:
-                combined_results[result['_id']]["score"] += 1 / (k + rank)
+                combined_results[result['_id']]["score"] += weights["knn"] / (k + rank)
             else:
                 combined_results[result['_id']] = {
-                    "score": 1 / (k + rank),
+                    "score": weights["knn"] / (k + rank),
                     "text": result["_source"].get(_field, '')
                 }
 
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
+
+        # TODO start - is there a point in calculating the normalized score?
+        rrf_scores = [item[1]["score"] for item in sorted_results]
+
+        min_rrf = min(rrf_scores)
+        max_rrf = max(rrf_scores)
+
+        for rank, (_, result) in enumerate(sorted_results, 1):
+            normalized_score = (result["score"] - min_rrf) / (max_rrf - min_rrf)
+            result["normalized_score"] = normalized_score
+        
+        if INSPECT:
+            print("FINAL")
+            for res in sorted_results:
+                print(f"ID: {res[0]}, Score: {str(res[1]['score'])[:6]}, Snippet: {res[1]['text'][:100]}...")
+        # TODO end
 
         logger.info(f"Hybrid search returned {len(sorted_results)} elements.")
 
         return sorted_results
 
 
-if __name__ == "__main__":
-    from pprint import pprint
-    
+if __name__ == "__main__":    
     es = Search()
 
     # response = es.hybrid_search("What is sliding GQA?", "text_chunk")
