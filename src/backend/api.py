@@ -109,10 +109,10 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
 
-        task = load_model.delay(model=model_path, config=config_path)
+        task = load_model.delay(model=model_path, config=config_path, description = description)
         response.status_code = 202
         logger.info(f"LOAD accepted: {model.filename}")
-        return {"status": "accepted", "task_id": task.id, "description": description}
+        return {"status": "accepted", "task_id": task.id}
     except NotImplementedError:
         logger.warn(f"LOAD incomplete: {model.filename}")
         response.status_code = 400

@@ -78,7 +78,7 @@ def load_data(filepath: str, read=True):
             os.remove(filepath)
 
 @celery_app.task(name="load_model_task")
-def load_model(model, config):
+def load_model(model, config, description):
     # load to triton
 
     # TODO https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_management.md#model-control-mode-explicit
@@ -89,10 +89,9 @@ def load_model(model, config):
         "model_id" : uuid4(),
         "access_group" : "", # not yet implemented
         "model_name" : model,
-        "description_text" : "This is the model description.",
+        "description_text" : description,
         "input" : extract_io_metadata(config, 'input'),
-        "output" : extract_io_metadata(config, 'output'), #name, data_type, dims
-        #update api to accept the model description, 
+        "output" : extract_io_metadata(config, 'output'), 
         "chunking_strategy" : "", # not chunked rn
         "chunking_no" : "", # not chunked rn
         "model_hash" : "not implemented", # for integrity check
