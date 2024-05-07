@@ -1,0 +1,43 @@
+INFO: 05/07/2024 11:48:24 AM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:33:48 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:34:23 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:40:44 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:41:27 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:41:34 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:46:40 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:49:47 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:57:15 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:57:15 PM       tritonutils.py  46 : Adding model kol.
+INFO: 05/07/2024 12:58:10 PM       tritonutils.py  37 : Triton is available
+INFO: 05/07/2024 12:58:10 PM       tritonutils.py  46 : Adding model kol.
+INFO: 05/07/2024 01:27:09 PM       tritonutils.py  39 : Triton is available
+INFO: 05/07/2024 01:27:09 PM       tritonutils.py  48 : Adding model kol.
+INFO: 05/07/2024 01:27:42 PM       tritonutils.py  40 : Triton is available
+INFO: 05/07/2024 01:27:42 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:29:34 PM       tritonutils.py  40 : Triton is available
+INFO: 05/07/2024 01:29:34 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  40 : Triton is available
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  49 : Adding model kol.
+INFO: 05/07/2024 01:34:48 PM       tritonutils.py  53 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/kol/1
+INFO: 05/07/2024 01:36:50 PM       tritonutils.py  40 : Triton is available
+INFO: 05/07/2024 01:36:50 PM       tritonutils.py  51 : Adding model mula.
+INFO: 05/07/2024 01:36:50 PM       tritonutils.py  54 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/mula/1
+INFO: 05/07/2024 01:46:02 PM       tritonutils.py  40 : Triton is available
+INFO: 05/07/2024 01:46:02 PM       tritonutils.py  51 : Adding model test33.
+INFO: 05/07/2024 01:46:02 PM       tritonutils.py  54 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/test33/1

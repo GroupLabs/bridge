@@ -3,11 +3,14 @@
 # Model repo: https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout
 
 # TODO add config
-
+import os
 import tritonclient.http as httpclient
 from tritonclient.utils import InferenceServerException # for custom error handling later
-
+from dotenv import load_dotenv
 from log import setup_logger
+
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', 'deployment', '.env')
+load_dotenv(dotenv_path=dotenv_path)
 
 # logger
 logger = setup_logger("triton")
@@ -27,15 +30,35 @@ class TritonClient:
 
     def __init__(
             self, 
-            url="localhost:8000", 
+            url="localhost:9000", 
             verbose=1
             ):
         self.triton_client = httpclient.InferenceServerClient(
             url=url, verbose=verbose
         )
-
+        self.model_repository_path = os.getenv('MODEL_REPOSITORY_PATH') # Default path if not specified in .env
         logger.info("Triton is available")
+
+    def addToModels(self, model_name, config):
+        found = False
+        existingModels = self.triton_client.get_model_repository_index()
+        for model in existingModels:
+            if model['name'] == model_name:
+                self.triton_client.load_model(model_name, config) #assuming want to update model
+                logger.info(f"Model {model_name} already exists.")
+                found = True
+        if not found:
+            logger.info(f"Adding model {model_name}.")
+            model_path = os.path.join(self.model_repository_path, model_name, '1')
+            os.makedirs(model_path, exist_ok=True)
+            logger.info(f"Model directory created at {model_path}")
+            
+
+
+        
+        
 
 if __name__ == "__main__":
     tc = TritonClient()
-    print(tc.triton_client.get_model_repository_index())
+    tc.addToModels("test33", "sd")
+    
