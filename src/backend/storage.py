@@ -92,6 +92,7 @@ def load_model(model, config):
         "description_text" : "This is the model description.",
         "input" : extract_io_metadata(config, 'input'),
         "output" : extract_io_metadata(config, 'output'), #name, data_type, dims
+        #update api to accept the model description, 
         "chunking_strategy" : "", # not chunked rn
         "chunking_no" : "", # not chunked rn
         "model_hash" : "not implemented", # for integrity check
