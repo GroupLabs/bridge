@@ -166,6 +166,40 @@ class Search:
 
     def search(self, index: str, **query_args):
         return self.es.search(index=index, **query_args)
+
+    def _rrf(self, result_sets_with_rankings, weights, field, k=60, normalize=False, INSPECT=False):
+        combined_results = {}
+
+        # Process each result set and apply reciprocal rank formula
+        for result_set, results in result_sets_with_rankings.items():
+            weight = weights[result_set]
+            for rank, result in enumerate(results, 1):
+                _id = result['_id']
+                if _id in combined_results:
+                    combined_results[_id]["score"] += weight / (k + rank)
+                else:
+                    combined_results[_id] = {
+                        "score": weight / (k + rank),
+                        "text": result["_source"].get(field, '')
+                    }
+
+        # Sort results by score in descending order
+        sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
+
+        # Optionally normalize scores
+        if normalize:
+            min_score = min(result["score"] for _, result in sorted_results)
+            max_score = max(result["score"] for _, result in sorted_results)
+            for _, result in sorted_results:
+                result["normalized_score"] = (result["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
+
+        # Optionally inspect final results
+        if INSPECT:
+            print("FINAL")
+            for _id, res in sorted_results:
+                print(f"ID: {_id}, Score: {res['score']:.6f}, Snippet: {res['text'][:100]}...")
+
+        return sorted_results
     
     def hybrid_search(self, query: str, index: str):
         INSPECT = False
@@ -220,54 +254,23 @@ class Search:
 
         knn_results = knn_response['hits']['hits']
 
-        # rrf
-        # TODO: is the scores for each normalized? If not, decide if it should be normalized
-        # then it can be normalize relatively here with min-max (or other).
-        combined_results = {}
-        k = 60
-
-        # We can add RLHF here
-        weights = {
-            "match" : 1,
-            "knn" : 1
+        # (result set, weight)
+        result_sets_with_rankings = {
+            "match" : match_results,
+            "knn" : knn_results
         }
 
-        for rank, result in enumerate(match_results, 1):
-            combined_results[result['_id']] = {
-                "score": weights["match"] / (k + rank),
-                "text": result["_source"].get(_field, '')
-            }
+        # tuning between result_sets
+        weights = {
+            "match": 1.0,
+            "knn": 1.0
+        }
 
-        for rank, result in enumerate(knn_results, 1):
-            if result['_id'] in combined_results:
-                combined_results[result['_id']]["score"] += weights["knn"] / (k + rank)
-            else:
-                combined_results[result['_id']] = {
-                    "score": weights["knn"] / (k + rank),
-                    "text": result["_source"].get(_field, '')
-                }
+        rrf_results = self._rrf(result_sets_with_rankings, weights, _field, INSPECT=INSPECT)
 
-        sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
+        logger.info(f"Hybrid search returned {len(rrf_results)} elements.")
 
-        # TODO start - is there a point in calculating the normalized score?
-        rrf_scores = [item[1]["score"] for item in sorted_results]
-
-        min_rrf = min(rrf_scores)
-        max_rrf = max(rrf_scores)
-
-        for rank, (_, result) in enumerate(sorted_results, 1):
-            normalized_score = (result["score"] - min_rrf) / (max_rrf - min_rrf)
-            result["normalized_score"] = normalized_score
-        
-        if INSPECT:
-            print("FINAL")
-            for res in sorted_results:
-                print(f"ID: {res[0]}, Score: {str(res[1]['score'])[:6]}, Snippet: {res[1]['text'][:100]}...")
-        # TODO end
-
-        logger.info(f"Hybrid search returned {len(sorted_results)} elements.")
-
-        return sorted_results
+        return rrf_results
 
 
 if __name__ == "__main__":    
