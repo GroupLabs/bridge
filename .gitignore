@@ -26,6 +26,10 @@ __pycache__/
 *.yaml
 *.yml
 !k8sbridge.y*ml
-##testing
+#testing
 
+# editor artifacts
+.zed
+
+# credentials
 *.crt
