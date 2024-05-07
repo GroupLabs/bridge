@@ -34,6 +34,8 @@ origins = [
     # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
 ]
 
+# TODO remove CORS
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Specifies which origins are permitted
