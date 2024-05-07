@@ -61,7 +61,39 @@ class Search:
                         'description_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
-                        'data_hash': {'type': 'keyword'},
+                        'table_hash': {'type': 'keyword'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        "correlation_embedding": {
+                            "type": "nested",
+                            "properties": {
+                                "key": {"type": "keyword"},
+                            }
+                        },
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+        # configure model_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='model_meta', 
+                mappings={
+                    'properties': {
+                        'model_id': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'model_name': {'type': 'text'},
+                        'description_text': {'type': 'text'},
+                        'chunking_strategy': {'type': 'keyword'},
+                        'model_hash': {'type': 'keyword'},
                         # embeddings
                         'e5': {
                             'type': 'dense_vector',
@@ -86,7 +118,8 @@ class Search:
 
         self.registered_indices = [
             "text_chunk",
-            "table_meta"
+            "table_meta",
+            "model_meta"
         ]
 
         logger.info("Indices Registered.")
@@ -112,6 +145,10 @@ class Search:
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
+        if index == "model_meta":
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['colbert'] = {}
+            
         logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
@@ -135,9 +172,13 @@ class Search:
 
         # Determine the field to use based on the index
         # TODO: make this better so it can be set up once
-        _field = 'description_text' if index == 'table_meta' else 'chunk_text' if index == 'text_chunk' else None
-
-        if _field is None:
+        if index == 'text_chunk':
+            _field = "chunk_text"
+        elif index == 'table_meta':
+            _field = "description_text"
+        elif index == 'model_meta':
+            _field = "description_text"
+        else:
             raise NotImplementedError
 
         match_response = self.es.search(
@@ -229,9 +270,7 @@ class Search:
         return sorted_results
 
 
-if __name__ == "__main__":
-    from pprint import pprint
-    
+if __name__ == "__main__":    
     es = Search()
 
     # response = es.hybrid_search("What is sliding GQA?", "text_chunk")

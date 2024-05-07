@@ -76,6 +76,27 @@ def load_data(filepath: str, read=True):
     if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
             os.remove(filepath)
 
+@celery_app.task(name="load_model_task")
+def load_model(model, config):
+    # load to triton
+
+    # TODO https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_management.md#model-control-mode-explicit
+
+    # load to ES
+    fields = {
+        "model_id" : uuid4(),
+        "access_group" : "", # not yet implemented
+        "model_name" : model,
+        "description_text" : "This is the model description.",
+        "chunking_strategy" : "", # not chunked rn
+        "chunking_no" : "", # not chunked rn
+        "model_hash" : "not implemented", # for integrity check
+    }
+
+    es.insert_document(fields, index="model_meta")
+
+    # TODO remove relevant
+
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
 
