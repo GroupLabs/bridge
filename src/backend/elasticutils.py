@@ -20,7 +20,7 @@ class Search:
             basic_auth=(ELASTIC_USER, ELASTIC_PASSWORD)
         )
         client_info = self.es.info()
-        logger.info("Connected.")
+        logger.info("ES is available")
         logger.info(str(client_info))
 
         # configure text_chunk

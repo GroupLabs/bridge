@@ -95,7 +95,7 @@ def load_model(model, config):
 
     es.insert_document(fields, index="model_meta")
 
-    # TODO remove relevant
+    # TODO remove temp models
 
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
