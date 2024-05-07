@@ -40,18 +40,29 @@ class TritonClient:
         logger.info("Triton is available")
 
     def addToModels(self, model_name, config):
+        #model_name is path
+        #config is path
+        name = os.path.basename(model_name)
+        pathToModels = "/Users/codycf/Desktop/arvo/bridge/src/backend/models"
         found = False
         existingModels = self.triton_client.get_model_repository_index()
         for model in existingModels:
-            if model['name'] == model_name:
-                self.triton_client.load_model(model_name, config) #assuming want to update model
-                logger.info(f"Model {model_name} already exists.")
+            if model['name'] == name:
+                logger.info(f"Model {name} already exists.")
                 found = True
         if not found:
-            logger.info(f"Adding model {model_name}.")
-            model_path = os.path.join(self.model_repository_path, model_name, '1')
-            os.makedirs(model_path, exist_ok=True)
-            logger.info(f"Model directory created at {model_path}")
+            logger.info(f"Adding model {name}.")
+            for modelFile in os.listdir(pathToModels):
+                base_name, extension = os.path.splitext(modelFile)
+                if base_name == name:
+                    model_path = os.path.join(self.model_repository_path, name, '1')
+                    os.makedirs(model_path, exist_ok=True)
+                    os.rename(pathToModels + "/" + modelFile, model_path + "/" + modelFile)
+                    logger.info(f"Model directory created at {model_path}") 
+                    return
+            logger.info(f"Model {name} not found.")
+
+        
             
 
 
@@ -60,5 +71,4 @@ class TritonClient:
 
 if __name__ == "__main__":
     tc = TritonClient()
-    tc.addToModels("test33", "sd")
-    
+    tc.addToModels("text_detection", "sd")
