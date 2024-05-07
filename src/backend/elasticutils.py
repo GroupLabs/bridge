@@ -41,7 +41,12 @@ class Search:
                             # 'dim': 'not set',
                             'similarity': 'cosine'
                             },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False},  # disable indexing for the 'colbert' field
+                        # meta
+                        "_timestamp": {
+                            "enabled": "true",
+                            "store": "yes"
+                        }
                     }
                 })
         except BadRequestError as e:
@@ -74,7 +79,12 @@ class Search:
                                 "key": {"type": "keyword"},
                             }
                         },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False}, # disable indexing for the 'colbert' field
+                        # meta
+                        "_timestamp": {
+                            "enabled": "true",
+                            "store": "yes"
+                        }
                     }
                 })
         except BadRequestError as e:
@@ -106,7 +116,12 @@ class Search:
                                 "key": {"type": "keyword"},
                             }
                         },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False},  # disable indexing for the 'colbert' field
+                        # meta
+                        "_timestamp": {
+                            "enabled": "true",
+                            "store": "yes"
+                        }
                     }
                 })
         except BadRequestError as e:
