@@ -12,7 +12,6 @@ We want to use whatever is available that gets the job done. At least for now, n
 To get the API started in a containerized environment, use the following instructions:
 
 0. Make sure you have the appropriate .env files!
-
 1. Create an image called `api`:
 
 i. Switch to the backend directory.
@@ -41,6 +40,7 @@ i. Create a network:
 `docker network create elastic`
 
 ii. Start a single node elastic-search:
+
 ```
 docker run --name es01 --net elastic \
   -p 9200:9200 -p 9300:9300 \
@@ -48,6 +48,7 @@ docker run --name es01 --net elastic \
   -e "xpack.license.self_generated.type: basic" \
   -t docker.elastic.co/elasticsearch/elasticsearch:8.13.0
 ```
+
 This starts and configures an ES container with basic licensing. If you use another license, GL IS NOT LIABLE.
 
 This will a produce a password, and an enrollment token. These will be useful in the next steps.
@@ -84,8 +85,7 @@ v. You're ready to rock and roll!
 5. Start Celery: `celery -A storage worker --loglevel=info -P threads` (unstructured is not fork-safe. use threads instead). Should be done in the backend dir.
 6. Install poppler. On mac this is `brew install poppler`
 7. Install tesseract. On mac this is `brew install tesseract`
-7. Finally, run the API: `python api.py`
-
+8. Finally, run the API: `python api.py`
 
 ### Other fun stuff:
 
@@ -94,7 +94,8 @@ celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker1@
 celery -A storage worker --loglevel=info -P threads --concurrency=10 -n worker2@%h &
 
 ---
-To download punkt: 
+
+To download punkt:
 
 ```
 import nltk
@@ -109,6 +110,7 @@ else:
 
 nltk.download()
 ```
+
 ---
 
 ### Misc:
@@ -116,40 +118,40 @@ nltk.download()
 “What information is important?”
 
 1. Ingest
-    - File type with Magika: https://opensource.googleblog.com/2024/02/magika-ai-powered-fast-and-efficient-file-type-identification.html?m=1
-    - https://x.com/mayfer/status/1754077677286502600?s=46&t=C-lAPJA8zJecpJNV1n8ILg
-    - Databse client: https://harlequin.sh
-    - SuryaOCR
-    - LlamaParser
-    - https://x.com/austinbv/status/1762782262096179532?s=46&t=C-lAPJA8zJecpJNV1n8ILg 
-    - Unstructured I/O
-    - Goal: Ingest a data lake
+   - File type with Magika: https://opensource.googleblog.com/2024/02/magika-ai-powered-fast-and-efficient-file-type-identification.html?m=1
+   - https://x.com/mayfer/status/1754077677286502600?s=46&t=C-lAPJA8zJecpJNV1n8ILg
+   - Databse client: https://harlequin.sh
+   - SuryaOCR
+   - LlamaParser
+   - https://x.com/austinbv/status/1762782262096179532?s=46&t=C-lAPJA8zJecpJNV1n8ILg
+   - Unstructured I/O
+   - Goal: Ingest a data lake
 2. Graph
-    - https://moj-analytical-services.github.io/splink/
-    - DuckDB
-        - https://github.com/davidgasquez/awesome-duckdb
-        - https://homepages.cwi.nl/~boncz/msc/2023-Wu.pdf
+   - https://moj-analytical-services.github.io/splink/
+   - DuckDB
+     - https://github.com/davidgasquez/awesome-duckdb
+     - https://homepages.cwi.nl/~boncz/msc/2023-Wu.pdf
 3. Search
-    - https://github.com/lancedb/lance/tree/main
-    - https://github.com/google/gemma.cpp 
+   - https://github.com/lancedb/lance/tree/main
+   - https://github.com/google/gemma.cpp
 4. Correlation/Causality
-    - https://github.com/salesforce/PyRCA
-    - https://github.com/py-why/dowhy
-    - Correlation based embedding??? (https://chat.openai.com/share/19727edf-455e-4c60-84b3-9c6e019730c7)
-    - https://x.com/mit_csail/status/1762894630020870404?s=46&t=C-lAPJA8zJecpJNV1n8ILg
-    - https://github.com/SkalskiP/awesome-foundation-and-multimodal-models 
-    - https://arxiv.org/abs/2212.09410
+   - https://github.com/salesforce/PyRCA
+   - https://github.com/py-why/dowhy
+   - Correlation based embedding??? (https://chat.openai.com/share/19727edf-455e-4c60-84b3-9c6e019730c7)
+   - https://x.com/mit_csail/status/1762894630020870404?s=46&t=C-lAPJA8zJecpJNV1n8ILg
+   - https://github.com/SkalskiP/awesome-foundation-and-multimodal-models
+   - https://arxiv.org/abs/2212.09410
 5. Present
-    - https://evidence.dev
-    - https://uwdata.github.io/mosaic/examples/
-    - https://superset.apache.org
-    - https://github.com/danswer-ai/danswer/tree/main
-    - https://github.com/ankane/blazer?tab=readme-ov-file
-    - https://www.metabase.com/
+   - https://evidence.dev
+   - https://uwdata.github.io/mosaic/examples/
+   - https://superset.apache.org
+   - https://github.com/danswer-ai/danswer/tree/main
+   - https://github.com/ankane/blazer?tab=readme-ov-file
+   - https://www.metabase.com/
 6. Other
-    - Monitoring & Security: https://www.iceburst.io
-    - Example: https://github.com/matsonj/nba-monte-carlo
-    - Pgvector
-    - ParadeDb
-    - https://x.com/dwarkesh_sp/status/1762872471479529522?s=46&t=C-lAPJA8zJecpJNV1n8ILg
-    - LanceDB
+   - Monitoring & Security: https://www.iceburst.io
+   - Example: https://github.com/matsonj/nba-monte-carlo
+   - Pgvector
+   - ParadeDb
+   - https://x.com/dwarkesh_sp/status/1762872471479529522?s=46&t=C-lAPJA8zJecpJNV1n8ILg
+   - LanceDB

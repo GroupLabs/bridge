@@ -3,6 +3,7 @@ import os
 import yaml
 from uuid import uuid4, uuid5, NAMESPACE_URL
 import time
+import re
 from pathlib import Path
 
 from celery import Celery
@@ -77,25 +78,61 @@ def load_data(filepath: str, read=True):
             os.remove(filepath)
 
 @celery_app.task(name="load_model_task")
-def load_model(model, config):
+def load_model(model, config, description):
     # load to triton
 
     # TODO https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_management.md#model-control-mode-explicit
 
     # load to ES
+    # need to fetch model description 
     fields = {
         "model_id" : uuid4(),
         "access_group" : "", # not yet implemented
         "model_name" : model,
-        "description_text" : "This is the model description.",
+        "description_text" : description,
+        "input" : extract_io_metadata(config, 'input'),
+        "output" : extract_io_metadata(config, 'output'), 
         "chunking_strategy" : "", # not chunked rn
         "chunking_no" : "", # not chunked rn
         "model_hash" : "not implemented", # for integrity check
     }
 
-    es.insert_document(fields, index="model_meta")
+    es.insert_document(fields, index="model_meta")  
 
-    # TODO remove temp models
+def extract_io_metadata(config, io_type):
+    with open(config, 'r') as file:
+        config_content = file.read()
+    
+    pattern = fr'{io_type}\s*\[\s*((?:\s*{{\s*(?:.|\n)*?\s*}}\s*,?\s*)+)\s*\]\s*'
+    match = re.search(pattern, config_content, re.DOTALL)
+
+    io_info = []
+
+    if match:
+        # Find all blocks within the input or output section
+        blocks = re.findall(r'{(.*?)}', match.group(0), re.DOTALL)
+
+        # Iterate over each block
+        for block in blocks:
+            current_info = {}
+
+            # Extract name, data type, and dims from the block
+            name_match = re.search(r'name:\s*"([^"]+)"', block)
+            current_info['name'] = name_match.group(1) if name_match else None
+
+            data_type_match = re.search(r'data_type:\s*TYPE_(\w+)', block)
+            current_info['data_type'] = data_type_match.group(1) if data_type_match else None
+
+            dims_match = re.search(r'dims:\s*\[\s*(.*?)\s*\]', block)
+            dims = dims_match.group(1) if dims_match else None
+            current_info['dims'] = [int(dim) for dim in dims.split(',')] if dims else None
+
+            # Append the current input or output info to the list
+            io_info.append(current_info)
+    
+    return io_info
+
+# TODO remove temp models
 
 def query(q: str, index: str):
     return es.hybrid_search(q, index)

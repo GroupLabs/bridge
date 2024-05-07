@@ -1,5 +1,5 @@
 
-from fastapi import Depends, FastAPI, Response, File, UploadFile
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
@@ -95,17 +95,21 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
     
 @app.post("/load_model")
-async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...)):
+#add description
+async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str=Form(...)):
     try:
         os.makedirs(f"{TEMP_DIR}/models", exist_ok=True)
 
-        with open(f"{TEMP_DIR}/models/{model.filename}", "wb") as temp_file:
+        model_path = f"{TEMP_DIR}/models/{model.filename}"
+        config_path = f"{TEMP_DIR}/models/{config.filename}"
+
+        with open(model_path, "wb") as temp_file:
             temp_file.write(await model.read())
 
-        with open(f"{TEMP_DIR}/models/{config.filename}", "wb") as temp_file:
+        with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
 
-        task = load_model.delay(model=f"{TEMP_DIR}/models/{model.filename}", config=f"{TEMP_DIR}/models/{config.filename}")
+        task = load_model.delay(model=model_path, config=config_path, description = description)
         response.status_code = 202
         logger.info(f"LOAD accepted: {model.filename}")
         return {"status": "accepted", "task_id": task.id}
