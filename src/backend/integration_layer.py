@@ -77,6 +77,7 @@ that the values are a list of strings, ints, floats, bools..."""
 import torch
 import numpy as np
 
+#for nested lists:
 def convert_to_tensor(data, dtype):
     """
     Convert a list, a nested list, or an empty list of data to a tensor with the specified dtype.
@@ -90,6 +91,7 @@ def convert_to_tensor(data, dtype):
     else:
         return torch.tensor([], dtype=dtype).reshape(0)  # Return an empty tensor with no dimensions
 
+#transforming inputs into the right type:
 def prepare_inputs_for_model(data, config):
     input_config = config.get('input', [])
     prepared_data = {}
@@ -137,9 +139,13 @@ def prepare_inputs_for_model(data, config):
 import torch
 import pprint as pp
 
+import torch
+import pprint as pp
+
 def format_model_inputs(model_inputs, config):
     """
     Formats the model inputs as a structured dictionary for model deployment.
+    If a dimension is set as '-1', the shape of the tensor will be kept as is.
 
     Args:
     model_inputs (dict): Dictionary containing tensors for each input.
@@ -155,25 +161,36 @@ def format_model_inputs(model_inputs, config):
     input_config = config['input']
 
     for input_item in input_config:
-        if isinstance(input_item, dict):
-            input_name = input_item['name']
-            datatype = input_item['data_type'].replace('TYPE_', '')
-            tensor = model_inputs[input_name]
+        input_name = input_item['name']
+        datatype = input_item['data_type'].replace('TYPE_', '')
+        tensor = model_inputs.get(input_name, None)
 
-            # Ensure tensor is in the correct shape
-            desired_shape = input_item['dims']
-            # Convert shape entries to integers where possible, handle the '-1' placeholder
-            shape = [int(dim) if dim != '-1' else tensor.size(i) for i, dim in enumerate(desired_shape)]
-            tensor = tensor.view(shape)
+        if tensor is None:
+            print(f"Warning: No tensor found for input {input_name}")
+            continue
 
-            formatted_inputs["inputs"].append({
-                "name": input_name,
-                "datatype": datatype,
-                "shape": shape,
-                "data": tensor.tolist()  # Convert tensor data to list for JSON serialization
-            })
+        # Determine the shape based on the config
+        if input_item['dims'] == ['-1']:  # If dimension is '-1', keep the current shape
+            shape = list(tensor.shape)  # Use the current tensor shape
+        else:
+            # Calculate new shape, handling '-1' to infer dimension
+            shape = [int(dim) if dim != '-1' else tensor.size(i) for i, dim in enumerate(input_item['dims'])]
+
+        try:
+            tensor = tensor.view(*shape)  # Attempt to reshape tensor
+        except RuntimeError as e:
+            print(f"Error: Failed to reshape tensor for {input_name}. Details: {e}")
+            continue
+
+        formatted_inputs["inputs"].append({
+            "name": input_name,
+            "datatype": datatype,
+            "shape": shape,
+            "data": tensor.tolist()  # Convert tensor data to list for JSON serialization
+        })
 
     return formatted_inputs
+
 
 #to pass the inputs to the model:
 import requests
