@@ -19,7 +19,7 @@ class config:
 
     # ollama
     LLM_URL = str(os.getenv('LLM_URL', "http://localhost:11434/api/"))
-    LLM_MODEL = str(os.getenv('LLM_MODEL', "mistral"))
+    LLM_MODEL = str(os.getenv('LLM_MODEL', "llama3"))
 
     # storage
     CELERY_BROKER_URL = str(os.getenv('CELERY_BROKER_URL', "amqp://guest:guest@localhost"))
