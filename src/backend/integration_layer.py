@@ -2,6 +2,8 @@
 #https://colab.research.google.com/drive/12gth2lxAJGsVKxzSIuh1fjVfXiB0ctpx?usp=sharing
 #for usage, see the colab
 
+#TO DO: get fields from elasicsearch that decide flow of logic for the code
+
 import re
 import requests
 import json
