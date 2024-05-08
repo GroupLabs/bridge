@@ -29,3 +29,8 @@ class config:
     ELASTIC_CA_CERT_PATH = str(os.getenv('ELASTIC_CA_CERT_PATH', "/Users/noelthomas/Documents/GitHub/Bridge/http_ca.crt"))
     ELASTIC_USER = str(os.getenv('ELASTIC_USER', "elastic"))
     ELASTIC_URL = str(os.getenv('ELASTIC_URL', "https://localhost:9200"))
+
+    TRITON_URL = str(os.getenv('TRITON_URL', "https://localhost:9000"))
+
+    MODEL_REPOSITORY_PATH = str(os.getenv('MODEL_REPOSITORY_PATH', "./"))
+

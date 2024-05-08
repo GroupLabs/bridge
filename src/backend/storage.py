@@ -41,7 +41,7 @@ celery_app.conf.update(
 es = Search()
 
 # triton server
-tc = TritonClient()
+# tc = TritonClient()
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):

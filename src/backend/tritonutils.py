@@ -6,12 +6,9 @@
 import os
 import tritonclient.http as httpclient
 from tritonclient.utils import InferenceServerException # for custom error handling later
-from dotenv import load_dotenv
 from log import setup_logger
 import numpy as np
-
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', 'deployment', '.env')
-load_dotenv(dotenv_path=dotenv_path)
+from config import config
 
 # logger
 logger = setup_logger("triton")
@@ -31,14 +28,22 @@ class TritonClient:
 
     def __init__(
             self, 
-            url="localhost:9000", 
+            url=config.TRITON_URL, 
             verbose=1
             ):
         self.triton_client = httpclient.InferenceServerClient(
             url=url, verbose=verbose
         )
-        self.model_repository_path = os.getenv('MODEL_REPOSITORY_PATH') # Default path if not specified in .env
-        logger.info("Triton is available")
+        self.model_repository_path = config.MODEL_REPOSITORY_PATH # Default path if not specified in .env
+        # if self.triton_client.is_server_ready():
+        #     logger.info("Triton is available")
+        # else:
+        #     logger.info("Triton is not available")
+        #     logger.info(config.TRITON_URL)
+
+        logger.info(config.TRITON_URL)
+        logger.info(config.TRITON_URL)
+        logger.info(config.TRITON_URL)
 
     def addToModels(self, model_name, config):
         #model_name is path
