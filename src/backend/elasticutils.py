@@ -42,6 +42,7 @@ class Search:
                             'similarity': 'cosine'
                             },
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        # meta
                     }
                 })
         except BadRequestError as e:
@@ -74,7 +75,8 @@ class Search:
                                 "key": {"type": "keyword"},
                             }
                         },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False} # disable indexing for the 'colbert' field
+                        # meta
                     }
                 })
         except BadRequestError as e:
@@ -107,6 +109,7 @@ class Search:
                             }
                         },
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        # meta
                     }
                 })
         except BadRequestError as e:
