@@ -42,7 +42,7 @@ class Search:
                             'similarity': 'cosine'
                             },
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
-                        # meta
+                        
                     }
                 })
         except BadRequestError as e:
