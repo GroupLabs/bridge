@@ -2,7 +2,6 @@
 # Installation issues: https://github.com/triton-inference-server/server/issues/3603
 # Model repo: https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_repository.md#repository-layout
 
-# TODO add config
 import os
 import tritonclient.http as httpclient
 from tritonclient.utils import InferenceServerException # for custom error handling later
@@ -35,50 +34,43 @@ class TritonClient:
             url=url, verbose=verbose
         )
         self.model_repository_path = config.MODEL_REPOSITORY_PATH # Default path if not specified in .env
-        # if self.triton_client.is_server_ready():
-        #     logger.info("Triton is available")
-        # else:
-        #     logger.info("Triton is not available")
-        #     logger.info(config.TRITON_URL)
+        if self.triton_client.is_server_ready():
+            logger.info("Triton is available")
+        else:
+            logger.info("Triton is not available")
+            logger.info(config.TRITON_URL)
 
-        logger.info(config.TRITON_URL)
-        logger.info(config.TRITON_URL)
-        logger.info(config.TRITON_URL)
 
     def addToModels(self, model_name, config):
         #model_name is path
         #config is path
         name, extension = os.path.splitext(os.path.basename(model_name))
-        found = False
         existingModels = self.triton_client.get_model_repository_index()
         for model in existingModels:
             if model['name'] == name:
                 logger.info(f"Model '{name}' already exists.")
-                found = True
-        if not found:
-            logger.info(f"Adding model '{name}'.")
-
-            if os.path.exists(model_name):
-                if os.path.exists(config):
-                    model_path = os.path.join(self.model_repository_path, name)
-                    os.makedirs(model_path, exist_ok=True)
-                    os.rename(config, model_path + "/" + os.path.basename(config))
-
-
-                    model_version_path = os.path.join(model_path, "1")
-                    os.makedirs(model_version_path, exist_ok=True)
-                    newPath = model_version_path + "/" + os.path.basename(model_name)
-                    os.rename(model_name, newPath)
-
-                    os.rename(newPath ,  model_version_path + "/model" + extension)
-
-                    logger.info(f"Successfully added model") 
-
-                    
-                else:
-                    logger.info(f"Error: Config file does not exist at '{config}'") 
             else:
-                logger.info(f"Error: Model file does not exist at '{model_name}'") 
+                logger.info(f"Adding model '{name}'.")
+
+                if os.path.exists(model_name):
+                    if os.path.exists(config):
+                        model_path = os.path.join(self.model_repository_path, name)
+                        os.makedirs(model_path, exist_ok=True)
+                        os.rename(config, model_path + "/" + os.path.basename(config))
+
+                        model_version_path = os.path.join(model_path, "1")
+                        os.makedirs(model_version_path, exist_ok=True)
+                        newPath = model_version_path + "/" + os.path.basename(model_name)
+                        os.rename(model_name, newPath)
+
+                        os.rename(newPath ,  model_version_path + "/model" + extension)
+
+                        logger.info(f"Successfully added model") 
+
+                    else:
+                        logger.info(f"Error: Config file does not exist at '{config}'") 
+                else:
+                    logger.info(f"Error: Model file does not exist at '{model_name}'") 
 
 
     def test_infer(self,

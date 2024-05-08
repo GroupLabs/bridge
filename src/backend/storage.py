@@ -41,7 +41,7 @@ celery_app.conf.update(
 es = Search()
 
 # triton server
-# tc = TritonClient()
+tc = TritonClient()
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
@@ -83,8 +83,6 @@ def load_data(filepath: str, read=True):
 
 @celery_app.task(name="load_model_task")
 def load_model(model, config, description):
-    # load to triton
-    tc.addToModels(model,config)
 
     # load to ES
     # need to fetch model description 
@@ -100,7 +98,12 @@ def load_model(model, config, description):
         "model_hash" : "not implemented", # for integrity check
     }
 
-    es.insert_document(fields, index="model_meta")  
+    es.insert_document(fields, index="model_meta")
+
+    # load to triton
+    tc.addToModels(model,config) # this function needs to leave the path of the original alone so that
+    # we can do an os.remove at this level
+
 
 def extract_io_metadata(config, io_type):
     with open(config, 'r') as file:
