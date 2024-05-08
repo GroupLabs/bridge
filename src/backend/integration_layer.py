@@ -2,8 +2,12 @@
 #https://colab.research.google.com/drive/12gth2lxAJGsVKxzSIuh1fjVfXiB0ctpx?usp=sharing
 #for usage, see the colab
 
-
 import re
+import requests
+import json
+import torch
+import numpy as np
+import pprint as pp
 
 #parsing the config file:
 def parse_config_from_file(file_path):
@@ -74,9 +78,6 @@ returns a dictionary for each input feature of the model, a key for column
 name and a value as a list of data points in that column. The code assumes 
 that the values are a list of strings, ints, floats, bools..."""
 
-import torch
-import numpy as np
-
 #for nested lists:
 def convert_to_tensor(data, dtype):
     """
@@ -136,12 +137,6 @@ def prepare_inputs_for_model(data, config):
 
 """Preparing to pass these arguments as input into the model:"""
 
-import torch
-import pprint as pp
-
-import torch
-import pprint as pp
-
 def format_model_inputs(model_inputs, config):
     """
     Formats the model inputs as a structured dictionary for model deployment.
@@ -193,9 +188,6 @@ def format_model_inputs(model_inputs, config):
 
 
 #to pass the inputs to the model:
-import requests
-import json
-
 def make_inference_request(url, model_input, headers=None):
     # Define the request headers if not provided
     if headers is None:
