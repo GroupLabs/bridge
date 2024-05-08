@@ -2,3 +2,4 @@
 - celery workers are being run as super users
 - ollama needs to be run manually
 - should ollama url be local host?
+- switch celery back to forks, instead of gevents
