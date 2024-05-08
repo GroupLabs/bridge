@@ -75,12 +75,24 @@ name and a value as a list of data points in that column. The code assumes
 that the values are a list of strings, ints, floats, bools..."""
 
 import torch
+import numpy as np
+
+def convert_to_tensor(data, dtype):
+    """
+    Convert a list, a nested list, or an empty list of data to a tensor with the specified dtype.
+    If the data list is empty, return an appropriately shaped tensor of the given dtype with zero elements.
+    """
+    if data:  # Ensure there's data to convert
+        if isinstance(data[0], list):  # Nested lists
+            return torch.tensor(data, dtype=dtype)
+        else:
+            return torch.tensor([data], dtype=dtype)  # Single list, ensure it's nested for consistency
+    else:
+        return torch.tensor([], dtype=dtype).reshape(0)  # Return an empty tensor with no dimensions
 
 def prepare_inputs_for_model(data, config):
     input_config = config.get('input', [])
-    
     prepared_data = {}
-
     dtype_mapping = {
         'TYPE_INT8': torch.int8,
         'TYPE_UINT8': torch.uint8,
@@ -96,42 +108,29 @@ def prepare_inputs_for_model(data, config):
         'TYPE_BOOL': torch.bool
     }
 
-    # Iterate through all inputs specified in the configuration
     for input_item in input_config:
-        
-        if isinstance(input_item, dict):
-            input_name = input_item['name']
-            desired_dtype = dtype_mapping.get(input_item['data_type'], torch.float32)
-            dims = tuple(int(d) if str(d).isdigit() else -1 for d in input_item['dims'])
-            # Extract and convert the corresponding data column
-            raw_data = data.get(input_name, [])        
-            converted_data = []
+        print(f"Input item: {input_item}")
+        input_name = input_item['name']
+        desired_dtype = dtype_mapping.get(input_item['data_type'], torch.float32)
+        raw_data = data.get(input_name, [])
+        print(f"Raw data: {raw_data}")
 
-            # Convert to the desired data type
-            for x in raw_data:
-                #print(x)
-                try:
-                    if 'int' in input_item['data_type'].lower():
-                        converted_data.append(int(x))                      
-                    elif 'fp' in input_item['data_type'].lower():
-                        converted_data.append(float(x))        
-                    elif 'bool' in input_item['data_type'].lower():
-                        converted_data.append(bool(int(x)))
-                    elif 'complex' in input_item['data_type'].lower():
-                        # Assuming complex numbers are in the format "real_part imag_part"
-                        real_part, imag_part = map(float, x.split())
-                        converted_data.append(torch.complex(real_part, imag_part))
-                except ValueError as e:
-                    raise ValueError(f"Error converting {x} to {input_item['data_type']}: {e}")
+        # Convert data to the specified type
+        tensor = convert_to_tensor(raw_data, desired_dtype)
 
-            # Create a tensor and reshape it if dimensions are specified
-            tensor = torch.tensor(converted_data, dtype=desired_dtype)
-            if dims[0] != -1:
-                print(tensor)
-                tensor = tensor.reshape(dims)
-            prepared_data[input_name] = tensor
+        # Prepare dimensions specification
+        if 'dims' in input_item and input_item['dims'][0] != '-1':
+            dims = tuple(int(d) if isinstance(d, (str, int)) and str(d).isdigit() else -1 for d in input_item['dims'])
+            if all(d != -1 for d in dims):
+                tensor = tensor.view(*dims)
+            else:
+                raise ValueError(f"Dimension mismatch for {input_name}: cannot reshape array of size {tensor.numel()} into shape {tuple(dims)}")
+
+        prepared_data[input_name] = tensor
 
     return prepared_data
+
+
 
 """Preparing to pass these arguments as input into the model:"""
 
