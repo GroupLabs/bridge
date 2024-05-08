@@ -106,3 +106,175 @@ INFO: 05/07/2024 02:47:10 PM       tritonutils.py  63 : Model text_recognition n
 INFO: 05/07/2024 02:48:10 PM       tritonutils.py  40 : Triton is available
 INFO: 05/07/2024 02:48:10 PM       tritonutils.py  54 : Adding model text_detection.
 INFO: 05/07/2024 02:48:10 PM       tritonutils.py  61 : Model directory created at /Users/codycf/Desktop/arvo/server/docs/examples/model_repository/text_detection/1
+INFO: 05/08/2024 09:21:12 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:21:27 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:21:46 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:22:20 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:37:17 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:37:18 AM       tritonutils.py  53 : Model text_detection already exists.
+INFO: 05/08/2024 09:41:19 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:41:19 AM       tritonutils.py  55 : Adding model test.onnx.
+INFO: 05/08/2024 09:45:42 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:45:42 AM       tritonutils.py  55 : Adding model test.onnx.
+INFO: 05/08/2024 09:49:02 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:49:02 AM       tritonutils.py  56 : Adding model test.onnx.
+INFO: 05/08/2024 09:49:08 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:49:08 AM       tritonutils.py  56 : Adding model test.onnx.
+INFO: 05/08/2024 09:50:09 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:50:24 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:50:24 AM       tritonutils.py  56 : Adding model test.
+INFO: 05/08/2024 09:52:24 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:52:24 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:52:24 AM       tritonutils.py  69 : config file does not exist at /Users/codycf/Desktop/arvo/bridge/src/backend/configs/something.txt
+INFO: 05/08/2024 09:52:59 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:52:59 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:52:59 AM       tritonutils.py  69 : Error: Config file does not exist at /Users/codycf/Desktop/arvo/bridge/src/backend/configs/something.txt
+INFO: 05/08/2024 09:53:04 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:53:04 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:53:04 AM       tritonutils.py  69 : Error: Config file does not exist at /Users/codycf/Desktop/arvo/bridge/src/backend/configs/something.txt
+INFO: 05/08/2024 09:53:52 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:53:52 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:54:56 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:54:56 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:55:18 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:55:18 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:55:52 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:55:52 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 09:58:28 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:58:28 AM       tritonutils.py  52 : Model test already exists.
+INFO: 05/08/2024 09:59:10 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:59:10 AM       tritonutils.py  52 : Model test already exists.
+INFO: 05/08/2024 09:59:15 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 09:59:15 AM       tritonutils.py  52 : Model test already exists.
+INFO: 05/08/2024 10:02:05 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:02:05 AM       tritonutils.py  52 : Model test already exists.
+INFO: 05/08/2024 10:02:22 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:02:22 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 10:03:21 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:03:21 AM       tritonutils.py  52 : Model test already exists.
+INFO: 05/08/2024 10:03:27 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:03:27 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 10:04:57 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:04:57 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 10:05:14 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:05:14 AM       tritonutils.py  52 : Model test already exists.
+INFO: 05/08/2024 10:06:31 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:06:31 AM       tritonutils.py  55 : Adding model test.
+INFO: 05/08/2024 10:06:31 AM       tritonutils.py  68 : Successfully added model
+INFO: 05/08/2024 10:10:29 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:10:29 AM       tritonutils.py  53 : Adding model text_detection.
+INFO: 05/08/2024 10:10:29 AM       tritonutils.py  66 : Successfully added model
+INFO: 05/08/2024 10:12:17 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:12:17 AM       tritonutils.py  53 : Adding model text_detection.
+INFO: 05/08/2024 10:12:17 AM       tritonutils.py  66 : Successfully added model
+INFO: 05/08/2024 10:12:20 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:12:20 AM       tritonutils.py  50 : Model text_detection already exists.
+INFO: 05/08/2024 10:12:57 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:13:15 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:13:15 AM       tritonutils.py  50 : Model 'text_detection' already exists.
+INFO: 05/08/2024 10:13:33 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:13:33 AM       tritonutils.py  50 : Model 'text_detection' already exists.
+INFO: 05/08/2024 10:13:35 AM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 10:13:35 AM       tritonutils.py  50 : Model 'text_detection' already exists.
+INFO: 05/08/2024 01:47:44 PM       tritonutils.py  40 : Triton is available
+INFO: 05/08/2024 01:47:44 PM       tritonutils.py  53 : Adding model 'distil_alert_v1'.
+INFO: 05/08/2024 01:47:44 PM       tritonutils.py  69 : Successfully added model
+INFO: 05/08/2024 02:22:29 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:22:29 PM       tritonutils.py  51 : Model 'distil_alert_v1' already exists.
+INFO: 05/08/2024 02:23:02 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:24:47 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:26:47 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:27:38 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:27:40 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:28:24 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:28:44 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:35:39 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:37:09 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:37:09 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:37:09 PM       tritonutils.py 118 : Ending POST request
+INFO: 05/08/2024 02:37:28 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:37:28 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:37:29 PM       tritonutils.py 118 : Ending POST request
+INFO: 05/08/2024 02:37:31 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:37:31 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:37:32 PM       tritonutils.py 118 : Ending POST request
+INFO: 05/08/2024 02:38:48 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:38:48 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:38:49 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:39:26 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:39:26 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:39:26 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:40:36 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:40:36 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:40:36 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:41:06 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:41:06 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:41:06 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:41:31 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:41:31 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:41:31 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:43:45 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:43:45 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:43:45 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:43:48 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:43:48 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:43:49 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:43:51 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:43:51 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:43:52 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:43:59 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:43:59 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:43:59 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:44:08 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:44:08 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:44:09 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:44:16 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:44:16 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:44:16 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:45:08 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:45:08 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:45:08 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:45:14 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:45:14 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:45:14 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:45:18 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:45:18 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:45:19 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:45:31 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:45:31 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:45:32 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:45:45 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:45:45 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:45:45 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:46:03 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:46:03 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:46:03 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:46:08 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:46:08 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:46:09 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:46:18 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:46:18 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:46:18 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:46:22 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:46:22 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:46:22 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:47:22 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:47:22 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:47:22 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:47:33 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:47:33 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:47:33 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:49:57 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:49:57 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:49:57 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:49:57 PM       tritonutils.py 135 : The 'data is [0.26104623079299927]
+INFO: 05/08/2024 02:50:30 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:50:30 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:50:32 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:50:32 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:50:33 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:50:33 PM       tritonutils.py 135 : The 'data is [0.26104623079299927]
+INFO: 05/08/2024 02:50:52 PM       tritonutils.py  41 : Triton is available
+INFO: 05/08/2024 02:50:52 PM       tritonutils.py  87 : Starting to POST request
+INFO: 05/08/2024 02:50:52 PM       tritonutils.py 119 : Ending POST request
+INFO: 05/08/2024 02:50:52 PM       tritonutils.py 135 : The 'data is [0.26104623079299927]

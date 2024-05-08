@@ -14,6 +14,7 @@ from config import config
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
+from tritonutils import TritonClient
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
@@ -37,6 +38,9 @@ celery_app.conf.update(
 
 # elasticsearch
 es = Search()
+
+# triton server
+tc = TritonClient()
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
@@ -79,8 +83,7 @@ def load_data(filepath: str, read=True):
 @celery_app.task(name="load_model_task")
 def load_model(model, config):
     # load to triton
-
-    # TODO https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_management.md#model-control-mode-explicit
+    tc.addToModels(model,config)
 
     # load to ES
     fields = {
