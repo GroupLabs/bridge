@@ -2,8 +2,8 @@
 #https://colab.research.google.com/drive/12gth2lxAJGsVKxzSIuh1fjVfXiB0ctpx?usp=sharing
 #for usage, see the colab
 
-#TO DO: get fields from elasicsearch that decide flow of logic for the code
-
+#TO DO: 1. get fields from elasicsearch that decide flow of logic for the code
+#       2. Test with input dimensions other than -1
 import re
 import requests
 import json
