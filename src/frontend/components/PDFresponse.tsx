@@ -18,7 +18,7 @@ const AIResponseWithPDF: React.FC<AIResponseWithPDFProps> = ({ pdfSrc, aiRespons
           className = "w-full h-3/4 bg-gray-700 text-white p-3 border-none rounded"
           readOnly
           value={aiResponse}
-          aria-label="AI Response"
+          aria-label="AI"
         ></textarea>
       </div>
     </div>

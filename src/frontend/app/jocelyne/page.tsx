@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
-import Conversation from '../components/conversation';
-import AIResponseWithPDF from '../components/PDFresponse';
+import Conversation from '../../components/conversation';
+import AIResponseWithPDF from '../../components/PDFresponse';
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
   const [chatPairs, setChatPairs] = useState([]);
-  const pdfURL = "https://www.abta.org/wp-content/uploads/2018/03/about-brain-tumors-a-primer-1.pdf"
 
   useEffect(() => {
     let updatedChatPairs = [];
@@ -40,7 +39,7 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col w-full max-w-4xl py-20 mx-auto">
-      <form onSubmit={handleSubmit} className="flex w-full justify-center items-center mb-4">
+      <form onSubmit={handleSubmit} className="flex w-full justify-center items-center">
         <input
           className="w-full max-w-xl p-2 border border-gray-300 rounded shadow-xl"
           value={input}
@@ -56,9 +55,7 @@ export default function Chat() {
             <div className="p-3 rounded-lg shadow bg-gray-100">
               <strong>User: </strong>{pair.user}
             </div>
-            <AIResponseWithPDF pdfSrc={pdfURL} aiResponse={pair.assistant} />
-            {/* Add a thin line between each pair */}
-            {index !== chatPairs.length - 1 && <hr className="border-gray-300 my-4" />}
+            <AIResponseWithPDF pdfSrc="https://www.abta.org/wp-content/uploads/2018/03/about-brain-tumors-a-primer-1.pdf" aiResponse={pair.assistant} />
           </React.Fragment>
         ))}
       </div>
