@@ -40,7 +40,7 @@ def gen(prompt: str):
         "prompt": prompt
     }
 
-    response = requests.post(LLM_URL+"completions", json=data, stream=True)
+    response = requests.post(LLM_URL+"completions", headers=headers, json=data)
 
     # Handle streaming responses
     message = ""
