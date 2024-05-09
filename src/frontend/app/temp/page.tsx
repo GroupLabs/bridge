@@ -6,7 +6,6 @@ import Header from '../../components/Header/header';
 import Sidebar from '../../components/LeftSidebar/sidebar';
 import ChatHistorySidebar from '../../components/RightSidebar/chatHistory';
 import AIResponseWithPDF from '../../components/PDFresponse';
-import Conversation from '../../components/conversation';
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
@@ -14,6 +13,7 @@ export default function Chat() {
   const [uploadedFiles, setUploadedFiles] = useState({});
   const [chats, setChats] = useState([{ id: 1 }, { id: 2 }]); // Example chats
   const [selectedChat, setSelectedChat] = useState(1);
+  const pdfURL = "https://www.abta.org/wp-content/uploads/2018/03/about-brain-tumors-a-primer-1.pdf" //placeholder pdf
 
   useEffect(() => {
     let updatedChatPairs = [];
@@ -86,13 +86,12 @@ export default function Chat() {
               <div className="p-3 rounded-lg shadow bg-gray-100">
                 <strong>User: </strong>{pair.user}
               </div>
-              <AIResponseWithPDF pdfSrc="https://www.abta.org/wp-content/uploads/2018/03/about-brain-tumors-a-primer-1.pdf" aiResponse={pair.assistant} />
+              <AIResponseWithPDF pdfSrc={pdfURL} aiResponse={pair.assistant} />
               {/* Add a thin line between each pair */}
               {index !== chatPairs.length - 1 && <hr className="border-gray-300 my-4" />}
             </div>
           ))}
         </div>
-        <Conversation /> {/* Optional, depending on its purpose */}
       </div>
       <ChatHistorySidebar
         chats={chats}
