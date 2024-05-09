@@ -143,13 +143,7 @@ async def nl_query(input: Query):
 
 #endpoint to chat with gpt-4:
 @app.post("/chat")
-"""
-async def chat_with_model(chat_request: ChatRequest):
-    responses = []
-    async for response in chat([{"role": "user", "content": chat_request.message}]):
-        responses.append(response)
-    return {"status": "success", "responses": responses}
-"""
+
 async def chat_with_model(chat_request: ChatRequest):
     chat_generator = chat([{"role": "user", "content": chat_request.message}])
     return StreamingResponse(json_stream(chat_generator), media_type="application/json")
