@@ -66,6 +66,7 @@ class TritonClient:
                         os.rename(newPath ,  model_version_path + "/model" + extension)
 
                         logger.info(f"Successfully added model") 
+                        return
 
                     else:
                         logger.info(f"Error: Config file does not exist at '{config}'") 
