@@ -14,33 +14,21 @@ async def chat(messages):
     }
     data = {
         "model": LLM_MODEL,
-        "prompt": "\n".join([msg['content'] for msg in messages]),  # Simplified for demonstration
-        #"messages": messages if messages else []
+        "prompt": "\n".join([msg['content'] for msg in messages]),
     }
 
-    #data_json = json.dumps(data)
-
     async with httpx.AsyncClient() as client:
-        response = await client.post(LLM_URL + "completions", json=data, headers=headers)
-        response.raise_for_status()
-        return response.json()  # Adjust as needed for streaming or single response handling
+        async with client.stream("POST", LLM_URL + "completions", json=data, headers=headers) as response:
+            response.raise_for_status()
+            async for line in response.aiter_text():
+                # Since OpenAI API typically sends a complete JSON per message response, we yield the decoded line
+                try:
+                    message = json.loads(line)
+                    if 'choices' in message and message['choices'][0].get('delta'):
+                        yield message['choices'][0]['delta']['content']
+                except json.JSONDecodeError:
+                    continue  # Skip over lines that cannot be loaded as JSON
 
-        #async with client.stream("POST", LLM_URL + "completions", json=data, headers=headers) as response:
-            #response.raise_for_status()
-
-            """
-            async for line in response.aiter_raw():
-                if line:
-                    yield line
-                    try:
-                        message = json.loads(line)
-                    except:
-                        continue # in case string cannot be loaded as json, skip
-                    if message.get("done", False):
-                        break
-            """
-
-    
 def gen(prompt: str):
     headers = {
         'Content-Type': 'application/json',
@@ -51,27 +39,12 @@ def gen(prompt: str):
         "prompt": prompt
     }
 
-    response = requests.post(LLM_URL + "completions", headers=headers, json=data)
-
-    # Handle streaming responses
-    ##message = ""
-
-    """
-    for line in response.iter_lines():
-        if line:  # filter out keep-alive new lines
-            decoded_line = line.decode('utf-8')
-            line_message = json.loads(decoded_line)
-            if line_message.get("done", False):
-                break
-            else:
-                if line_message.get('response'):
-                    message = message + line_message.get('response')
-    """
-    
-    if response.status_code == 200:
-        return response.json()['choices'][0]['text']  # Extract the text component
-    else:
-        raise Exception("Failed to generate text: " + response.text)
+    with httpx.Client() as client:
+        response = client.post(LLM_URL + "completions", headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()['choices'][0]['text']
+        else:
+            raise Exception("Failed to generate text: " + response.text)
  
 
 if __name__ == "__main__":
