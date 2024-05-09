@@ -138,6 +138,16 @@ async def nl_query(input: Query):
 
     return {"health": health, "status" : "success", "resp" : resp}
 
+#endpoint to chat with gpt-4:
+@app.post("/chat")
+async def chat_with_model(chat_request: ChatRequest):
+    try:
+        response = await chat([{"role": "user", "content": chat_request.message}])
+        return {"status": "success", "response": response}
+    except Exception as e:
+        logger.error(f"Chat model error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 # from typing import Optional
 # from fastapi import Query, FastAPI
 
