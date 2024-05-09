@@ -8,6 +8,7 @@ from tritonclient.utils import InferenceServerException # for custom error handl
 from log import setup_logger
 import numpy as np
 from config import config
+from azure.storage.blob import ContainerClient, BlobType
 
 # logger
 logger = setup_logger("triton")
@@ -34,6 +35,10 @@ class TritonClient:
             url=url, verbose=verbose
         )
         self.model_repository_path = config.MODEL_REPOSITORY_PATH # Default path if not specified in .env
+        self.connection_string = config.AZURE_CONNECTION_STRING
+        self.container_name = config.MODEL_CONTAINER_NAME
+        self.model_source_folder = config.MODEL_SOURCE_FOLDER
+
         if self.triton_client.is_server_ready():
             logger.info("Triton is available")
         else:
@@ -54,18 +59,22 @@ class TritonClient:
 
                 if os.path.exists(model_name):
                     if os.path.exists(config):
-                        model_path = os.path.join(self.model_repository_path, name)
+                        model_path = os.path.join(self.model_repository_path, "tmp", "modeltmp", name)
+
                         os.makedirs(model_path, exist_ok=True)
+                        
                         os.rename(config, model_path + "/" + os.path.basename(config))
+                        logger.info(f"Created model path: '{os.path.abspath(model_path)}'")
 
                         model_version_path = os.path.join(model_path, "1")
                         os.makedirs(model_version_path, exist_ok=True)
                         newPath = model_version_path + "/" + os.path.basename(model_name)
                         os.rename(model_name, newPath)
-
                         os.rename(newPath ,  model_version_path + "/model" + extension)
 
-                        logger.info(f"Successfully added model") 
+                        upload(self.model_source_folder, self.connection_string, self.container_name)
+                        logger.info(f"Successfully added model to /modeltmp")
+
                         return
 
                     else:
@@ -116,7 +125,33 @@ class TritonClient:
 
         logger.info(f"Ending POST request") 
         return results
-        
+    
+def upload(directory_path, connection_string, container_name):
+    container_client = ContainerClient.from_connection_string(connection_string, container_name)
+    logger.info(f"Uploading contents of {directory_path} to Azure Blob Storage...")
+
+    files = get_files(directory_path)
+    logger.info(f"{files}")
+    logger.info(f"{files}")
+    logger.info(f"{files}")
+    for file in files:
+        blob_client = container_client.get_blob_client(file.name)
+        logger.info(f"{file}")
+        logger.info(f"{file}")
+        logger.info(f"{file}")
+        logger.info(f"{file}")
+        logger.info(f"{file}")
+        with open(file.path, "rb") as data:
+            
+            blob_client.upload_blob(data)
+            print(f"{file.name} uploaded to blob storage")
+
+    logger.info("All files successfully uploaded to Azure Blob Storage.")
+
+def get_files(dir):
+    with os.scandir(dir) as entries:
+        for entry in entries:
+            yield entry
 
 if __name__ == "__main__":
     tc = TritonClient()

@@ -34,3 +34,7 @@ class config:
 
     MODEL_REPOSITORY_PATH = str(os.getenv('MODEL_REPOSITORY_PATH', "./"))
 
+    AZURE_CONNECTION_STRING = str(os.getenv('AZURE_CONNECTION_STRING', "x"))
+    MODEL_CONTAINER_NAME = str(os.getenv('MODEL_CONTAINER_NAME', "x"))
+    MODEL_SOURCE_FOLDER = str(os.getenv('MODEL_SOURCE_FOLDER', "x"))
+
