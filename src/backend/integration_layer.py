@@ -3,7 +3,7 @@
 #for usage, see the colab
 
 #TO DO: 1. get fields from elasicsearch that decide flow of logic for the code
-#       2. Test with input dimensions other than -1
+#       2. Add if __name__==__main__ part
 import re
 import requests
 import json
