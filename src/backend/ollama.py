@@ -15,14 +15,14 @@ async def chat(messages):
     }
     data = {
         "model": LLM_MODEL,
-        "prompt": "\n".join([msg['content'] for msg in messages]),
+        "messages": messages  # For chat endpoints, use "messages" instead of "prompt"
     }
+    timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
     async with httpx.AsyncClient() as client:
-        async with client.stream("POST", LLM_URL + "/completions", json=data, headers=headers) as response:
+        async with client.stream("POST", LLM_URL + "/chat/completions", json=data, headers=headers) as response:
             response.raise_for_status()
             async for line in response.aiter_text():
-                # Since OpenAI API typically sends a complete JSON per message response, we yield the decoded line
                 try:
                     message = json.loads(line)
                     if 'choices' in message and message['choices'][0].get('delta'):
@@ -37,20 +37,16 @@ def gen(prompt: str):
     }
     data = {
         "model": LLM_MODEL,
-        "prompt": prompt
+        "messages": [{"role": "system", "content": prompt}]  # Adjust for chat API usage
     }
 
     with httpx.Client() as client:
-        response = client.post(LLM_URL + "/completions", headers=headers, json=data)
+        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
-            return response.json()['choices'][0]['text']
+            return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
         else:
             raise Exception("Failed to generate text: " + response.text)
- 
 
 if __name__ == "__main__":
-    # print(chat([{"role": "user", "content": "when is the best time to water my plants?"}]))
-    # print()
-    print(gen("why is the sky blue?"))
-    # print()
-    # print(chat("why is the sky blue?"))
+    # Example usage
+    print(gen("hi?"))  # Testing the gen function using the correct chat API
