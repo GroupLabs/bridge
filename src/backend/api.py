@@ -9,6 +9,7 @@ from log import setup_logger
 from storage import load_data, load_model, query
 from serverutils import Health, Status, Load
 from serverutils import Query
+from serverutils import ChatRequest
 from ollama import chat
 
 TEMP_DIR = "./temp"
