@@ -4,6 +4,8 @@
 
 #TO DO: 1. get fields from elasicsearch that decide flow of logic for the code
 #       2. Add if __name__==__main__ part
+#       3. Add padding or cut data if size is not compatible with config??
+
 import re
 import requests
 import json
@@ -151,6 +153,7 @@ def format_model_inputs(model_inputs, config):
     Args:
     model_inputs (dict): Dictionary containing tensors for each input.
     config (dict): Configuration dictionary that specifies how each input should be handled.
+    This is returned by the parse_config method.
 
     Returns:
     dict: Structured data formatted for passing as model input.
