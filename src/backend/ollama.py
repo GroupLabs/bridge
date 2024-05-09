@@ -2,6 +2,7 @@ import requests
 import json
 import httpx
 from config import config
+from openai import OpenAI
 
 LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL
