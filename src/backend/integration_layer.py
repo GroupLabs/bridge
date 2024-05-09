@@ -1,13 +1,26 @@
 # colab file experimentation at https://colab.research.google.com/drive/1x_DILdesO7hQTaNHq7UZ_v9Yb7lXlrL_
+#https://colab.research.google.com/drive/12gth2lxAJGsVKxzSIuh1fjVfXiB0ctpx?usp=sharing
 #for usage, see the colab
 
+#TO DO: 1. get fields from elasicsearch that decide flow of logic for the code
+#       2. Add if __name__==__main__ part
+#       3. Add padding or cut data if size is not compatible with config??
 
 import re
+import requests
+import json
+import torch
+import numpy as np
+import pprint as pp
 
 #parsing the config file:
 def parse_config_from_file(file_path):
-    with open(file_path, 'r') as file:
-        text = file.read()
+    try:
+        with open(file_path, 'r') as file:  # Added try-except for file operation
+            text = file.read()
+    except IOError as e:
+        print(f"Error reading file {file_path}: {e}")
+        return None  # Return None if file operation fails
     return parse_config(text)
 
 def parse_config(text):
@@ -73,13 +86,24 @@ returns a dictionary for each input feature of the model, a key for column
 name and a value as a list of data points in that column. The code assumes 
 that the values are a list of strings, ints, floats, bools..."""
 
-import torch
+#for nested lists:
+def convert_to_tensor(data, dtype):
+    """
+    Convert a list, a nested list, or an empty list of data to a tensor with the specified dtype.
+    If the data list is empty, return an appropriately shaped tensor of the given dtype with zero elements.
+    """
+    if data:  # Ensure there's data to convert
+        if isinstance(data[0], list):  # Nested lists
+            return torch.tensor(data, dtype=dtype)
+        else:
+            return torch.tensor([data], dtype=dtype)  # Single list, ensure it's nested for consistency
+    else:
+        return torch.tensor([], dtype=dtype).reshape(0)  # Return an empty tensor with no dimensions
 
+#transforming inputs into the right type:
 def prepare_inputs_for_model(data, config):
     input_config = config.get('input', [])
-    
     prepared_data = {}
-
     dtype_mapping = {
         'TYPE_INT8': torch.int8,
         'TYPE_UINT8': torch.uint8,
@@ -95,55 +119,41 @@ def prepare_inputs_for_model(data, config):
         'TYPE_BOOL': torch.bool
     }
 
-    # Iterate through all inputs specified in the configuration
     for input_item in input_config:
-        
-        if isinstance(input_item, dict):
-            input_name = input_item['name']
-            desired_dtype = dtype_mapping.get(input_item['data_type'], torch.float32)
-            dims = tuple(int(d) if str(d).isdigit() else -1 for d in input_item['dims'])
-            # Extract and convert the corresponding data column
-            raw_data = data.get(input_name, [])        
-            converted_data = []
+        print(f"Input item: {input_item}")
+        input_name = input_item['name']
+        desired_dtype = dtype_mapping.get(input_item['data_type'], torch.float32)
+        raw_data = data.get(input_name, [])
+        print(f"Raw data: {raw_data}")
 
-            # Convert to the desired data type
-            for x in raw_data:
-                #print(x)
-                try:
-                    if 'int' in input_item['data_type'].lower():
-                        converted_data.append(int(x))                      
-                    elif 'fp' in input_item['data_type'].lower():
-                        converted_data.append(float(x))        
-                    elif 'bool' in input_item['data_type'].lower():
-                        converted_data.append(bool(int(x)))
-                    elif 'complex' in input_item['data_type'].lower():
-                        # Assuming complex numbers are in the format "real_part imag_part"
-                        real_part, imag_part = map(float, x.split())
-                        converted_data.append(torch.complex(real_part, imag_part))
-                except ValueError as e:
-                    raise ValueError(f"Error converting {x} to {input_item['data_type']}: {e}")
+        # Convert data to the specified type
+        tensor = convert_to_tensor(raw_data, desired_dtype)
 
-            # Create a tensor and reshape it if dimensions are specified
-            tensor = torch.tensor(converted_data, dtype=desired_dtype)
-            if dims[0] != -1:
-                print(tensor)
-                tensor = tensor.reshape(dims)
-            prepared_data[input_name] = tensor
+        # Prepare dimensions specification
+        if 'dims' in input_item and input_item['dims'][0] != '-1':
+            dims = tuple(int(d) if isinstance(d, (str, int)) and str(d).isdigit() else -1 for d in input_item['dims'])
+            if all(d != -1 for d in dims):
+                tensor = tensor.view(*dims)
+            else:
+                raise ValueError(f"Dimension mismatch for {input_name}: cannot reshape array of size {tensor.numel()} into shape {tuple(dims)}")
+
+        prepared_data[input_name] = tensor
 
     return prepared_data
 
-"""Preparing to pass these arguments as input into the model:"""
 
-import torch
-import pprint as pp
+
+"""Preparing to pass these arguments as input into the model:"""
 
 def format_model_inputs(model_inputs, config):
     """
     Formats the model inputs as a structured dictionary for model deployment.
+    If a dimension is set as '-1', the shape of the tensor will be kept as is.
 
     Args:
     model_inputs (dict): Dictionary containing tensors for each input.
     config (dict): Configuration dictionary that specifies how each input should be handled.
+    This is returned by the parse_config method.
 
     Returns:
     dict: Structured data formatted for passing as model input.
@@ -155,30 +165,38 @@ def format_model_inputs(model_inputs, config):
     input_config = config['input']
 
     for input_item in input_config:
-        if isinstance(input_item, dict):
-            input_name = input_item['name']
-            datatype = input_item['data_type'].replace('TYPE_', '')
-            tensor = model_inputs[input_name]
+        input_name = input_item['name']
+        datatype = input_item['data_type'].replace('TYPE_', '')
+        tensor = model_inputs.get(input_name, None)
 
-            # Ensure tensor is in the correct shape
-            desired_shape = input_item['dims']
-            # Convert shape entries to integers where possible, handle the '-1' placeholder
-            shape = [int(dim) if dim != '-1' else tensor.size(i) for i, dim in enumerate(desired_shape)]
-            tensor = tensor.view(shape)
+        if tensor is None:
+            print(f"Warning: No tensor found for input {input_name}")
+            continue
 
-            formatted_inputs["inputs"].append({
-                "name": input_name,
-                "datatype": datatype,
-                "shape": shape,
-                "data": tensor.tolist()  # Convert tensor data to list for JSON serialization
-            })
+        # Determine the shape based on the config
+        if input_item['dims'] == ['-1']:  # If dimension is '-1', keep the current shape
+            shape = list(tensor.shape)  # Use the current tensor shape
+        else:
+            # Calculate new shape, handling '-1' to infer dimension
+            shape = [int(dim) if dim != '-1' else tensor.size(i) for i, dim in enumerate(input_item['dims'])]
+
+        try:
+            tensor = tensor.view(*shape)  # Attempt to reshape tensor
+        except RuntimeError as e:
+            print(f"Error: Failed to reshape tensor for {input_name}. Details: {e}")
+            continue
+
+        formatted_inputs["inputs"].append({
+            "name": input_name,
+            "datatype": datatype,
+            "shape": shape,
+            "data": tensor.tolist()  # Convert tensor data to list for JSON serialization
+        })
 
     return formatted_inputs
 
-#to pass the inputs to the model:
-import requests
-import json
 
+#to pass the inputs to the model:
 def make_inference_request(url, model_input, headers=None):
     # Define the request headers if not provided
     if headers is None:
