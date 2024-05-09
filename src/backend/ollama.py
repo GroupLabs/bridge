@@ -31,6 +31,10 @@ async def chat(messages):
 
     
 def gen(prompt: str):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_KEY}'
+    }
     data = {
         "model": LLM_MODEL,
         "prompt": prompt
