@@ -8,17 +8,27 @@ LLM_MODEL = config.LLM_MODEL
 OPENAI_KEY = config.OPENAI_KEY
 
 async def chat(messages):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_KEY}'
+    }
     data = {
         "model": LLM_MODEL,
-        "messages": messages if messages else []
+        "prompt": "\n".join([msg['content'] for msg in messages]),  # Simplified for demonstration
+        #"messages": messages if messages else []
     }
 
-    data_json = json.dumps(data)
+    #data_json = json.dumps(data)
 
     async with httpx.AsyncClient() as client:
-        async with client.stream("POST", LLM_URL + "chat", data=data_json, headers={'Content-Type': 'application/json'}) as response:
-            response.raise_for_status()
-            
+        response = await client.post(LLM_URL + "completions", json=data, headers=headers)
+        response.raise_for_status()
+        return response.json()  # Adjust as needed for streaming or single response handling
+
+        #async with client.stream("POST", LLM_URL + "completions", json=data, headers=headers) as response:
+            #response.raise_for_status()
+
+            """
             async for line in response.aiter_raw():
                 if line:
                     yield line
@@ -28,6 +38,7 @@ async def chat(messages):
                         continue # in case string cannot be loaded as json, skip
                     if message.get("done", False):
                         break
+            """
 
     
 def gen(prompt: str):
@@ -40,11 +51,12 @@ def gen(prompt: str):
         "prompt": prompt
     }
 
-    response = requests.post(LLM_URL+"completions", headers=headers, json=data)
+    response = requests.post(LLM_URL + "completions", headers=headers, json=data)
 
     # Handle streaming responses
-    message = ""
+    ##message = ""
 
+    """
     for line in response.iter_lines():
         if line:  # filter out keep-alive new lines
             decoded_line = line.decode('utf-8')
@@ -54,11 +66,12 @@ def gen(prompt: str):
             else:
                 if line_message.get('response'):
                     message = message + line_message.get('response')
-
+    """
+    
     if response.status_code == 200:
-        return message
+        return response.json()['choices'][0]['text']  # Extract the text component
     else:
-        raise Exception
+        raise Exception("Failed to generate text: " + response.text)
  
 
 if __name__ == "__main__":
