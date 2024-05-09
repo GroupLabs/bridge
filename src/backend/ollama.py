@@ -25,7 +25,7 @@ async def chat(messages):
     timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
     async with httpx.AsyncClient() as client:
-        async with client.stream("POST", LLM_URL + "/chat/completions", json=data, headers=headers) as response:
+        async with client.stream("POST", LLM_URL + "chat/completions", json=data, headers=headers) as response:
             response.raise_for_status()
             async for line in response.aiter_text():
                 try:
@@ -46,7 +46,7 @@ def gen(prompt: str):
     }
 
     with httpx.Client() as client:
-        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
+        response = client.post(LLM_URL + "chat/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
         else:
