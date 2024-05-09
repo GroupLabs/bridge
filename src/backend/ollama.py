@@ -19,7 +19,7 @@ async def chat(messages):
     }
 
     async with httpx.AsyncClient() as client:
-        async with client.stream("POST", LLM_URL + "completions", json=data, headers=headers) as response:
+        async with client.stream("POST", LLM_URL + "/completions", json=data, headers=headers) as response:
             response.raise_for_status()
             async for line in response.aiter_text():
                 # Since OpenAI API typically sends a complete JSON per message response, we yield the decoded line
@@ -41,7 +41,7 @@ def gen(prompt: str):
     }
 
     with httpx.Client() as client:
-        response = client.post(LLM_URL + "completions", headers=headers, json=data)
+        response = client.post(LLM_URL + "/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()['choices'][0]['text']
         else:
