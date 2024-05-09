@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import os
+from fastapi.responses import StreamingResponse
+import json
 
 from log import setup_logger
 from storage import load_data, load_model, query
@@ -141,13 +143,26 @@ async def nl_query(input: Query):
 
 #endpoint to chat with gpt-4:
 @app.post("/chat")
+"""
 async def chat_with_model(chat_request: ChatRequest):
-    try:
-        response = await chat([{"role": "user", "content": chat_request.message}])
-        return {"status": "success", "response": response}
-    except Exception as e:
-        logger.error(f"Chat model error: {str(e)}")
-        return {"status": "error", "message": str(e)}
+    responses = []
+    async for response in chat([{"role": "user", "content": chat_request.message}]):
+        responses.append(response)
+    return {"status": "success", "responses": responses}
+"""
+async def chat_with_model(chat_request: ChatRequest):
+    chat_generator = chat([{"role": "user", "content": chat_request.message}])
+    return StreamingResponse(json_stream(chat_generator), media_type="application/json")
+
+async def json_stream(async_generator):
+    yield '{"messages":['
+    first = True
+    async for item in async_generator:
+        if not first:
+            yield ','
+        first = False
+        yield json.dumps(item)
+    yield ']}'
 
 # from typing import Optional
 # from fastapi import Query, FastAPI
