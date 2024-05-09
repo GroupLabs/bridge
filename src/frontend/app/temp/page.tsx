@@ -2,12 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
-import Conversation from '../../components/conversation';
+import Header from '../../components/Header/header';
+import Sidebar from '../../components/LeftSidebar/sidebar';
+import ChatHistorySidebar from '../../components/RightSidebar/chatHistory';
 import AIResponseWithPDF from '../../components/PDFresponse';
+import Conversation from '../../components/conversation';
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
   const [chatPairs, setChatPairs] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState({});
+  const [chats, setChats] = useState([{ id: 1 }, { id: 2 }]); // Example chats
+  const [selectedChat, setSelectedChat] = useState(1);
 
   useEffect(() => {
     let updatedChatPairs = [];
@@ -37,30 +43,62 @@ export default function Chat() {
     setChatPairs(updatedChatPairs.reverse());
   }, [messages]);
 
+  const handleFileChange = (files) => {
+    if (files) {
+      const newFiles = Array.from(files);
+      setUploadedFiles((prevFiles) => ({
+        ...prevFiles,
+        [selectedChat]: [...(prevFiles[selectedChat] || []), ...newFiles],
+      }));
+      console.log('Selected files:', newFiles);
+    }
+  };
+
+  const handleSelectChat = (chatId) => {
+    setSelectedChat(chatId);
+  };
+
+  const handleSendMessage = (event) => {
+    event.preventDefault();
+    if (input.trim() === '') return;
+
+    const newMessage = {
+      id: Date.now(), // unique ID for the message
+      role: 'user',
+      content: input,
+    };
+
+  };
+
   return (
-    <div className="flex flex-col w-full max-w-4xl py-20 mx-auto">
-      <form onSubmit={handleSubmit} className="flex w-full justify-center items-center">
-        <input
-          className="w-full max-w-xl p-2 border border-gray-300 rounded shadow-xl"
-          value={input}
-          placeholder="Ask Anything..."
-          onChange={handleInputChange}
-          style={{ position: 'sticky', top: 0, zIndex: 1000 }}
-        />
-      </form>
-
-      <div className="flex flex-col gap-4 mt-4 overflow-y-auto">
-        {chatPairs.map((pair, index) => (
-          <React.Fragment key={`pair-${index}`}>
-            <div className="p-3 rounded-lg shadow bg-gray-100">
-              <strong>User: </strong>{pair.user}
+    <div className="flex w-full h-screen">
+      <Header 
+        input={input} 
+        handleInputChange={handleInputChange} 
+        handleSubmit={handleSubmit} 
+        onFileChange={handleFileChange} 
+      />
+      <Sidebar files={uploadedFiles[selectedChat] || []} />
+      <div className="flex flex-col flex-grow ml-[25%] mr-[25%] pt-16 px-4">
+        <div className="flex flex-col gap-4 mt-4 overflow-y-auto">
+          {chatPairs.map((pair, index) => (
+            <div key={`pair-${index}`}>
+              <div className="p-3 rounded-lg shadow bg-gray-100">
+                <strong>User: </strong>{pair.user}
+              </div>
+              <AIResponseWithPDF pdfSrc="https://www.abta.org/wp-content/uploads/2018/03/about-brain-tumors-a-primer-1.pdf" aiResponse={pair.assistant} />
+              {/* Add a thin line between each pair */}
+              {index !== chatPairs.length - 1 && <hr className="border-gray-300 my-4" />}
             </div>
-            <AIResponseWithPDF pdfSrc="https://www.abta.org/wp-content/uploads/2018/03/about-brain-tumors-a-primer-1.pdf" aiResponse={pair.assistant} />
-          </React.Fragment>
-        ))}
+          ))}
+        </div>
+        <Conversation /> {/* Optional, depending on its purpose */}
       </div>
-
-      <Conversation /> {/* Optional, depending on its purpose */}
+      <ChatHistorySidebar
+        chats={chats}
+        onSelectChat={handleSelectChat}
+        selectedChatId={selectedChat}
+      />
     </div>
   );
 }
