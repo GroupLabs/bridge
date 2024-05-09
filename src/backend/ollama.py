@@ -36,7 +36,7 @@ def gen(prompt: str):
         "prompt": prompt
     }
 
-    response = requests.post(LLM_URL+"generate", json=data, stream=True)
+    response = requests.post(LLM_URL+"completions", json=data, stream=True)
 
     # Handle streaming responses
     message = ""
