@@ -4,6 +4,11 @@ import httpx
 from config import config
 from openai import OpenAI
 
+#To do: 
+#1. Get ES docs as context
+#2. Addd enpoint in api.py
+
+
 LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL
 OPENAI_KEY = config.OPENAI_KEY
