@@ -13,8 +13,12 @@ import pprint as pp
 
 #parsing the config file:
 def parse_config_from_file(file_path):
-    with open(file_path, 'r') as file:
-        text = file.read()
+    try:
+        with open(file_path, 'r') as file:  # Added try-except for file operation
+            text = file.read()
+    except IOError as e:
+        print(f"Error reading file {file_path}: {e}")
+        return None  # Return None if file operation fails
     return parse_config(text)
 
 def parse_config(text):
