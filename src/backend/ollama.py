@@ -5,6 +5,7 @@ from config import config
 
 LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL
+OPENAI_KEY = config.OPENAI_KEY
 
 async def chat(messages):
     data = {
