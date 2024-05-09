@@ -102,7 +102,7 @@ def load_model(model, config, description):
 
     # load to triton
     tc.addToModels(model,config) # this function needs to leave the path of the original alone so that
-    # we can do an os.remove at this level
+    # we can do an os.remove at this level, or maybe we should pass file objects to each of these functions?
 
 
 def extract_io_metadata(config, io_type):
