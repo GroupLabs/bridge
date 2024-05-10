@@ -172,7 +172,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number": e.metadata.get('page_number', current_page)  # Use current page if not in metadata
+                    "page_number": current_page  # Use current page if not in metadata
                 }
 
                 es.insert_document(fields, index="text_chunk")
