@@ -143,47 +143,51 @@ def extract_io_metadata(config, io_type):
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
 
+
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
-    
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    if read_pdf: # read pdf
-        # elements = partition(input, strategy="fast", chunking_strategy="by_title")
-
+    if read_pdf:  # read pdf
         elements = None
         try:
-            elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
+            elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy, include_page_breaks=True)
         except Exception as e:
             logger.error(f"Failed to parse PDF elements: {e}")
 
         if elements is not None:
+            current_page = 1  # Initialize page number tracking
             for i, e in enumerate(elements):
+                # Check if the element is a page break
+                if e.category == "PageBreak":
+                    current_page += 1
+                    continue  # Skip adding page break to Elasticsearch
 
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
-                    "document_id" : doc_id, # document id from path
-                    "access_group" : "", # not yet implemented
-                    "chunk_text" : chunk,
-                    "chunking_strategy" : chunking_strategy,
-                    "chunk_no" : i,
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number": e.metadata.get('page_number', current_page)  # Use current page if not in metadata
                 }
 
                 es.insert_document(fields, index="text_chunk")
     else:
         fields = {
-            "access_group" : "", # not yet implemented
-            "description_text" : "", # not yet implemented
-            "file_path" : filepath,
-            "embedding" : [0],
-            "last_updated" : int(time.time()), # current time in long int
-            "data_hash" : "not implemented"
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
         }
 
         es.insert_document(fields, index="document_meta")
-    
+
     os.remove(filepath)
 
 
