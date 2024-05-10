@@ -1,4 +1,4 @@
-version: '1.0'
+
 
 services:
   setup:
@@ -175,8 +175,8 @@ services:
       - LLM_URL=http://ollama:11434/api/
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672/
       - TRITON_URL=triton:9000
-      - AZURE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=codytests;AccountKey=HsDtjxDpHkzJ0TOd5xdk1AQ46/am7tzmCO2IGBQKf9Sde0C7xy1yM1EW8EgiyH2ZSiQ0z4Co5RWf+AStNyfKMQ==;EndpointSuffix=core.windows.net"
-      - MODEL_CONTAINER_NAME="test"
+      - AZURE_CONNECTION_STRING=${AZURE_CONNECTION_STRING}
+      - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
@@ -188,7 +188,7 @@ services:
     ports:
       - "8000:8000"
     command: >
-      sh -c "celery -A storage worker --loglevel=info -P gevent &
+      sh -c "celery -A storage worker --loglevel=info -P prefork &
         python api.py"
 
   triton:
@@ -198,15 +198,16 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+    environment:
+      - AZURE_STORAGE_KEY=${AZURE_STORAGE_KEY}
+      - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT_NAME}
     networks:
       - bridge-net
     ports:
       - "9000:9000"
       - "9001:9001"
       - "9002:9002"
-    volumes:
-      - ${MODEL_REPOSITORY_PATH}:/models
-    command: $ tritonserver --model-repository=as://tritonmodels/tritonmodels/Users/codycf/Desktop/arvo/server/docs/examples/model_repository?DefaultEndpointsProtocol=https;AccountName=tritonmodels;AccountKey=3gzzyBA65d3mLW3+PTPxdWNEZWKIGVdXifgGfqFMjASzY5I/WhStOLuq/IV6+bS9ZiR6EyAglAzu+ASt58Y+XA==;EndpointSuffix=core.windows.net --http-port=9000 --grpc-port=9001 
+    command: tritonserver --model-repository=${MODEL_REPOSITORY_PATH} --model-control-mode=explicit --http-port=9000 --grpc-port=9001 
 
 volumes:
   certs:
@@ -214,7 +215,6 @@ volumes:
   esdata:
   kibanadata:
   rabbitdata:
-  tritondata:
 
 networks:
   bridge-net:

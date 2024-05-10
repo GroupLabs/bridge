@@ -108,7 +108,7 @@ class Search:
                                 "key": {"type": "keyword"},
                             }
                         },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False},  # disable indexing for the 'colbert' field
                         # meta
                         'input_features': {
                             'type': 'nested',  # Use nested to support future complexity

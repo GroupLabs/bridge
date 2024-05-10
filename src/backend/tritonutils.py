@@ -10,6 +10,8 @@ import numpy as np
 from config import config
 from azure.storage.blob import ContainerClient, BlobType
 
+from time import sleep # TODO remove this
+
 # logger
 logger = setup_logger("triton")
 
@@ -34,10 +36,6 @@ class TritonClient:
         self.triton_client = httpclient.InferenceServerClient(
             url=url, verbose=verbose
         )
-        self.model_repository_path = config.MODEL_REPOSITORY_PATH # Default path if not specified in .env
-        self.connection_string = config.AZURE_CONNECTION_STRING
-        self.container_name = config.MODEL_CONTAINER_NAME
-        self.model_source_folder = config.MODEL_SOURCE_FOLDER
 
         if self.triton_client.is_server_ready():
             logger.info("Triton is available")
@@ -46,42 +44,46 @@ class TritonClient:
             logger.info(config.TRITON_URL)
 
 
-    def addToModels(self, model_name, config):
-        #model_name is path
-        #config is path
-        name, extension = os.path.splitext(os.path.basename(model_name))
-        existingModels = self.triton_client.get_model_repository_index()
-        for model in existingModels:
-            if model['name'] == name:
-                logger.info(f"Model '{name}' already exists.")
-            else:
-                logger.info(f"Adding model '{name}'.")
+    def add_model(self, model_path, config_path):
 
-                if os.path.exists(model_name):
-                    if os.path.exists(config):
-                        model_path = os.path.join(self.model_repository_path, "tmp", "modeltmp", name)
+        model_name, extension = os.path.splitext(os.path.basename(model_path))
 
-                        os.makedirs(model_path, exist_ok=True)
-                        
-                        os.rename(config, model_path + "/" + os.path.basename(config))
-                        logger.info(f"Created model path: '{os.path.abspath(model_path)}'")
+        logger.info(f"Model name: {model_name}")
+    
+        existing_models = self.triton_client.get_model_repository_index()
 
-                        model_version_path = os.path.join(model_path, "1")
-                        os.makedirs(model_version_path, exist_ok=True)
-                        newPath = model_version_path + "/" + os.path.basename(model_name)
-                        os.rename(model_name, newPath)
-                        os.rename(newPath ,  model_version_path + "/model" + extension)
+        if model_name in existing_models:
+            logger.warn(f"Model '{model_name}' already exists.")
+            return
+        
+        # create the appropriate file structure
+        base_path = os.path.join(config.TEMP_DIR, "modeltmp", model_name)
+        logger.info(base_path)
+        version_path = os.path.join(base_path, str(1))
+        logger.info(version_path)
+        os.makedirs(version_path, exist_ok=True)
 
-                        upload(self.model_source_folder, self.connection_string, self.container_name)
-                        logger.info(f"Successfully added model to /modeltmp")
+        # Move and rename model file to the version directory
+        model_destination = os.path.join(version_path, f"model.{extension}")
+        os.rename(model_path, model_destination)
 
-                        return
+        # Move and rename config file to the model directory
+        config_destination = os.path.join(base_path, "config.pbtxt")
+        os.rename(config_path, config_destination)
 
-                    else:
-                        logger.info(f"Error: Config file does not exist at '{config}'") 
-                else:
-                    logger.info(f"Error: Model file does not exist at '{model_name}'") 
+        # upload to model repository
+        _upload(base_path, config.AZURE_CONNECTION_STRING, config.MODEL_CONTAINER_NAME)
 
+        logger.info(f"Successfully added model to /modeltmp")
+
+        sleep(30) # wait before loading model
+        self.triton_client.load_model(model_name)
+
+        # verify
+        if self.triton_client.is_model_ready(model_name):
+            logger.info(f"{model_name} is ready")
+        else:
+            logger.info(f"{model_name} is not ready")
 
     def test_infer(self,
         model_name,
@@ -107,9 +109,7 @@ class TritonClient:
         inputs.append(attention_mask)
 
         # Request outputs
-        outputs.append(httpclient.InferRequestedOutput("output", binary_data=False))
-
-        
+        outputs.append(httpclient.InferRequestedOutput("output", binary_data=False))        
 
         # Send inference request
         query_params = {"test_1": 1, "test_2": 2}
@@ -126,32 +126,25 @@ class TritonClient:
         logger.info(f"Ending POST request") 
         return results
     
-def upload(directory_path, connection_string, container_name):
+def _upload(directory_path, connection_string, container_name):
     container_client = ContainerClient.from_connection_string(connection_string, container_name)
     logger.info(f"Uploading contents of {directory_path} to Azure Blob Storage...")
 
-    files = get_files(directory_path)
-    logger.info(f"{files}")
-    logger.info(f"{files}")
-    logger.info(f"{files}")
-    for file in files:
-        blob_client = container_client.get_blob_client(file.name)
-        logger.info(f"{file}")
-        logger.info(f"{file}")
-        logger.info(f"{file}")
-        logger.info(f"{file}")
-        logger.info(f"{file}")
-        with open(file.path, "rb") as data:
-            
-            blob_client.upload_blob(data)
-            print(f"{file.name} uploaded to blob storage")
+    # Get the parent directory of the directory_path
+    base_path = os.path.dirname(directory_path)
+
+    # Walk through directory
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            # Calculate relative path including the parent directory
+            relative_path = os.path.relpath(file_path, base_path)
+            blob_client = container_client.get_blob_client(blob=relative_path.replace(os.sep, '/'))  # Replace OS-specific path separators
+            with open(file_path, 'rb') as data:
+                blob_client.upload_blob(data, overwrite=True)
+                logger.info(f"{relative_path} uploaded to blob storage")
 
     logger.info("All files successfully uploaded to Azure Blob Storage.")
-
-def get_files(dir):
-    with os.scandir(dir) as entries:
-        for entry in entries:
-            yield entry
 
 if __name__ == "__main__":
     tc = TritonClient()

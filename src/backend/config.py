@@ -8,6 +8,8 @@ class config:
     ENV = str(os.getenv('ENV', 'DEBUG')) 
     PORT = int(os.getenv('API_PORT', 8000))
 
+    TEMP_DIR = "./tmp"
+
     # auto description
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -26,7 +28,7 @@ class config:
 
     # elasticutils
     ELASTIC_PASSWORD = str(os.getenv('ELASTIC_PASSWORD'))
-    ELASTIC_CA_CERT_PATH = str(os.getenv('ELASTIC_CA_CERT_PATH', "/Users/noelthomas/Documents/GitHub/Bridge/http_ca.crt"))
+    ELASTIC_CA_CERT_PATH = str(os.getenv('ELASTIC_CA_CERT_PATH', "./http_ca.crt"))
     ELASTIC_USER = str(os.getenv('ELASTIC_USER', "elastic"))
     ELASTIC_URL = str(os.getenv('ELASTIC_URL', "https://localhost:9200"))
 
