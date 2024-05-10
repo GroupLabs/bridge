@@ -143,14 +143,6 @@ async def nl_query(input: Query):
 
 #endpoint to chat with gpt-4:
 @app.post("/chat")
-logger.info("banana")
-logger.info("banana")
-logger.info("banana")
-logger.info("banana")
-logger.info("banana")
-logger.info("banana")
-logger.info("banana")
-logger.info("banana")
 async def chat_with_model(chat_request: ChatRequest):
     chat_generator = chat([{"role": "user", "content": chat_request.message}])
     return StreamingResponse(json_stream(chat_generator), media_type="application/json")
