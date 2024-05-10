@@ -142,6 +142,7 @@ async def nl_query(input: Query):
     return {"health": health, "status" : "success", "resp" : resp}
 
 #endpoint to chat with gpt-4:
+#to do: stream the response
 @app.post("/chat")
 async def chat_with_model(chat_request: ChatRequest):
     chat_generator = gen(chat_request.message)
