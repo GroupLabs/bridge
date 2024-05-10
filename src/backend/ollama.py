@@ -10,11 +10,9 @@ logger.info("LOGGER READY")
 
 #To do: 
 #1. Get ES docs as context
-#2. Addd enpoint in api.py
-
 
 LLM_URL = config.LLM_URL
-LLM_MODEL = config.LLM_MODEL
+LLM_MODEL = config.LLM_MODEL #currently set to gpt-3.5 turbo, switch to gpt-4 in .env and docker-compose
 OPENAI_KEY = config.OPENAI_KEY
 
 async def chat(messages):
@@ -24,7 +22,7 @@ async def chat(messages):
     }
     data = {
         "model": LLM_MODEL,
-        "messages": messages  # For chat endpoints, use "messages" instead of "prompt"
+        "messages": messages  
     }
     timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
@@ -39,15 +37,15 @@ async def chat(messages):
                 except json.JSONDecodeError:
                     continue  # Skip over lines that cannot be loaded as JSON
 
+#generates the text for a response:
 def gen(prompt: str):
-
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {OPENAI_KEY}'
     }
     data = {
         "model": LLM_MODEL,
-        "messages": [{"role": "system", "content": prompt}]  # Adjust for chat API usage
+        "messages": [{"role": "system", "content": prompt}]  
     }
 
     with httpx.Client() as client:
