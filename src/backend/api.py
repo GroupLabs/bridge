@@ -145,17 +145,18 @@ async def nl_query(input: Query):
 @app.post("/chat")
 async def chat_with_model(chat_request: ChatRequest):
     chat_generator = gen(chat_request.message)
-    return StreamingResponse(json_stream(chat_generator), media_type="application/json")
+    logger.info(f"{chat_generator}")
+    return chat_generator
 
-async def json_stream(async_generator):
-    yield '{"messages":['
-    first = True
-    async for item in async_generator:
-        if not first:
-            yield ','
-        first = False
-        yield json.dumps(item)
-    yield ']}'
+# async def json_stream(async_generator):
+#     yield '{"messages":['
+#     first = True
+#    async for item in async_generator:
+#         if not first:
+#             yield ','
+#         first = False
+#         yield json.dumps(item)
+#     yield ']}'
 
 # from typing import Optional
 # from fastapi import Query, FastAPI
