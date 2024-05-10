@@ -289,38 +289,40 @@ class Search:
         return rrf_results
     
 
+"""
+maybe need these for pdf indexing
+"""
+# def convert_pdf_to_images(file):
+#     """
+#     Convert PDF to images
+#     """
+#     images = convert_from_path(file)
+#     # Define the directory to save images
+#     output_dir = os.path.join("tmp", "picturestmp")
+#     os.makedirs(output_dir, exist_ok=True)
 
-def convert_pdf_to_images(file):
-    """
-    Convert PDF to images
-    """
-    images = convert_from_path(file)
-    # Define the directory to save images
-    output_dir = os.path.join("tmp", "picturestmp")
-    os.makedirs(output_dir, exist_ok=True)
+#     print(output_dir)
 
-    print(output_dir)
+#     # Save each page as an image in the specified directory
+#     for i in range(len(images)):
+#         image_path = os.path.join(output_dir, f'page{i}.jpg')
+#         images[i].save(image_path, 'JPEG')
 
-    # Save each page as an image in the specified directory
-    for i in range(len(images)):
-        image_path = os.path.join(output_dir, f'page{i}.jpg')
-        images[i].save(image_path, 'JPEG')
-
-def convert_images_to_binary(directory):
-    """
-    Dictionary to store image binaries
-    """
+# def convert_images_to_binary(directory):
+#     """
+#     Dictionary to store image binaries
+#     """
     
-    image_binaries = {}
+#     image_binaries = {}
 
-    # Iterate over all files in the directory
-    for filename in os.listdir(directory):
-        if filename.endswith('.jpg'):
-            file_path = os.path.join(directory, filename)
-            with open(file_path, 'rb') as image_file:
-                image_binaries[filename] = image_file.read()
+#     # Iterate over all files in the directory
+#     for filename in os.listdir(directory):
+#         if filename.endswith('.jpg'):
+#             file_path = os.path.join(directory, filename)
+#             with open(file_path, 'rb') as image_file:
+#                 image_binaries[filename] = image_file.read()
     
-    return image_binaries
+#     return image_binaries
 
 
 if __name__ == "__main__":    
