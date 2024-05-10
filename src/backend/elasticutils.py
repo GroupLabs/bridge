@@ -310,6 +310,7 @@ def convert_images_to_binary(directory):
     """
     Dictionary to store image binaries
     """
+    asd
     
     image_binaries = {}
 
