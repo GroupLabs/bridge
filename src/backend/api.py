@@ -145,7 +145,6 @@ async def nl_query(input: Query):
 @app.post("/chat")
 async def chat_with_model(chat_request: ChatRequest):
     chat_generator = gen(chat_request.message)
-    logger.info(f"{chat_generator}")
     return chat_generator
 
 # async def json_stream(async_generator):
