@@ -3,6 +3,10 @@ import json
 import httpx
 from config import config
 from openai import OpenAI
+from log import setup_logger
+
+logger = setup_logger("ollama")
+logger.info("LOGGER READY")
 
 #To do: 
 #1. Get ES docs as context
@@ -36,6 +40,7 @@ async def chat(messages):
                     continue  # Skip over lines that cannot be loaded as JSON
 
 def gen(prompt: str):
+
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {OPENAI_KEY}'
@@ -46,7 +51,7 @@ def gen(prompt: str):
     }
 
     with httpx.Client() as client:
-        response = client.post(LLM_URL + "chat/completions", headers=headers, json=data)
+        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
         else:

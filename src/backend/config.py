@@ -9,7 +9,7 @@ class config:
     PORT = int(os.getenv('API_PORT', 8000))
 
     # auto description
-    OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_KEY = os.getenv("OPENAI_KEY", "")
 
     # e5_small
     E5_SMALL_MAX_LEN = int(os.getenv('E5_SMALL_MAX_LEN', 512))
@@ -19,7 +19,7 @@ class config:
 
     # ollama
     LLM_URL = str(os.getenv('LLM_URL', "http://localhost:11434/api/"))
-    LLM_MODEL = str(os.getenv('LLM_MODEL', "llama3"))
+    LLM_MODEL = str(os.getenv('LLM_MODEL', "gpt-4"))
 
     # storage
     CELERY_BROKER_URL = str(os.getenv('CELERY_BROKER_URL', "amqp://guest:guest@localhost"))

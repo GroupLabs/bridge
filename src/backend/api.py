@@ -12,7 +12,7 @@ from storage import load_data, load_model, query
 from serverutils import Health, Status, Load
 from serverutils import Query
 from serverutils import ChatRequest
-from ollama import chat
+from ollama import chat,gen
 
 TEMP_DIR = "./temp"
 
@@ -144,7 +144,7 @@ async def nl_query(input: Query):
 #endpoint to chat with gpt-4:
 @app.post("/chat")
 async def chat_with_model(chat_request: ChatRequest):
-    chat_generator = chat([{"role": "user", "content": chat_request.message}])
+    chat_generator = gen(chat_request.message)
     return StreamingResponse(json_stream(chat_generator), media_type="application/json")
 
 async def json_stream(async_generator):
