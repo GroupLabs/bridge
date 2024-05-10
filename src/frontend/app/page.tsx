@@ -1,7 +1,6 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import Conversation from '../components/conversation';
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit } = useChat();
@@ -24,8 +23,6 @@ export default function Chat() {
           </div>
         ))}
       </div>
-
-      <Conversation />
     </div>
 
     
