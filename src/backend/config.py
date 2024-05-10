@@ -18,7 +18,7 @@ class config:
     LOG_LEVEL = str(os.getenv('LOG_LEVEL', 'INFO'))
 
     # ollama
-    LLM_URL = str(os.getenv('LLM_URL', "http://localhost:11434/api/"))
+    LLM_URL = str(os.getenv('LLM_URL', "https://api.openai.com/v1"))
     LLM_MODEL = str(os.getenv('LLM_MODEL', "gpt-3.5-turbo")) #just change to gpt-4 when needed also change the .env
 
     # storage
