@@ -4,12 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import os
+from fastapi.responses import StreamingResponse
+import json
 
 from log import setup_logger
 from storage import load_data, load_model, query
 from serverutils import Health, Status, Load
 from serverutils import Query
-from ollama import chat
+
+from serverutils import ChatRequest
+from ollama import chat,gen
 from config import config
 
 TEMP_DIR = config.TEMP_DIR
@@ -138,6 +142,23 @@ async def nl_query(input: Query):
     logger.info(f"QUERY success: {input.query}")
 
     return {"health": health, "status" : "success", "resp" : resp}
+
+#endpoint to chat with gpt-4:
+#to do: stream the response
+@app.post("/chat")
+async def chat_with_model(chat_request: ChatRequest):
+    chat_generator = gen(chat_request.message)
+    return chat_generator
+
+# async def json_stream(async_generator):
+#     yield '{"messages":['
+#     first = True
+#    async for item in async_generator:
+#         if not first:
+#             yield ','
+#         first = False
+#         yield json.dumps(item)
+#     yield ']}'
 
 # from typing import Optional
 # from fastapi import Query, FastAPI
