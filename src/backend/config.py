@@ -11,7 +11,7 @@ class config:
     TEMP_DIR = "./tmp"
 
     # auto description
-    OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_KEY = os.getenv("OPENAI_KEY", "")
 
     # e5_small
     E5_SMALL_MAX_LEN = int(os.getenv('E5_SMALL_MAX_LEN', 512))
@@ -20,8 +20,8 @@ class config:
     LOG_LEVEL = str(os.getenv('LOG_LEVEL', 'INFO'))
 
     # ollama
-    LLM_URL = str(os.getenv('LLM_URL', "http://localhost:11434/api/"))
-    LLM_MODEL = str(os.getenv('LLM_MODEL', "llama3"))
+    LLM_URL = str(os.getenv('LLM_URL', "https://api.openai.com/v1"))
+    LLM_MODEL = str(os.getenv('LLM_MODEL', "gpt-3.5-turbo")) #just change to gpt-4 when needed also change the .env
 
     # storage
     CELERY_BROKER_URL = str(os.getenv('CELERY_BROKER_URL', "amqp://guest:guest@localhost"))

@@ -2,63 +2,59 @@ import requests
 import json
 import httpx
 from config import config
+from openai import OpenAI
+from log import setup_logger
+
+logger = setup_logger("ollama")
+logger.info("LOGGER READY")
+
+#To do: 
+#1. Get ES docs as context
 
 LLM_URL = config.LLM_URL
-LLM_MODEL = config.LLM_MODEL
+LLM_MODEL = config.LLM_MODEL #currently set to gpt-3.5 turbo, switch to gpt-4 in .env and docker-compose
+OPENAI_KEY = config.OPENAI_KEY
 
 async def chat(messages):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_KEY}'
+    }
     data = {
         "model": LLM_MODEL,
-        "messages": messages if messages else []
+        "messages": messages  
     }
-
-    data_json = json.dumps(data)
+    timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
     async with httpx.AsyncClient() as client:
-        async with client.stream("POST", LLM_URL + "chat", data=data_json, headers={'Content-Type': 'application/json'}) as response:
+        async with client.stream("POST", LLM_URL + "chat/completions", json=data, headers=headers) as response:
             response.raise_for_status()
-            
-            async for line in response.aiter_raw():
-                if line:
-                    yield line
-                    try:
-                        message = json.loads(line)
-                    except:
-                        continue # in case string cannot be loaded as json, skip
-                    if message.get("done", False):
-                        break
+            async for line in response.aiter_text():
+                try:
+                    message = json.loads(line)
+                    if 'choices' in message and message['choices'][0].get('delta'):
+                        yield message['choices'][0]['delta']['content']
+                except json.JSONDecodeError:
+                    continue  # Skip over lines that cannot be loaded as JSON
 
-    
+#generates the text for a response:
 def gen(prompt: str):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_KEY}'
+    }
     data = {
         "model": LLM_MODEL,
-        "prompt": prompt
+        "messages": [{"role": "system", "content": prompt}]  
     }
 
-    response = requests.post(LLM_URL+"generate", json=data, stream=True)
-
-    # Handle streaming responses
-    message = ""
-
-    for line in response.iter_lines():
-        if line:  # filter out keep-alive new lines
-            decoded_line = line.decode('utf-8')
-            line_message = json.loads(decoded_line)
-            if line_message.get("done", False):
-                break
-            else:
-                if line_message.get('response'):
-                    message = message + line_message.get('response')
-
-    if response.status_code == 200:
-        return message
-    else:
-        raise Exception
- 
+    with httpx.Client() as client:
+        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
+        else:
+            raise Exception("Failed to generate text: " + response.text)
 
 if __name__ == "__main__":
-    # print(chat([{"role": "user", "content": "when is the best time to water my plants?"}]))
-    # print()
-    print(gen("why is the sky blue?"))
-    # print()
-    # print(chat("why is the sky blue?"))
+    # Example usage
+    print(gen("hi?"))  # Testing the gen function using the correct chat API
