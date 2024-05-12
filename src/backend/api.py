@@ -11,10 +11,12 @@ from log import setup_logger
 from storage import load_data, load_model, query
 from serverutils import Health, Status, Load
 from serverutils import Query
+
 from serverutils import ChatRequest
 from ollama import chat,gen
+from config import config
 
-TEMP_DIR = "./temp"
+TEMP_DIR = config.TEMP_DIR
 
 logger = setup_logger("api")
 logger.info("LOGGER READY")
@@ -112,7 +114,7 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
 
-        task = load_model.delay(model=model_path, config=config_path, description = description)
+        task = load_model.delay(model=model_path, config=config_path, description=description)
         response.status_code = 202
         logger.info(f"LOAD accepted: {model.filename}")
         return {"status": "accepted", "task_id": task.id}
@@ -187,7 +189,6 @@ async def chat_with_model(chat_request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    from config import config
 
     if not config.ENV: # requires environment declaration
         print("Missing environment variable.")

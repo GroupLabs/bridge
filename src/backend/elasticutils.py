@@ -108,8 +108,19 @@ class Search:
                                 "key": {"type": "keyword"},
                             }
                         },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        'colbert': {'type': 'object', 'enabled': False},  # disable indexing for the 'colbert' field
                         # meta
+                        'input_features': {
+                            'type': 'nested',  # Use nested to support future complexity
+                            'properties': {
+                                'feature_name': {'type': 'keyword'},
+                                'feature_type': {'type': 'keyword'},  # e.g., categorical, numerical, etc.
+                                'encoding': {
+                                    'type': 'keyword',  # Store encoding types like 'one-hot', 'label', 'binary', etc.
+                                    'null_value': 'none'  # Default to 'none' if no encoding is used
+                                }
+                            }
+                        }
                     }
                 })
         except BadRequestError as e:
