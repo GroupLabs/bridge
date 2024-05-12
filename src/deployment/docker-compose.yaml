@@ -203,11 +203,13 @@ services:
       - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT_NAME}
     networks:
       - bridge-net
+    volumes:
+      - ${MODEL_REPOSITORY_PATH}:/root/.model_repository
     ports:
       - "9000:9000"
       - "9001:9001"
       - "9002:9002"
-    command: tritonserver --model-repository=${MODEL_REPOSITORY_PATH} --model-control-mode=explicit --http-port=9000 --grpc-port=9001 
+    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=explicit --http-port=9000 --grpc-port=9001 
 
 volumes:
   certs:
