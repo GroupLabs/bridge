@@ -99,11 +99,14 @@ def update_config_from_prompts(config):
     if reuse_ollama:
         config[OLLAMA_PATH_ENV_VAR] = escape_dot_env_value(OLLAMA_PATH)
     else:
-        path = input(f"Enter the path where you want to create the {OLLAMA_DIR_NAME} directory: ")
-        config[OLLAMA_PATH_ENV_VAR] = escape_dot_env_value(path)
+        path = input(f"Enter the path where you want to create the {OLLAMA_DIR_NAME} directory. Leave empty to use {OLLAMA_PATH}:\n")
+        config[OLLAMA_PATH_ENV_VAR] = escape_dot_env_value(path) if path else escape_dot_env_value(OLLAMA_PATH)
     
     if reuse_model_repo:
         config[MODEL_REPOSITORY_PATH_ENV_VAR] = escape_dot_env_value(MODEL_REPOSITORY_PATH)
+    else:
+        path = input(f"Enter the path where you want to create the {MODEL_REPOSITORY_DIR_NAME} directory. Leave empty to use {MODEL_REPOSITORY_PATH}:\n")
+        config[MODEL_REPOSITORY_PATH_ENV_VAR] = escape_dot_env_value(path) if path else escape_dot_env_value(MODEL_REPOSITORY_PATH)
     
 if __name__ == "__main__":
     file_path = os.path.realpath(__file__)
@@ -114,9 +117,9 @@ if __name__ == "__main__":
 
     dot_env = os.path.join(deployment, ".env")
 
-    # if os.path.exists(dot_env):
-    #     print(f"Found .env file at `{dot_env}`. Skipping creation.")
-    #     exit(0)
+    if os.path.exists(dot_env):
+        print(f"Found .env file at `{dot_env}`. Skipping creation.")
+        exit(0)
 
     example_dot_env = os.path.join(deployment, ".env.example")
 
