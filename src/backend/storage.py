@@ -16,6 +16,8 @@ from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
+import PyPDF2
+import re
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
@@ -144,50 +146,71 @@ def query(q: str, index: str):
     return es.hybrid_search(q, index)
 
 
+#removes white spaces in text
+def remove_whitespace(text):
+    return re.sub(r'\s+', '', text)
+
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
+    
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    if read_pdf:  # read pdf
-        elements = None
+    if read_pdf: # read pdf
         try:
-            elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy, include_page_breaks=True)
+            elements = partition_pdf(filepath, strategy="hi_res", chunking_strategy=chunking_strategy)
         except Exception as e:
             logger.error(f"Failed to parse PDF elements: {e}")
+            return
 
         if elements is not None:
-            current_page = 1  # Initialize page number tracking
-            for i, e in enumerate(elements):
-                # Check if the element is a page break
-                if e.category == "PageBreak":
-                    current_page += 1
-                    continue  # Skip adding page break to Elasticsearch
+            pdf_file = open(filepath, 'rb')
 
+            
+            for i, e in enumerate(elements):
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
+                
+                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) #this will add a space character after every ". ? !"
+                #just makes it more readable you can delete it
+                
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                num_pages = len(pdf_reader.pages)
+                
+                for page_num in range(num_pages):
+                    page = pdf_reader.pages[page_num]
+                    text = remove_whitespace(page.extract_text()) #remove white spaces from page in pdf
+                    if remove_whitespace(formatted_chunk) in text: #remove white space from chunk and compares to pdf
+                        page_number = page_num + 1  # Page numbers start from 1
+
+
+
+                
 
                 fields = {
                     "document_id": doc_id,  # document id from path
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
+                    "chunk_text": formatted_chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number": current_page  # Use current page if not in metadata
+                    "page_number": page_number,
                 }
 
+                # Insert the document into Elasticsearch
                 es.insert_document(fields, index="text_chunk")
+
+            pdf_file.close()
     else:
         fields = {
-            "access_group": "",  # not yet implemented
-            "description_text": "",  # not yet implemented
-            "file_path": filepath,
-            "embedding": [0],
-            "last_updated": int(time.time()),  # current time in long int
-            "data_hash": "not implemented"
+            "access_group" : "", # not yet implemented
+            "description_text" : "", # not yet implemented
+            "file_path" : filepath,
+            "embedding" : [0],
+            "last_updated" : int(time.time()), # current time in long int
+            "data_hash" : "not implemented"
         }
 
         es.insert_document(fields, index="document_meta")
-
+    
     os.remove(filepath)
 
 
