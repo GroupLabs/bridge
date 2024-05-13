@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Profile Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="px-4 sm:px-6 lg:px-8">
+      <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+          <h1 class="text-2xl font-semibold leading-6 text-gray-900">Profile Search Results</h1>
+        </div>
+      </div>
+      <br />
+      <div class="mt-4 sm:mt-0 sm:flex-none">
+        <a href="/" class="rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+          Back to search
+        </a>
+      </div>
+      <div class="mt-8 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Rank</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Description</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white" id="profiles">
+                  <!-- Profiles will be dynamically inserted here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    function fetchProfiles() {
+        $.getJSON('/get-profiles', function(data) {
+            var html = '';
+            if (data.length > 0) {
+                data.forEach(function(profile) {
+                    html += '<tr>' +
+                            '<td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">' + profile.score.toFixed(2) + '</td>' +
+                            '<td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">' + profile.title + '</td>' +
+                            '<td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">' + profile.description + '</td>' +
+                            '</tr>';
+                });
+            } else {
+                html = '<tr><td colspan="3" class="px-3 py-4 text-sm text-center text-gray-500">Finding candidates...</td></tr>';
+            }
+            $('#profiles').html(html);
+        });
+    }
+    // Fetch profiles every 1.5 seconds
+    setInterval(fetchProfiles, 1500);
+    // Also fetch profiles immediately on page load
+    fetchProfiles();
+    </script>
+</body>
+</html>
+
+<!-- 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Profile Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="px-4 sm:px-6 lg:px-8">
+      <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+          <h1 class="text-2xl font-semibold leading-6 text-gray-900">Profile Search Results</h1>
+        </div>
+      </div>
+      <br />
+      <div class="mt-4 sm:mt-0 sm:flex-none">
+        <a href="/" class="rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+          Back to search
+        </a>
+      </div>
+      <div class="mt-8 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Rank</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Description</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white" id="profiles">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    function fetchProfiles() {
+        $.getJSON('/get-profiles', function(data) {
+            var html = '';
+            if (data.length > 0) {
+                data.forEach(function(profile, index) {
+                    // Here, index can be used as the rank (0-based, so add 1 for 1-based ranking)
+                    html += '<tr>' +
+                            '<td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">' + (index + 1) + '</td>' +
+                            '<td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">' + profile.title + '</td>' +
+                            '<td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">' + profile.description + '</td>' +
+                            '</tr>';
+                });
+            } else {
+                html = '<tr><td colspan="3" class="px-3 py-4 text-sm text-center text-gray-500">Finding candidates...</td></tr>';
+            }
+            $('#profiles').html(html);
+        });
+    }
+    // Fetch profiles every 1.5 seconds
+    setInterval(fetchProfiles, 1500);
+    // Also fetch profiles immediately on page load
+    fetchProfiles();
+    </script>
+</body>
+</html> -->
