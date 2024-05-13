@@ -11,7 +11,7 @@ We want to use whatever is available that gets the job done. At least for now, n
 
 To get the API started in a containerized environment, use the following instructions:
 
-0. Make sure you have the appropriate .env files!
+0. Make sure you have the appropriate .env files! See [`bridge/src/deployment/.env.example`](https://github.com/GroupLabs/bridge/blob/main/src/deployment/.env.example) and run [`bridge/src/init_env.py`](https://github.com/GroupLabs/bridge/blob/main/src/init_env.py).
 1. Create an image called `api`:
 
 i. Switch to the backend directory.
