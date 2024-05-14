@@ -16,7 +16,7 @@ from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
-import ast
+
 
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL

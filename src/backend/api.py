@@ -17,11 +17,6 @@ from ollama import chat,gen
 from config import config
 
 
-import tritonclient.http as httpclient
-import integration_layer
-import requests
-from pydantic import BaseModel
-
 TEMP_DIR = config.TEMP_DIR
 
 logger = setup_logger("api")
