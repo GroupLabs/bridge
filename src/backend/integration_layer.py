@@ -282,6 +282,14 @@ def make_inference_request(url, model_input, headers=None):
         # If the request failed, print the error message
         print(f"Error: {response.status_code} - {response.text}")
         return None
+    
+def parse_config_from_string(data_str):
+    data = json.loads(data_str)
+    parsed_data = {
+        'input': data['_source']['input'],
+        'output': data['_source']['output']
+    }
+    return parsed_data
 
 
 

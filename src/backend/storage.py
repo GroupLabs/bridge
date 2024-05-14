@@ -16,6 +16,7 @@ from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
+from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
 
 
 
@@ -86,16 +87,29 @@ def load_data(filepath: str, read=True):
 @celery_app.task(name="get_inference_task")
 def get_inference(model, data):
 
+
     config = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
-
-    results = tc.test_infer(model, data, attention_mask_data=[[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
-    output = results.get_response()
-
-    if output['outputs'][0]['data'] is not None:
-        data = output['outputs'][0]['data']
-        return f"The 'data is {data}"
-    else:
-        return f"Error: there is no data"
+    parsed_config = parse_config_from_string(config)
+    model_inputs = prepare_inputs_for_model(data, parsed_config)
+    #formatted_model_input = format_model_inputs(model_inputs, config)
+    logger.info(f"THIS IS PARSED_CONFIG")
+    logger.info(f"THIS IS PARSED_CONFIG")
+    logger.info(f"{parsed_config}")
+    logger.info(f"{parsed_config}")
+    logger.info(f"{parsed_config}")
+    logger.info(f"{parsed_config}")
+    logger.info(f"{parsed_config}")
+    logger.info(f"{parsed_config}")
+    logger.info(f"THIS IS modelinputs")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    logger.info(f"{model_inputs}")
+    return "hello"
 
 
 @celery_app.task(name="load_model_task")
