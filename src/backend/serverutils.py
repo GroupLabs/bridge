@@ -27,3 +27,7 @@ class Load(BaseModel):
 #for chat with GPT-4:
 class ChatRequest(BaseModel):
     message: str
+
+class InferenceRequest(BaseModel):
+    model: str
+    modelVersion: str

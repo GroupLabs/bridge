@@ -15,7 +15,9 @@ from serverutils import Query
 from serverutils import ChatRequest
 from ollama import chat,gen
 from config import config
-
+from integration_layer import parse_config_from_string
+from integration_layer import prepare_inputs_for_model
+from integration_layer import format_model_inputs
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -125,14 +127,26 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
+from elasticutils import Search
+es = Search()
 
-
-
-@app.post("/get_inference")
+@app.post("https://github.com/microsoft/pyright/blob/main/docs/configuration.md#reportUndefinedVariable/get_inference")
 async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
     data_list = json.loads(data)
 
-    x = get_inference(model,data_list)
+    #Example of valid input_data for now:
+    input_data = {
+       'input.1': [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
+      'input.2': [[0.0, 1.0], [0.0, 0.0], [0.0, 1.0], [0.0, 1.0]],
+    }
+
+    #reading config and transforming data: 
+    config = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
+    parsed_config = parse_config_from_string(config)
+    model_inputs = prepare_inputs_for_model(input_data, config)
+    formatted_model_input = format_model_inputs(model_inputs, config)
+    
+    x = get_inference(model,data_list) # ?????
     return x
 
 
