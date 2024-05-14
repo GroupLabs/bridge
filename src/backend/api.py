@@ -130,10 +130,26 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
 
 @app.post("/get_inference")
 async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
-    data_list = json.loads(data)
+    try:
+        # Parse the input string to a dictionary
+        data_dict = json.loads(data)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decoding error: {e}")
+        return {"error": "Invalid JSON input"}
 
-    x = get_inference(model,data_list)
-    return x
+    # Logging the type of data_dict to confirm it's a dictionary
+    logger.info(f"{type(data_dict)}")
+    logger.info(f"{data_dict}")
+
+    # Placeholder for the get_inference function
+    # x = get_inference(model, data)
+    logger.info(f"{data_dict}")
+    logger.info(f"{data_dict}")
+    logger.info(f"{data_dict}")
+    logger.info(f"{data_dict}")
+    get_inference(model, data_dict)
+
+    return "hello"
 
 
 
