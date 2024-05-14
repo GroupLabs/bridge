@@ -19,6 +19,8 @@ from config import config
 
 import tritonclient.http as httpclient
 import integration_layer
+import requests
+from pydantic import BaseModel
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -129,11 +131,15 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
 
+
+
 @app.post("/get_inference")
-async def get_inference_ep(input_data: UploadFile = File(...), model: str=Form(...), modelVersion: str=Form(...)):
-    task = get_inference.delay(model, modelVersion, input_data)
-    parsed_config = integration_layer.parse_config()
-    return parsed_config
+async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
+    data_list = json.loads(data)
+
+    x = get_inference(model,data_list)
+    return x
+
 
 
 # search

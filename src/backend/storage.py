@@ -16,6 +16,7 @@ from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
+import ast
 
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
@@ -83,8 +84,18 @@ def load_data(filepath: str, read=True):
             os.remove(filepath)
 
 @celery_app.task(name="get_inference_task")
-def get_inference(model, model_version, input_data):
-    return tc.get_model_config(model, model_version)
+def get_inference(model, data):
+
+    #x = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
+
+    results = tc.test_infer(model, data, attention_mask_data=[[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
+    output = results.get_response()
+
+    if output['outputs'][0]['data'] is not None:
+        data = output['outputs'][0]['data']
+        return f"The 'data is {data}"
+    else:
+        return f"Error: there is no data"
 
 
 @celery_app.task(name="load_model_task")
