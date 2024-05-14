@@ -154,6 +154,28 @@ async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
     return x
 
 
+    """    try:
+        # Parse the input string to a dictionary
+        data_dict = json.loads(data)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decoding error: {e}")
+        return {"error": "Invalid JSON input"}
+
+    # Logging the type of data_dict to confirm it's a dictionary
+    logger.info(f"{type(data_dict)}")
+    logger.info(f"{data_dict}")
+
+    # Placeholder for the get_inference function
+    # x = get_inference(model, data)
+    logger.info(f"{data_dict}")
+    logger.info(f"{data_dict}")
+    logger.info(f"{data_dict}")
+    logger.info(f"{data_dict}")
+    get_inference(model, data_dict)
+
+    return "hello"""
+
+
 
 # search
 # accepts NL query
