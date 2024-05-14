@@ -8,13 +8,17 @@ from fastapi.responses import StreamingResponse
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query
+from storage import load_data, load_model, query, get_inference
 from serverutils import Health, Status, Load
 from serverutils import Query
 
 from serverutils import ChatRequest
 from ollama import chat,gen
 from config import config
+
+
+import tritonclient.http as httpclient
+import integration_layer
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -70,6 +74,7 @@ async def get_task_result(task_id: str):
 # accepts path to data (unstructurded | structured)
 # returns ok
 
+
 @app.post("/load_by_path")
 async def load_data_by_path(input: Load, response: Response):
     try:
@@ -122,6 +127,14 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         logger.warn(f"LOAD incomplete: {model.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
+
+@app.post("/get_inference")
+async def get_inference_ep(input_data: UploadFile = File(...), model: str=Form(...), modelVersion: str=Form(...)):
+    task = get_inference.delay(model, modelVersion, input_data)
+    parsed_config = integration_layer.parse_config()
+    return parsed_config
+
 
 # search
 # accepts NL query

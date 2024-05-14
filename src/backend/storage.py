@@ -17,6 +17,7 @@ from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
 
+
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
 # logger
@@ -80,6 +81,11 @@ def load_data(filepath: str, read=True):
     
     if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
             os.remove(filepath)
+
+@celery_app.task(name="get_inference_task")
+def get_inference(model, model_version, input_data):
+    return tc.get_model_config(model, model_version)
+
 
 @celery_app.task(name="load_model_task")
 def load_model(model, config, description):
