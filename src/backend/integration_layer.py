@@ -12,16 +12,23 @@ import json
 import torch
 import numpy as np
 import pprint as pp
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import LabelBinarizer
 
-#parsing the config file:
-def parse_config_from_file(file_path):
-    try:
-        with open(file_path, 'r') as file:  # Added try-except for file operation
-            text = file.read()
-    except IOError as e:
-        print(f"Error reading file {file_path}: {e}")
-        return None  # Return None if file operation fails
-    return parse_config(text)
+
+
+def parse_config_from_es(file_path):
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+
+    parsed_data = {
+        'input': data['_source']['input'],
+        'output': data['_source']['output']
+    }
+
+    return parsed_data
 
 def parse_config(text):
     def tokenize(text):
@@ -80,11 +87,62 @@ def parse_config(text):
     result, _ = parse_object(tokens, cursor)
     return result
 
+#parsing the config file:
+def parse_config_from_file(file_path):
+    try:
+        with open(file_path, 'r') as file:  # Added try-except for file operation
+            text = file.read()
+    except IOError as e:
+        print(f"Error reading file {file_path}: {e}")
+        return None  # Return None if file operation fails
+    return parse_config(text)
+
 """Converting the data columns received by ES metadata mappings into 
 right format for the model (according to config). This assumes ES mappings 
 returns a dictionary for each input feature of the model, a key for column 
 name and a value as a list of data points in that column. The code assumes 
 that the values are a list of strings, ints, floats, bools..."""
+
+def one_hot_encode_data(values):
+    df = pd.DataFrame(values)
+    encoder = OneHotEncoder(sparse=False)
+    return encoder.fit_transform(df).tolist()
+
+def label_encode_data(values):
+    encoder = LabelEncoder()
+    return encoder.fit_transform(values).tolist()
+
+
+def binary_encode_data(values):
+    lb = LabelBinarizer()
+    binary_values = lb.fit_transform(values)
+    if lb.classes_.size == 2:
+        binary_values = np.hstack([np.zeros((len(values), 1)), binary_values])
+    return binary_values.tolist()
+
+
+#for categorial input features (one-hot, label, binary encoding...)
+def encode_features(input_data, encoding_scheme):
+    """
+    Encodes given input data according to the specified encoding scheme for each feature.
+
+    Args:
+    input_data: dict, original data with keys as feature names and values as lists of categories.
+    encoding_scheme: dict, keys as feature names and values as the encoding type ('one-hot', 'label', 'binary').
+
+    Returns:
+    dict: Encoded data in the same format as input.
+    """
+    encoded_data = {}
+    for feature, values in input_data.items():
+        if encoding_scheme[feature] == 'label':
+            encoded_data[feature] = label_encode_data(values)
+        elif encoding_scheme[feature] == 'one-hot':
+            encoded_data[feature] = one_hot_encode_data(values)
+        elif encoding_scheme[feature] == 'binary':
+            encoded_data[feature] = binary_encode_data(values)
+    return encoded_data
+
 
 #for nested lists:
 def convert_to_tensor(data, dtype):
@@ -120,22 +178,27 @@ def prepare_inputs_for_model(data, config):
     }
 
     for input_item in input_config:
-        print(f"Input item: {input_item}")
         input_name = input_item['name']
-        desired_dtype = dtype_mapping.get(input_item['data_type'], torch.float32)
-        raw_data = data.get(input_name, [])
-        print(f"Raw data: {raw_data}")
+        desired_dtype = dtype_mapping.get(f"TYPE_{input_item['data_type']}", torch.float32)
+        raw_data = data.get(input_name, None)
+
+        if raw_data is None:
+            raise ValueError(f"No data provided for input: {input_name}")
 
         # Convert data to the specified type
         tensor = convert_to_tensor(raw_data, desired_dtype)
 
         # Prepare dimensions specification
-        if 'dims' in input_item and input_item['dims'][0] != '-1':
+        if 'dims' in input_item:
             dims = tuple(int(d) if isinstance(d, (str, int)) and str(d).isdigit() else -1 for d in input_item['dims'])
-            if all(d != -1 for d in dims):
-                tensor = tensor.view(*dims)
-            else:
-                raise ValueError(f"Dimension mismatch for {input_name}: cannot reshape array of size {tensor.numel()} into shape {tuple(dims)}")
+            if dims != (-1,):
+                if all(d != -1 for d in dims):
+                    if tensor.numel() == 0:  # Check if tensor is empty
+                        tensor = torch.zeros(dims, dtype=desired_dtype)
+                    else:
+                        tensor = tensor.view(*dims)
+                else:
+                    raise ValueError(f"Dimension mismatch for {input_name}: cannot reshape array of size {tensor.numel()} into shape {tuple(dims)}")
 
         prepared_data[input_name] = tensor
 
