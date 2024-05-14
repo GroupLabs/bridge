@@ -86,7 +86,7 @@ def load_data(filepath: str, read=True):
 @celery_app.task(name="get_inference_task")
 def get_inference(model, data):
 
-    #x = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
+    config = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
 
     results = tc.test_infer(model, data, attention_mask_data=[[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
     output = results.get_response()
