@@ -23,18 +23,6 @@ def parse_config_from_file(file_path):
         return None  # Return None if file operation fails
     return parse_config(text)
 
-
-def parse_config_from_string(data_str):
-    data = json.loads(data_str)
-    
-    parsed_data = {
-        'input': data['_source']['input'],
-        'output': data['_source']['output']
-    }
-    
-    return parsed_data
-
-
 def parse_config(text):
     def tokenize(text):
         # Use regex to split the text into meaningful tokens
