@@ -132,29 +132,7 @@ es = Search()
 
 @app.post("/get_inference")
 async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
-    data_list = json.loads(data)
-
-    input_data = data
-    
-    #Example of valid input_data for now:
-    #change this to data inputted through Postman:
-    input_data = {
-       'input.1': [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
-      'input.2': [[0.0, 1.0], [0.0, 0.0], [0.0, 1.0], [0.0, 1.0]],
-    }
-
-    
-    #reading config and transforming data: 
-    config = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
-    parsed_config = parse_config_from_string(config)
-    model_inputs = prepare_inputs_for_model(input_data, parsed_config)
-    #formatted_model_input = format_model_inputs(model_inputs, config)
-    
-    x = get_inference(model, model_inputs) 
-    return x
-
-
-    """    try:
+    try:
         # Parse the input string to a dictionary
         data_dict = json.loads(data)
     except json.JSONDecodeError as e:
@@ -173,8 +151,7 @@ async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
     logger.info(f"{data_dict}")
     get_inference(model, data_dict)
 
-    return "hello"""
-
+    return "hello"
 
 
 # search
