@@ -3,8 +3,6 @@ from elasticsearch import Elasticsearch, BadRequestError
 from config import config
 from log import setup_logger
 from embed.e5_small import embed_passage, embed_query
-from pdf2image import convert_from_path
-import os
 
 # logger
 logger = setup_logger("elastic")
@@ -87,7 +85,7 @@ class Search:
                 raise
 
         # configure model_meta
-        try:            
+        try:
             self.es.indices.create( # may fail if index exists
                 index='model_meta', 
                 mappings={
@@ -287,42 +285,6 @@ class Search:
         logger.info(f"Hybrid search returned {len(rrf_results)} elements.")
 
         return rrf_results
-    
-
-"""
-maybe need these for pdf indexing
-"""
-# def convert_pdf_to_images(file):
-#     """
-#     Convert PDF to images
-#     """
-#     images = convert_from_path(file)
-#     # Define the directory to save images
-#     output_dir = os.path.join("tmp", "picturestmp")
-#     os.makedirs(output_dir, exist_ok=True)
-
-#     print(output_dir)
-
-#     # Save each page as an image in the specified directory
-#     for i in range(len(images)):
-#         image_path = os.path.join(output_dir, f'page{i}.jpg')
-#         images[i].save(image_path, 'JPEG')
-
-# def convert_images_to_binary(directory):
-#     """
-#     Dictionary to store image binaries
-#     """
-    
-#     image_binaries = {}
-
-#     # Iterate over all files in the directory
-#     for filename in os.listdir(directory):
-#         if filename.endswith('.jpg'):
-#             file_path = os.path.join(directory, filename)
-#             with open(file_path, 'rb') as image_file:
-#                 image_binaries[filename] = image_file.read()
-    
-#     return image_binaries
 
 
 if __name__ == "__main__":    
