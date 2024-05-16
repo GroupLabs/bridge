@@ -16,7 +16,7 @@ from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
-from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
+from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model, encode_features
 import torch
 
 
@@ -111,13 +111,28 @@ def get_inference(model, data):
         'input': response['hits']['hits'][0]['_source']['input'],
         'output': response['hits']['hits'][0]['_source']['output']
     }   
-    
+
+
+    #Added logic if the inputs must be categorial:
+    input_features = response['hits']['hits'][0]['_source'].get('input_features', [])
+    encoding_scheme = {feature['feature_name']: feature['encoding'] for feature in input_features}
+
+    """
+    encoding_scheme = {
+    'color': 'one-hot',
+    'gender': 'binary',
+    'height':'label'
+} """ #encoding scheme must be collect from model_meta in ES, but this is an example of format
+
+
+    data = encode_features(data, encoding_scheme)
+
+    logger.log(data)
+
     models_inputs = prepare_inputs_for_model(data, parsed_data)
 
-
+    logger.log(data)
         
-
-
     return models_inputs
 
 
