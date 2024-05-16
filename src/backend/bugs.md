@@ -4,7 +4,7 @@
 
 2. Damian: the load model enpoint succesfully accepts models but they do not actually get added to Azure. Works for Cody. Additionally, I can't see models loaded on the Triton server.
 
-3. Damian: Loading a PDF does not upload to ElasticSearch. Error occurs while unzipping a tesseract library file. Works for Cody. Logs:
+3. Damian: Loading a PDF does not upload to ElasticSearch. Program gets stuck unzipping a tesseract library file. Works for Cody. Logs:
 
     """
     2024-05-16 10:53:28 INFO:     192.168.80.1:59336 - "POST /load HTTP/1.1" 202 Accepted
