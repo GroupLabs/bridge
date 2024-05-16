@@ -64,7 +64,7 @@ class TritonClient:
         os.makedirs(version_path, exist_ok=True)
 
         # Move and rename model file to the version directory
-        model_destination = os.path.join(version_path, f"model.{extension}")
+        model_destination = os.path.join(version_path, f"model{extension}")
         os.rename(model_path, model_destination)
 
         # Move and rename config file to the model directory
