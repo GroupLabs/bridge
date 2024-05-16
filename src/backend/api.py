@@ -127,11 +127,10 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
-from elasticutils import Search
-es = Search()
 
 @app.post("/get_inference")
 async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
+
     try:
         # Parse the input string to a dictionary
         data_dict = json.loads(data)
@@ -139,19 +138,21 @@ async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
         logger.error(f"JSON decoding error: {e}")
         return {"error": "Invalid JSON input"}
 
-    # Logging the type of data_dict to confirm it's a dictionary
-    logger.info(f"{type(data_dict)}")
-    logger.info(f"{data_dict}")
+    
+    results = get_inference(model,data_dict)
+    
+    if results is None:
+        return "not a valid model"
 
-    # Placeholder for the get_inference function
-    # x = get_inference(model, data)
-    logger.info(f"{data_dict}")
-    logger.info(f"{data_dict}")
-    logger.info(f"{data_dict}")
-    logger.info(f"{data_dict}")
-    get_inference(model, data_dict)
+    results_serializable = {} 
 
-    return "hello"
+    for key in results.keys():
+        if type(results[key]) == list:
+            results_serializable[key] = results[key]
+        else:
+            results_serializable[key] = results[key].tolist()
+
+    return results_serializable
 
 
 # search

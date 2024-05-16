@@ -142,23 +142,22 @@ def encode_features(input_data, encoding_scheme):
         elif encoding_scheme[feature] == 'binary':
             encoded_data[feature] = binary_encode_data(values)
     return encoded_data
-
-
-#for nested lists:
-def convert_to_tensor(data, dtype):
-    """
-    Convert a list, a nested list, or an empty list of data to a tensor with the specified dtype.
-    If the data list is empty, return an appropriately shaped tensor of the given dtype with zero elements.
-    """
-    if data:  # Ensure there's data to convert
-        if isinstance(data[0], list):  # Nested lists
-            return torch.tensor(data, dtype=dtype)
-        else:
-            return torch.tensor([data], dtype=dtype)  # Single list, ensure it's nested for consistency
+def convert_to_tensor(raw_data, desired_dtype):
+    # Flatten the nested list to handle string-to-data-type conversion properly
+    flat_data = [item for sublist in raw_data for item in sublist]
+    # Handle string to data type conversion
+    if desired_dtype in [torch.int8, torch.int16, torch.int32, torch.int64]:
+        return torch.tensor([int(float(x)) for x in flat_data], dtype=desired_dtype).reshape(len(raw_data), -1)
+    elif desired_dtype in [torch.float16, torch.float32, torch.float64]:
+        return torch.tensor([float(x) for x in flat_data], dtype=desired_dtype).reshape(len(raw_data), -1)
+    elif desired_dtype == torch.bool:
+        return torch.tensor([bool(int(float(x))) for x in flat_data], dtype=desired_dtype).reshape(len(raw_data), -1)
+    elif desired_dtype in [torch.complex32, torch.complex64, torch.complex128]:
+        # Assuming complex numbers are in the format "real_part imag_part"
+        complex_data = [complex(x) for x in flat_data]
+        return torch.tensor(complex_data, dtype=desired_dtype).reshape(len(raw_data), -1)
     else:
-        return torch.tensor([], dtype=dtype).reshape(0)  # Return an empty tensor with no dimensions
-
-#transforming inputs into the right type:
+        raise ValueError(f"Unsupported data type: {desired_dtype}")
 def prepare_inputs_for_model(data, config):
     input_config = config.get('input', [])
     prepared_data = {}
@@ -176,18 +175,14 @@ def prepare_inputs_for_model(data, config):
         'TYPE_COMPLEX128': torch.complex128,
         'TYPE_BOOL': torch.bool
     }
-
     for input_item in input_config:
         input_name = input_item['name']
         desired_dtype = dtype_mapping.get(f"TYPE_{input_item['data_type']}", torch.float32)
         raw_data = data.get(input_name, None)
-
         if raw_data is None:
             raise ValueError(f"No data provided for input: {input_name}")
-
         # Convert data to the specified type
         tensor = convert_to_tensor(raw_data, desired_dtype)
-
         # Prepare dimensions specification
         if 'dims' in input_item:
             dims = tuple(int(d) if isinstance(d, (str, int)) and str(d).isdigit() else -1 for d in input_item['dims'])
@@ -199,7 +194,6 @@ def prepare_inputs_for_model(data, config):
                         tensor = tensor.view(*dims)
                 else:
                     raise ValueError(f"Dimension mismatch for {input_name}: cannot reshape array of size {tensor.numel()} into shape {tuple(dims)}")
-
         prepared_data[input_name] = tensor
 
     return prepared_data

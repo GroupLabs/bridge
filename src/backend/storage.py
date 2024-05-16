@@ -17,6 +17,7 @@ from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
+import torch
 
 
 
@@ -88,30 +89,37 @@ def load_data(filepath: str, read=True):
 
 @celery_app.task(name="get_inference_task")
 def get_inference(model, data):
+    search_body = { #finds the document id which has the model name.
+    "query": {
+        "match": {
+            "model_name": model
+            }
+        }
+    }
+
+    response = es.search(index="model_meta", body=search_body)
+
+    
+
+    hit = response['hits']['hits']
+
+    if not hit:
+        logger.info("Model is not present in Elastic Search")
+        return
+    else:
+        parsed_data = {
+        'input': response['hits']['hits'][0]['_source']['input'],
+        'output': response['hits']['hits'][0]['_source']['output']
+    }   
+    
+    models_inputs = prepare_inputs_for_model(data, parsed_data)
 
 
-    config = es.retrieve_document_by_id("2TT8d48BFoLtwXZJB04l", "model_meta")
-    parsed_config = parse_config_from_string(config)
-    model_inputs = prepare_inputs_for_model(data, parsed_config)
-    #formatted_model_input = format_model_inputs(model_inputs, config)
-    logger.info(f"THIS IS PARSED_CONFIG")
-    logger.info(f"THIS IS PARSED_CONFIG")
-    logger.info(f"{parsed_config}")
-    logger.info(f"{parsed_config}")
-    logger.info(f"{parsed_config}")
-    logger.info(f"{parsed_config}")
-    logger.info(f"{parsed_config}")
-    logger.info(f"{parsed_config}")
-    logger.info(f"THIS IS modelinputs")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    logger.info(f"{model_inputs}")
-    return "hello"
+        
+
+
+    return models_inputs
+
 
 
 @celery_app.task(name="load_model_task")
