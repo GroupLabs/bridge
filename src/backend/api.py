@@ -8,13 +8,16 @@ from fastapi.responses import StreamingResponse
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query
+from storage import load_data, load_model, query, get_inference
 from serverutils import Health, Status, Load
 from serverutils import Query
 
 from serverutils import ChatRequest
 from ollama import chat,gen
 from config import config
+from integration_layer import parse_config_from_string
+from integration_layer import prepare_inputs_for_model
+from integration_layer import format_model_inputs
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -70,6 +73,7 @@ async def get_task_result(task_id: str):
 # accepts path to data (unstructurded | structured)
 # returns ok
 
+
 @app.post("/load_by_path")
 async def load_data_by_path(input: Load, response: Response):
     try:
@@ -122,6 +126,34 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         logger.warn(f"LOAD incomplete: {model.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
+
+@app.post("/get_inference")
+async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
+
+    try:
+        # Parse the input string to a dictionary
+        data_dict = json.loads(data)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decoding error: {e}")
+        return {"error": "Invalid JSON input"}
+
+    
+    results = get_inference(model,data_dict)
+    
+    if results is None:
+        return "not a valid model"
+
+    results_serializable = {} 
+
+    for key in results.keys():
+        if type(results[key]) == list:
+            results_serializable[key] = results[key]
+        else:
+            results_serializable[key] = results[key].tolist()
+
+    return results_serializable
+
 
 # search
 # accepts NL query
