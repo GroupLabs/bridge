@@ -8,10 +8,8 @@ import json
 
 from log import setup_logger
 from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
-from serverutils import Health, Status, Load
-from serverutils import Query
-from storage import load_data, load_model, query, get_inference
 from serverutils import Health, Status, Load, Query
+
 
 from serverutils import ChatRequest
 # from ollama import chat, gen
@@ -196,6 +194,19 @@ async def nl_query(input: Query):
 #     chat_stream = chat(messages) # asynchronous generator
 
 #     return StreamingResponse(chat_stream, media_type="text/plain")
+# @app.post("/chat")
+# async def chat_with_model(chat_request: ChatRequest):
+#     chat_generator = gen(chat_request.message)
+#     return chat_generator
+
+# this one streams
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
 
 # async def json_stream(async_generator):
 #     yield '{"messages":['
@@ -223,6 +234,7 @@ async def nl_query(input: Query):
 #     logger.info(f"QUERY success: {query_str}")
 #     return resp
     # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
+
 
 
 
