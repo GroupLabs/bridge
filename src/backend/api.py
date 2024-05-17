@@ -4,16 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import os
-from fastapi.responses import StreamingResponse
 import json
 
 from log import setup_logger
 from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
 from serverutils import Health, Status, Load
 from serverutils import Query
+from storage import load_data, load_model, query, get_inference
+from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
-from ollama import chat,gen
+# from ollama import chat, gen
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
@@ -72,7 +73,6 @@ async def get_task_result(task_id: str):
 # load collection (dir)/document (pdf, txt) or database (postgres, mssql, duckdb)/table (csv, tsv, parquet)
 # accepts path to data (unstructurded | structured)
 # returns ok
-
 
 @app.post("/load_by_path")
 async def load_data_by_path(input: Load, response: Response):
@@ -179,10 +179,19 @@ async def nl_query(input: Query):
 
 #endpoint to chat with gpt-4:
 #to do: stream the response
-@app.post("/chat")
-async def chat_with_model(chat_request: ChatRequest):
-    chat_generator = gen(chat_request.message)
-    return chat_generator
+# @app.post("/chat")
+# async def chat_with_model(chat_request: ChatRequest):
+#     chat_generator = gen(chat_request.message)
+#     return chat_generator
+
+# this one streams
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
 
 # async def json_stream(async_generator):
 #     yield '{"messages":['
@@ -212,13 +221,7 @@ async def chat_with_model(chat_request: ChatRequest):
     # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
 
-# @app.get("/llm")
-# async def llm_query(input: Query):
-#     messages = [{"role": "user", "content": input.query}]
-    
-#     chat_stream = chat(messages) # asynchronous generator
 
-#     return StreamingResponse(chat_stream, media_type="text/plain")
 
 
 if __name__ == "__main__":
