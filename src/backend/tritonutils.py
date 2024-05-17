@@ -167,6 +167,8 @@ def send_inference_request(model_name, model_version, input_data, server_url="ht
     
 
     # Create the request payload
+    #call format_model_inputs to create a payload of this form:
+    
     #example format: 
     """{
             "inputs": [
@@ -216,11 +218,8 @@ def send_inference_request(model_name, model_version, input_data, server_url="ht
     # Process and return the response
     return response.json()
 
-# Example usage
-if __name__ == "__main__":
+
   
-
-
 if __name__ == "__main__":
     tc = TritonClient()
     #tc.addToModels("/Users/codycf/Desktop/arvo/bridge/src/backend/models/distil_alert_v1.pt", "/Users/codycf/Desktop/arvo/bridge/src/backend/configs/config.pbtxt")
