@@ -24,8 +24,6 @@ TEMP_DIR = config.TEMP_DIR
 logger = setup_logger("api")
 logger.info("LOGGER READY")
 
-
-
 # https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
 async def lifespan(app: FastAPI):
