@@ -10,7 +10,6 @@ from log import setup_logger
 from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
 from serverutils import Health, Status, Load, Query
 
-
 from serverutils import ChatRequest
 # from ollama import chat, gen
 # from ollama import chat, gen
@@ -23,8 +22,6 @@ TEMP_DIR = config.TEMP_DIR
 
 logger = setup_logger("api")
 logger.info("LOGGER READY")
-
-
 
 # https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
@@ -235,7 +232,6 @@ async def nl_query(input: Query):
 #     logger.info(f"QUERY success: {query_str}")
 #     return resp
     # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
-
 
 
 

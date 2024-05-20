@@ -76,7 +76,6 @@ class TritonClient:
 
         logger.info(f"Successfully added model to /modeltmp")
 
-
         sleep(30) # wait before loading model
         self.triton_client.load_model(model_name)
 
