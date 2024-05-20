@@ -19,9 +19,11 @@ from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
 import torch
 
-
-
 import PyPDF2
+
+import mlflow
+from mlflow.tracking import MlflowClient
+from mlflow.exceptions import MlflowException
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
@@ -293,6 +295,38 @@ def _db(db_type, host, user, password):
                 es.insert_document(fields, index="table_meta")
                 
                 print("stored: " + file.split(".")[0])
+
+
+def get_next_version(model_name: str) -> int:
+    client = MlflowClient()
+    try:
+        versions = client.get_latest_versions(model_name, stages=["None", "Staging", "Production"])
+        if versions:
+            latest_version = max([int(v.version) for v in versions])
+            return latest_version + 1
+        else:
+            return 1
+    except MlflowException as e:
+        if "RESOURCE_DOES_NOT_EXIST" in str(e):
+            client.create_registered_model(model_name)
+            return 1
+        else:
+            raise
+
+def add_model_to_mlflow(model_path):
+    model_name = os.path.splitext(os.path.basename(model_path))[0]
+
+    try:
+        version = get_next_version(model_name)
+        with mlflow.start_run():
+            logger.info("Logging to MLflow.")
+            mlflow.log_param("model_name", model_name)
+            mlflow.log_param("model_version", version)
+            mlflow.log_artifact(local_path=model_path, artifact_path="triton_models")
+            mlflow.register_model(model_uri=f"runs:/{mlflow.active_run().info.run_id}/model", name=model_name)
+    except Exception as e:
+        logger.error(f"Failed to log to MLflow: {str(e)}")
+
 
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
