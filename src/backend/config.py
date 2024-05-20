@@ -40,4 +40,4 @@ class config:
     MODEL_CONTAINER_NAME = str(os.getenv('MODEL_CONTAINER_NAME', "x"))
     MODEL_SOURCE_FOLDER = str(os.getenv('MODEL_SOURCE_FOLDER', "x"))
 
-    MLFLOW_TRACKING_URI="http://localhost:5000"
+    MLFLOW_TRACKING_URI="http://mlflow:5000"

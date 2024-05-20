@@ -210,7 +210,7 @@ services:
       - "9000:9000"
       - "9001:9001"
       - "9002:9002"
-    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=none --http-port=9000 --grpc-port=9001
+    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=explicit --http-port=9000 --grpc-port=9001
 
   mlflow:
     image: api  # Assuming your API image includes MLflow

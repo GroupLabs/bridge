@@ -30,6 +30,12 @@ CELERY_BROKER_URL = config.CELERY_BROKER_URL
 # logger
 logger = setup_logger("storage")
 
+mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
+
+with mlflow.start_run():
+    mlflow.log_param("test", "value")
+    print("Logged test parameter to MLflow.")
+
 # celery config
 celery_app = Celery(
     "worker",
