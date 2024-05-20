@@ -9,11 +9,18 @@ from log import setup_logger
 import numpy as np
 from config import config
 from azure.storage.blob import ContainerClient, BlobType
+import mlflow
+from mlflow.tracking import MlflowClient
 
 from time import sleep # TODO remove this
 
 # logger
 logger = setup_logger("triton")
+mlflow.set_tracking_uri("http://mlflow:5000")
+
+with mlflow.start_run():
+    mlflow.log_param("test", "value")
+    print("Logged test parameter to MLflow.")
 
 class TritonClient:
 
@@ -36,6 +43,7 @@ class TritonClient:
         self.triton_client = httpclient.InferenceServerClient(
             url=url, verbose=verbose
         )
+        self.mlflow_client = MlflowClient()
 
         if self.triton_client.is_server_ready():
             logger.info("Triton is available")
@@ -75,6 +83,16 @@ class TritonClient:
         _upload(base_path, config.AZURE_CONNECTION_STRING, config.MODEL_CONTAINER_NAME)
 
         logger.info(f"Successfully added model to /modeltmp")
+
+        try:
+            with mlflow.start_run():
+                logger.info("Logging to MLflow.")
+                mlflow.log_param("model_name", model_name)
+                mlflow.log_param("model_version", 1)
+                mlflow.log_artifact(local_path=base_path, artifact_path="triton_models")
+        except Exception as e:
+            logger.error(f"Failed to log to MLflow: {str(e)}")
+
 
         sleep(30) # wait before loading model
         self.triton_client.load_model(model_name)
