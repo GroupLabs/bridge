@@ -178,6 +178,7 @@ services:
       - AZURE_CONNECTION_STRING=${AZURE_CONNECTION_STRING}
       - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
     depends_on:
@@ -209,7 +210,21 @@ services:
       - "9000:9000"
       - "9001:9001"
       - "9002:9002"
-    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=explicit --http-port=9000 --grpc-port=9001 
+    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=none --http-port=9000 --grpc-port=9001
+
+  mlflow:
+    image: api  # Assuming your API image includes MLflow
+    networks:
+      - bridge-net
+    environment:
+      - BACKEND_STORE_URI=sqlite:///mlflow.db
+      - ARTIFACT_ROOT=./artifacts
+    volumes:
+      - ./mlflow:/mlflow
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./artifacts --host 0.0.0.0 --port 5000
 
 volumes:
   certs:
