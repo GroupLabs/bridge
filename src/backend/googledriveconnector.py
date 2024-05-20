@@ -4,6 +4,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
+#to do: 
+#Connect to an entire organizations workspace, not individual user
+#connect to gmail, google notes... all other google apps
+#store and autogenerate metadata in ES, link that metadata to actual data using an external ID
+#read the metadata upon request
+
 # Path to your OAuth 2.0 client credentials file
 CLIENT_SECRETS_FILE = 'client_secret_324332669662-3gvuu44796go6v2t3lukejgjn350rpiu.apps.googleusercontent.com.json'
 SCOPES = ['https://www.googleapis.com/auth/drive']
