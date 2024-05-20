@@ -177,7 +177,6 @@ services:
       - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
     depends_on:
