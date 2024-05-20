@@ -19,20 +19,13 @@ from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
-import mlflow
-from mlflow.tracking import MlflowClient
-from mlflow.exceptions import MlflowException
 
 TEMP_DIR = config.TEMP_DIR
 
 logger = setup_logger("api")
 logger.info("LOGGER READY")
 
-mlflow.set_tracking_uri("http://mlflow:5000")
 
-with mlflow.start_run():
-    mlflow.log_param("test", "value")
-    print("Logged test parameter to MLflow.")
 
 # https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
