@@ -49,6 +49,7 @@ celery_app = Celery(
 
 celery_app.conf.update(
     broker_connection_retry_on_startup=True,
+    broker_connection_retry_on_startup=True,
     task_serializer='json',
     accept_content=['json'],  # Ignore other content
     result_serializer='json',
@@ -59,6 +60,12 @@ celery_app.conf.update(
 # elasticsearch
 es = Search()
 
+
+try:
+    # triton server
+    tc = TritonClient()
+except Exception as e:
+    print(f"Triton not available: {e}")
 
 try:
     # triton server
