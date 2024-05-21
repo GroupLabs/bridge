@@ -3,6 +3,8 @@ from elasticsearch import Elasticsearch, BadRequestError
 from config import config
 from log import setup_logger
 from embed.e5_small import embed_passage, embed_query
+from datetime import datetime
+
 
 # logger
 logger = setup_logger("elastic")
@@ -22,6 +24,33 @@ class Search:
         client_info = self.es.info()
         logger.info("ES is available")
         logger.info(str(client_info))
+
+
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='file_meta', 
+                mappings={
+                    'properties': {
+                        'file_type': {'type': 'keyword'},
+                        'file_id': {'type': 'keyword'},
+                        'file_name': {'type': 'text'},
+                        'file_description': {'type': 'text'},
+                        'file_size': {'type': 'long'},
+                        'permissions': {
+                            'type': 'nested',
+                            'properties': {
+                                'person': {'type': 'keyword'},
+                                'permission': {'type': 'keyword'}
+                            }
+                        },
+                        'last_modified_time': {'type': 'date'},
+                        'created_time': {'type': 'date'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
 
         # configure text_chunk
         try:
@@ -133,7 +162,8 @@ class Search:
         self.registered_indices = [
             "text_chunk",
             "table_meta",
-            "model_meta"
+            "model_meta",
+            "file_meta"
         ]
 
         logger.info("Indices Registered.")
@@ -162,7 +192,11 @@ class Search:
         if index == "model_meta":
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['colbert'] = {}
-            
+
+        if index == "file_meta":
+            document['created_time'] = datetime.utcfromtimestamp(document['created_time']).isoformat()
+            document['last_modified_time'] = datetime.utcfromtimestamp(document['last_modified_time']).isoformat()
+        
         logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
