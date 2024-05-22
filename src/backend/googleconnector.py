@@ -4,6 +4,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from datetime import datetime, timedelta, timezone
+import base64
+from email.mime.text import MIMEText
 
 #to do: 
 #Connect to an entire organizations workspace, not individual user
@@ -15,7 +17,8 @@ from datetime import datetime, timedelta, timezone
 CLIENT_SECRETS_FILE = '/Users/kevin/Downloads/client_secret_314321330211-32eu8fe8sot2qobjgaefq2pgtf2e2bq0.apps.googleusercontent.com.json'
 SCOPES = [
     'https://www.googleapis.com/auth/drive',
-    'https://www.googleapis.com/auth/calendar.readonly'
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/gmail.readonly'
 ]
 
 def authenticate():
@@ -32,6 +35,11 @@ def build_service(creds):
 def build_calendar_service(creds):
     # Build the Calendar API client
     service = build('calendar', 'v3', credentials=creds)
+    return service
+
+def build_gmail_service(creds):
+    # Build the Gmail API client
+    service = build('gmail', 'v1', credentials=creds)
     return service
 
 def list_files(service):
@@ -99,11 +107,41 @@ def list_calendar_events(service):
             end = event['end'].get('dateTime', event['end'].get('date'))
             print(f"{event['summary']} - 'start': {start} - 'end': {end}")
 
+def list_messages(service, user_id, label_ids=[], max_results=10):
+    results = service.users().messages().list(userId=user_id, labelIds=label_ids, maxResults=max_results).execute()
+    messages = results.get('messages', [])
+    return messages
+
+def get_message(service, user_id, msg_id):
+    msg = service.users().messages().get(userId=user_id, id=msg_id, format='full').execute()
+    return msg
+
+def print_emails(service, label_id, message_type):
+    messages = list_messages(service, 'me', [label_id])
+    for msg in messages:
+        msg_data = get_message(service, 'me', msg['id'])
+        msg_payload = msg_data['payload']
+        msg_headers = msg_payload['headers']
+        msg_subject = next(header['value'] for header in msg_headers if header['name'] == 'Subject')
+        msg_body = ''
+        
+        if 'data' in msg_payload['body']:
+            msg_body = base64.urlsafe_b64decode(msg_payload['body']['data']).decode('utf-8')
+        elif 'parts' in msg_payload:
+            for part in msg_payload['parts']:
+                if part['mimeType'] == 'text/plain':
+                    msg_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                    break
+        
+        msg_body_excerpt = ' '.join(msg_body.split()[:10]) + '...'
+        print(f"{message_type} - {msg_subject} - {msg_body_excerpt}")
+
 # Example usage
 if __name__ == '__main__':
     creds = authenticate()
     service = build_service(creds)
     calendar_service = build_calendar_service(creds)
+    gmail_service = build_gmail_service(creds)
 
     print("Listing all files in Google Drive:")
     list_files(service)
@@ -113,3 +151,9 @@ if __name__ == '__main__':
 
     print("\nListing upcoming events in Google Calendar for the next week:")
     list_calendar_events(calendar_service)
+
+    print("\nListing last 10 emails received:")
+    print_emails(gmail_service, 'INBOX', 'Received')
+
+    print("\nListing last 10 emails sent:")
+    print_emails(gmail_service, 'SENT', 'Sent')
