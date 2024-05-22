@@ -78,7 +78,7 @@ def load_data(filepath: str, read=True):
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-            pass
+            _text(filepath, read_text=read)
 
         # mix
         elif pathtype == "dir":
@@ -253,6 +253,53 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
         es.insert_document(fields, index="document_meta")
     
+    os.remove(filepath)
+
+#for txt files:
+def _text(filepath, read_text=True, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_text:  # read text file
+        try:
+            with open(filepath, 'r', encoding='utf-8') as file:
+                content = file.read()
+                elements = content.split('\n\n')  # Split by paragraphs or your preferred chunking method
+        except Exception as e:
+            logger.error(f"Failed to read text file: {e}")
+            return
+
+        if elements is not None:
+            for i, e in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in e if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk)  # Add space after punctuation
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": formatted_chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number": 1,  # For text files, consider page_number as 1
+                }
+
+                # Insert the document into Elasticsearch
+                es.index(index="text_chunk", body=fields)
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.index(index="document_meta", body=fields)
+
     os.remove(filepath)
 
 
