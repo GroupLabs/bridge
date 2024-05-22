@@ -28,7 +28,7 @@ def build_service(creds):
     return service
 
 def list_files(service):
-    results = service.files().list(pageSize=100, fields="files(id, name, mimeType)").execute()
+    results = service.files().list(pageSize=1000, fields="files(id, name, mimeType)").execute()
     items = results.get('files', [])
     if not items:
         print('No files found.')
@@ -71,7 +71,7 @@ def download_file(service, file_name):
             print(f"Download {int(status.progress() * 100)}%.")
         print(f"File downloaded as {file_name}")
     else:
-        print(f"File named {file_name} not found.")
+        print(f"File named {file_name} not found.")       
 
 # Example usage
 if __name__ == '__main__':

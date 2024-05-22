@@ -1,3 +1,4 @@
+from datetime import datetime
 import unicodedata
 import os
 import yaml
@@ -48,6 +49,40 @@ es = Search()
 
 # triton server
 tc = TritonClient()
+
+def extract_metadata(file):
+    metadata = {
+        "file_type": file.get('mimeType'),
+        "file_id": file.get('id'),
+        "file_name": file.get('name'),
+        "file_description": "Auto-generated description",
+        "file_size": file.get('size', 0),
+        "permissions": {},  # Populate with actual permissions
+        "last_modified_time": datetime.strptime(file.get('modifiedTime'), "%Y-%m-%dT%H:%M:%S.%fZ"),
+        "created_time": datetime.strptime(file.get('createdTime'), "%Y-%m-%dT%H:%M:%S.%fZ")
+    }
+    return metadata
+
+def store_metadata_in_es(metadata):
+    es.insert_document(metadata, index='file_meta')
+
+def list_files(service):
+    results = service.files().list(pageSize=100, fields="files(id, name, mimeType, size, modifiedTime, createdTime)").execute()
+    items = results.get('files', [])
+    if not items:
+        print('No files found.')
+    else:
+        print('Files:')
+        for item in items:
+            print(f"{item['name']} ({item['id']}) - {item['mimeType']}")
+    return items
+
+@celery_app.task(name="process_google_drive_files")
+def process_google_drive_files(service):
+    files = list_files(service)
+    for file in files:
+        metadata = extract_metadata(file)
+        store_metadata_in_es(metadata)
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
@@ -229,7 +264,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     "chunk_text": formatted_chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number": page_number,
+                    
                 }
 
                 # Insert the document into Elasticsearch
