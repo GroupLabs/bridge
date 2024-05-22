@@ -148,19 +148,25 @@ class Search:
     
     # load ops
     def insert_document(self, document: any, index: str):
-
+        logger.info("0")
         # add embeddings
         if index == "text_chunk":
+            logger.info("1")
             document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+            #document['e5'] = [0.0, 0.0, 0.1]
             document['colbert'] = {}
 
         if index == "table_meta":
-            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            logger.info("2")
+            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['e5'] = [0.0, 0.0, 0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
         if index == "model_meta":
-            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            logger.info("3")
+            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['e5'] = [0.0, 0.0, 0.1]
             document['colbert'] = {}
             
         logger.info("Inserting document.")

@@ -263,18 +263,23 @@ def _text(filepath, read_text=True, chunking_strategy="by_title"):
         try:
             with open(filepath, 'r', encoding='utf-8') as file:
                 content = file.read()
+                logger.info(f"content: {content}")
                 elements = content.split('\n\n')  # Split by paragraphs or your preferred chunking method
+                logger.info(f"elements: {elements}")
         except Exception as e:
             logger.error(f"Failed to read text file: {e}")
             return
 
         if elements is not None:
             for i, e in enumerate(elements):
+                logger.info(f"element: .\run.bat{e}")
                 chunk = "".join(
                     ch for ch in e if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
-
+                
                 formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk)  # Add space after punctuation
+                
+                logger.info(formatted_chunk)
 
                 fields = {
                     "document_id": doc_id,  # document id from path
@@ -286,8 +291,8 @@ def _text(filepath, read_text=True, chunking_strategy="by_title"):
                 }
 
                 # Insert the document into Elasticsearch
-                es.index(index="text_chunk", body=fields)
-
+                es.insert_document(document=fields, index="text_chunk")
+                
     else:
         fields = {
             "access_group": "",  # not yet implemented
@@ -298,7 +303,7 @@ def _text(filepath, read_text=True, chunking_strategy="by_title"):
             "data_hash": "not implemented"
         }
 
-        es.index(index="document_meta", body=fields)
+        es.insert_document(document=fields, index="document_meta")
 
     os.remove(filepath)
 

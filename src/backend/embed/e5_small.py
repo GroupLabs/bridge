@@ -1,5 +1,5 @@
 import torch.nn.functional as F
-
+from log import setup_logger
 from torch import Tensor
 from transformers import AutoTokenizer, AutoModel
 
@@ -33,9 +33,14 @@ def embed_query(query, max_len=E5_SMALL_MAX_LEN):
     return average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
 
 def embed_passage(passage, max_len=E5_SMALL_MAX_LEN):
+    print("balls")
     input_text = "passage: " + passage
+    print(input_text)
     batch_dict = tokenizer(input_text, max_length=max_len, padding=True, truncation=True, return_tensors='pt')
+    print(f"batch dict: {batch_dict}")
+    #stops working here!!!!!!!!!!!!!!!!!!!!!!!
     outputs = model(**batch_dict)
+    print(f"output: {outputs}")
     return average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
 
 
