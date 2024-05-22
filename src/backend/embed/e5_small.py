@@ -16,8 +16,8 @@ EMB_MODEL = "intfloat/e5-small-v2"
 cache_dir = os.getenv('HF_HOME', '/app/cache/huggingface')
 
 try:
-    tokenizer = AutoTokenizer.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
-    model = AutoModel.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(EMB_MODEL)
+    model = AutoModel.from_pretrained(EMB_MODEL)
 except EnvironmentError as e:
     print(f"{EMB_MODEL} not available")
 

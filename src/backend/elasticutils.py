@@ -158,8 +158,8 @@ class Search:
 
         if index == "table_meta":
             logger.info("2")
-            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
-            document['e5'] = [0.0, 0.0, 0.1]
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            #document['e5'] = [0.0, 0.0, 0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
