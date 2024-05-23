@@ -1,15 +1,20 @@
 
 from fastapi import Depends, FastAPI, Response, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import os
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
+from storage import load_data, load_model, query, get_inference
 from serverutils import Health, Status, Load, Query
 
+from serverutils import ChatRequest
 from config import config
+from integration_layer import parse_config_from_string
+from integration_layer import prepare_inputs_for_model
+from integration_layer import format_model_inputs
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -43,6 +48,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
 
 @app.get("/health-check")
 async def health_endpoint():
@@ -108,10 +114,6 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
 
-        add_model_to_mlflow(model_path)
-
-        add_model_to_mlflow(model_path)
-
         task = load_model.delay(model=model_path, config=config_path, description=description)
         response.status_code = 202
         logger.info(f"LOAD accepted: {model.filename}")
@@ -168,6 +170,53 @@ async def nl_query(input: Query):
     logger.info(f"QUERY success: {input.query}")
 
     return {"health": health, "status" : "success", "resp" : resp}
+
+#endpoint to chat with gpt-4:
+#to do: stream the response
+# @app.post("/chat")
+# async def chat_with_model(chat_request: ChatRequest):
+#     chat_generator = gen(chat_request.message)
+#     return chat_generator
+
+# this one streams
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
+
+# async def json_stream(async_generator):
+#     yield '{"messages":['
+#     first = True
+#    async for item in async_generator:
+#         if not first:
+#             yield ','
+#         first = False
+#         yield json.dumps(item)
+#     yield ']}'
+
+# from typing import Optional
+# from fastapi import Query, FastAPI
+
+# @app.get("/query")
+# async def nl_query(query_str: str = Query(..., alias="query"), use_llm: Optional[bool] = False):
+#     resp = query(query_str)
+
+#     if use_llm:
+#         context_list = [x["fields"]["text"] for x in resp.hits]
+#         prompt = f"{query_str}\n"
+#         prompt += "Use the following for context:\n"
+#         prompt += " ".join(context_list)
+
+#     logger.info(f"QUERY success: {query_str}")
+#     return resp
+    # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
+
+
+
+
 
 if __name__ == "__main__":
     import uvicorn

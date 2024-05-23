@@ -1,9 +1,11 @@
 from enum import Enum, unique
 import os
+import sys
 
 from dotenv import dotenv_values
 
 # TODO: consider renaming MODEL_REPOSITORY(.*) to MODEL_REPO(.*) across the codebase for brevity and consistency
+# TODO: consider using click for the CLI interface
 
 HOME_PATH = os.path.expanduser("~")
 
@@ -17,7 +19,13 @@ OLLAMA_PATH = os.path.join(HOME_PATH, OLLAMA_DIR_NAME)
 MODEL_REPOSITORY_PATH = os.path.join(HOME_PATH, MODEL_REPOSITORY_DIR_NAME)
 
 def escape_dot_env_value(value):
+    # dotenv_values() returns all values as strings
     return value.replace("\\", "\\\\")
+
+def write_config_at_path(config, path):
+    with open(path, "w") as f:
+        for key, value in config.items():
+            f.write(f"{key}={escape_dot_env_value(value)}\n")
 
 @unique
 class ReuseChoice(Enum):
@@ -97,16 +105,16 @@ def update_config_from_prompts(config):
     reuse_ollama, reuse_model_repo = ReuseChoice.to_reuse_tuple(choice)
 
     if reuse_ollama:
-        config[OLLAMA_PATH_ENV_VAR] = escape_dot_env_value(OLLAMA_PATH)
+        config[OLLAMA_PATH_ENV_VAR] = OLLAMA_PATH
     else:
         path = input(f"Enter the path where you want to create the {OLLAMA_DIR_NAME} directory. Leave empty to use {OLLAMA_PATH}:\n")
-        config[OLLAMA_PATH_ENV_VAR] = escape_dot_env_value(path) if path else escape_dot_env_value(OLLAMA_PATH)
+        config[OLLAMA_PATH_ENV_VAR] = path if path else OLLAMA_PATH
     
     if reuse_model_repo:
-        config[MODEL_REPOSITORY_PATH_ENV_VAR] = escape_dot_env_value(MODEL_REPOSITORY_PATH)
+        config[MODEL_REPOSITORY_PATH_ENV_VAR] = MODEL_REPOSITORY_PATH
     else:
         path = input(f"Enter the path where you want to create the {MODEL_REPOSITORY_DIR_NAME} directory. Leave empty to use {MODEL_REPOSITORY_PATH}:\n")
-        config[MODEL_REPOSITORY_PATH_ENV_VAR] = escape_dot_env_value(path) if path else escape_dot_env_value(MODEL_REPOSITORY_PATH)
+        config[MODEL_REPOSITORY_PATH_ENV_VAR] = path if path else MODEL_REPOSITORY_PATH
     
 if __name__ == "__main__":
     file_path = os.path.realpath(__file__)
@@ -117,13 +125,19 @@ if __name__ == "__main__":
 
     dot_env = os.path.join(deployment, ".env")
 
-    if os.path.exists(dot_env):
+    if ("--force" not in sys.argv) & os.path.exists(dot_env):
         print(f"Found .env file at `{dot_env}`. Skipping creation.")
-        exit(0)
+        exit()
 
     example_dot_env = os.path.join(deployment, ".env.example")
 
     config = dotenv_values(example_dot_env)
+
+    if "--skip-prompts" in sys.argv:
+        config[OLLAMA_PATH_ENV_VAR] = OLLAMA_PATH
+        config[MODEL_REPOSITORY_PATH_ENV_VAR] = MODEL_REPOSITORY_PATH
+        write_config_at_path(config, dot_env)
+        exit()
 
     update_config_from_prompts(config)
 
@@ -131,7 +145,7 @@ if __name__ == "__main__":
     print()
     print('```.env')
     for key, value in config.items():
-        print(f"{key}={value}")
+        print(f"{key}={escape_dot_env_value(value)}")
     print('```')
     print()
 
@@ -140,8 +154,20 @@ if __name__ == "__main__":
         print("Aborted.")
         exit()
     
-    with open(dot_env, "w") as f:
-        for key, value in config.items():
-            f.write(f"{key}={value}\n")
-        
+    write_config_at_path(config, dot_env)
     print(f"Created an .env file at `{dot_env}`")
+
+    
+    if "--skip-prompts" in sys.argv:
+        os.makedirs(config[MODEL_REPOSITORY_PATH_ENV_VAR], exist_ok=True)
+        os.makedirs(config[OLLAMA_PATH_ENV_VAR], exist_ok=True)
+        exit()
+
+    if (not os.path.exists(config[OLLAMA_PATH_ENV_VAR])) & input(f"Do you want to create the {config[OLLAMA_PATH_ENV_VAR]} directory?") == "y":
+        os.makedirs(config[OLLAMA_PATH_ENV_VAR])
+        print(f"Created the {config[OLLAMA_PATH_ENV_VAR]} directory")
+
+    if (not os.path.exists(config[MODEL_REPOSITORY_PATH_ENV_VAR])) & input(f"Do you want to create the {config[MODEL_REPOSITORY_PATH_ENV_VAR]} directory?") == "y":
+        os.makedirs(config[MODEL_REPOSITORY_PATH_ENV_VAR])
+        print(f"Created the {config[MODEL_REPOSITORY_PATH_ENV_VAR]} directory")
+

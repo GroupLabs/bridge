@@ -43,5 +43,14 @@ Long - Term ( 12 months )
 5. Action & Insight Generation - Generate informed actionable steps or provide insightful
 recommendations, empowering users with clarity and direction.
 
+## Running the Github Actions locally
+
+Install the [`act`](https://github.com/nektos/act) tool.
+
+Run the desired job:
+
+```console
+act --job run-e2e-tests
+```
 
 https://www.kaggle.com/datasets/technika148/football-database?select=games.csv

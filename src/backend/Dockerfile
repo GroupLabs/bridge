@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-eng \
     libtesseract-dev \
     libgl1-mesa-glx \
+    jq \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
