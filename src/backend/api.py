@@ -7,10 +7,11 @@ import os
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference
+from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
+# from ollama import chat, gen
 # from ollama import chat, gen
 from config import config
 from integration_layer import parse_config_from_string
@@ -115,6 +116,10 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
 
+        add_model_to_mlflow(model_path)
+
+        add_model_to_mlflow(model_path)
+
         task = load_model.delay(model=model_path, config=config_path, description=description)
         response.status_code = 202
         logger.info(f"LOAD accepted: {model.filename}")
@@ -174,6 +179,19 @@ async def nl_query(input: Query):
 
 #endpoint to chat with gpt-4:
 #to do: stream the response
+# @app.post("/chat")
+# async def chat_with_model(chat_request: ChatRequest):
+#     chat_generator = gen(chat_request.message)
+#     return chat_generator
+
+# this one streams
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
 # @app.post("/chat")
 # async def chat_with_model(chat_request: ChatRequest):
 #     chat_generator = gen(chat_request.message)
