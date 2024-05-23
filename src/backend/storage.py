@@ -17,7 +17,6 @@ from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
-import torch
 
 import PyPDF2
 
