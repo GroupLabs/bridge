@@ -3,15 +3,28 @@ import torch.nn.functional as F
 from torch import Tensor
 from transformers import AutoTokenizer, AutoModel
 
+import os
+
+import warnings
+
+# Suppress specific FutureWarning from huggingface_hub
+warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
+
 E5_SMALL_MAX_LEN = 512
+EMB_MODEL = "intfloat/e5-small-v2"
+
+cache_dir = os.getenv('HF_HOME', '/app/cache/huggingface')
+
+try:
+    tokenizer = AutoTokenizer.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
+    model = AutoModel.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
+except EnvironmentError as e:
+    print(f"{EMB_MODEL} not available")
 
 def average_pool(last_hidden_states: Tensor,
                  attention_mask: Tensor) -> Tensor:
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
-
-tokenizer = AutoTokenizer.from_pretrained('intfloat/e5-small-v2')
-model = AutoModel.from_pretrained('intfloat/e5-small-v2')
 
 def embed_query(query, max_len=E5_SMALL_MAX_LEN):
     input_text = "query: " + query

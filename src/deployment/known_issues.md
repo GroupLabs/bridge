@@ -1,5 +1,10 @@
 - need to adjust encryption key in .env
 - celery workers are being run as super users
+    - don't solve this. its ok because its in a contianer, and the permissions are required for some actions.
+
+
+
+
 - ollama needs to be run manually
 - should ollama url be local host?
 - switch celery back to forks, instead of gevents

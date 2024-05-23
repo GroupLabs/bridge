@@ -17,11 +17,11 @@ from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
-import torch
-
-
-
 import PyPDF2
+
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="celery.platforms")
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
@@ -36,6 +36,7 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    broker_connection_retry_on_startup=True,
     task_serializer='json',
     accept_content=['json'],  # Ignore other content
     result_serializer='json',
@@ -46,8 +47,12 @@ celery_app.conf.update(
 # elasticsearch
 es = Search()
 
-# triton server
-tc = TritonClient()
+
+try:
+    # triton server
+    tc = TritonClient()
+except Exception as e:
+    print(f"Triton not available: {e}")
 
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
