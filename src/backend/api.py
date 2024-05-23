@@ -6,7 +6,7 @@ import os
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference
+from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
 from serverutils import Health, Status, Load, Query
 
 from config import config
@@ -107,6 +107,10 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
 
         with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
+
+        add_model_to_mlflow(model_path)
+
+        add_model_to_mlflow(model_path)
 
         task = load_model.delay(model=model_path, config=config_path, description=description)
         response.status_code = 202
