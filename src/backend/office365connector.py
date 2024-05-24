@@ -11,7 +11,7 @@ CLIENT_ID = '7a161cb9-b4a0-4eaa-86db-46be079c427d'
 CLIENT_SECRET = 'Z.-8Q~NZb3MbBW8QNa8luHMrjBbw3MrWXogn7b.m'
 AUTHORITY = 'https://login.microsoftonline.com/common'
 REDIRECT_URI = 'http://localhost:8080/callback'
-SCOPE = ['Files.Read']
+SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
 
 # Initialize the MSAL confidential client
 msal_app = msal.ConfidentialClientApplication(
@@ -50,20 +50,79 @@ def authenticate():
     
     return result['access_token']
 
-def list_files(access_token):
+def list_files(access_token, folder_id='root'):
     headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get('https://graph.microsoft.com/v1.0/me/drive/root/children', headers=headers)
+    response = requests.get(f'https://graph.microsoft.com/v1.0/me/drive/{folder_id}/children', headers=headers)
     if response.status_code != 200:
         raise Exception(f"Error: {response.status_code} - {response.json()}")
     
     files = response.json().get('value', [])
-    if not files:
-        print('No files found.')
-    else:
-        print('Files:')
-        for file in files:
-            print(f"{file['name']} ({file['id']}) - {file['file']['mimeType'] if 'file' in file else 'folder'}")
+    for file in files:
+        if 'folder' in file:
+            print(f"{file['name']} ({file['id']}) - folder")
+            list_files(access_token, f"items/{file['id']}")  # Recursive call
+        else:
+            print(f"{file['name']} ({file['id']}) - {file['file']['mimeType'] if 'file' in file else 'unknown'}")
     return files
+
+def list_emails(access_token, folder='inbox', top=10):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get(f'https://graph.microsoft.com/v1.0/me/mailFolders/{folder}/messages?$top={top}', headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+    
+    emails = response.json().get('value', [])
+    for email in emails:
+        print(f"Subject: {email['subject']}, Received: {email['receivedDateTime']}, From: {email['from']['emailAddress']['address']}")
+    return emails
+
+def list_calendar_events(access_token, top=10):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get(f'https://graph.microsoft.com/v1.0/me/events?$top={top}', headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+    
+    events = response.json().get('value', [])
+    for event in events:
+        print(f"Event: {event['subject']} at {event['start']['dateTime']} to {event['end']['dateTime']}")
+    return events
+
+def list_contacts(access_token):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get('https://graph.microsoft.com/v1.0/me/contacts', headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+    
+    contacts = response.json().get('value', [])
+    for contact in contacts:
+        print(f"Contact: {contact['displayName']} - {contact['emailAddresses'][0]['address'] if contact['emailAddresses'] else 'No email'}")
+    return contacts
+
+def list_tasks(access_token):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get('https://graph.microsoft.com/v1.0/me/todo/lists', headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+    
+    task_lists = response.json().get('value', [])
+    for task_list in task_lists:
+        print(f"Task List: {task_list['displayName']}")
+        tasks_response = requests.get(f'https://graph.microsoft.com/v1.0/me/todo/lists/{task_list["id"]}/tasks', headers=headers)
+        tasks = tasks_response.json().get('value', [])
+        for task in tasks:
+            print(f"  Task: {task['title']}")
+    return task_lists
+
+def list_sharepoint_sites(access_token):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get('https://graph.microsoft.com/v1.0/sites?search=*', headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+    
+    sites = response.json().get('value', [])
+    for site in sites:
+        print(f"Site: {site['displayName']} - {site['id']}")
+    return sites
 
 def download_file(access_token, file_name):
     files = list_files(access_token)
@@ -89,7 +148,26 @@ def download_file(access_token, file_name):
 # Example usage
 if __name__ == '__main__':
     access_token = authenticate()
-    print("Listing all files in OneDrive:")
-    list_files(access_token)
-    file_name_to_download = input("Enter the name of the file to download: ")
-    download_file(access_token, file_name_to_download)
+    #print("Listing all files in OneDrive:")
+    #list_files(access_token)
+    
+    print("Listing the last 10 received emails in Outlook:")
+    list_emails(access_token, folder='inbox', top=10)
+    
+    print("Listing the last 10 sent emails in Outlook:")
+    list_emails(access_token, folder='sentitems', top=10)
+    
+    print("Listing the next 10 calendar events:")
+    list_calendar_events(access_token)
+    
+    print("Listing contacts in Outlook:")
+    list_contacts(access_token)
+    
+    print("Listing tasks in Microsoft To-Do:")
+    list_tasks(access_token)
+    
+    print("Listing SharePoint sites:")
+    list_sharepoint_sites(access_token)
+    
+    #file_name_to_download = input("Enter the name of the file to download: ")
+    #download_file(access_token, file_name_to_download)
