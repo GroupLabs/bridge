@@ -6,6 +6,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from datetime import datetime, timedelta, timezone
 import base64
 from email.mime.text import MIMEText
+from dotenv import load_dotenv
 
 #to do: 
 #Connect to an entire organizations workspace, not individual user
@@ -13,8 +14,10 @@ from email.mime.text import MIMEText
 #store and autogenerate metadata in ES, link that metadata to actual data using an external ID
 #read the metadata upon request
 
+load_dotenv()
+
 # Path to your OAuth 2.0 client credentials file
-CLIENT_SECRETS_FILE = '/Users/kevin/Downloads/client_secret_314321330211-32eu8fe8sot2qobjgaefq2pgtf2e2bq0.apps.googleusercontent.com.json'
+CLIENT_SECRETS_FILE = os.getenv('CLIENT_SECRETS_FILE')
 SCOPES = [
     'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/calendar.readonly',

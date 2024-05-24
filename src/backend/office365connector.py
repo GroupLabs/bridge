@@ -5,12 +5,16 @@ import msal
 import webbrowser
 import time
 from urllib.parse import urlparse, parse_qs
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Azure AD configuration
-CLIENT_ID = '7a161cb9-b4a0-4eaa-86db-46be079c427d'
-CLIENT_SECRET = 'Z.-8Q~NZb3MbBW8QNa8luHMrjBbw3MrWXogn7b.m'
-AUTHORITY = 'https://login.microsoftonline.com/common'
-REDIRECT_URI = 'http://localhost:8080/callback'
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+AUTHORITY = os.getenv('AUTHORITY')
+REDIRECT_URI = os.getenv('REDIRECT_URI')
 SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
 
 # Initialize the MSAL confidential client
