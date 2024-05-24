@@ -166,8 +166,10 @@ if __name__ == '__main__':
     print("Listing tasks in Microsoft To-Do:")
     list_tasks(access_token)
     
-    print("Listing SharePoint sites:")
-    list_sharepoint_sites(access_token)
+
+    # Commented out because not all ms accounts have the sharepoint app
+    #print("Listing SharePoint sites:")
+    #list_sharepoint_sites(access_token)
     
     #file_name_to_download = input("Enter the name of the file to download: ")
     #download_file(access_token, file_name_to_download)
