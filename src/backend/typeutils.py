@@ -34,7 +34,22 @@ def parse_connection_string(conn_string):
             'database': match.group('database') if match.group('database') else None
         }
     else:
-        return None
+        azure_pattern = r"Server=tcp:(?P<host>[^,]+),(?P<port>\d+);\s*Database=(?P<database>[^;]+);\s*Uid=(?P<user>[^;]+);\s*Pwd=(?P<password>[^;]+);"
+                
+        match = re.search(azure_pattern, conn_string)
+
+        if match:
+            return { 
+                'database_type': "azure",
+                'host': match.group('host'),
+                'user': match.group('user'),
+                'password': match.group('password'),
+                'port': match.group('port') if match.group('port') else None,
+                'database': match.group('database') if match.group('database') else None
+                }
+
+        else:
+            return None
 
 if __name__ == "__main__":
     print(get_pathtype("api.py"))
