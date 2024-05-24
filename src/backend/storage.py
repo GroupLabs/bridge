@@ -11,6 +11,7 @@ from celery import Celery
 from unstructured.partition.pdf import partition_pdf # pikapdf dependency is not fork safe, can we remove this dep?
 
 from connect.postgres import postgres_to_yamls
+from connect.azure import azure_to_yamls
 from config import config
 from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string

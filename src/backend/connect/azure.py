@@ -1,8 +1,10 @@
 import pyodbc
 import pandas as pd
 import sys
+import os
 from pathlib import Path
 import numpy as np
+import yaml
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
@@ -140,6 +142,12 @@ def azure_to_yamls(host, username, password):
                 "description": ""
             }
             yamls.append(yaml_structure)
+
+            yaml_str = yaml.dump(yaml_structure, default_flow_style=None, sort_keys=False)
+            os.makedirs(f"models/azure/yamls", exist_ok=True)
+            with open(f"models/azure/yamls/{table}.yaml", 'w') as yaml_file:
+                yaml_file.write(yaml_str)
+
     connection.close()
     return yamls
 

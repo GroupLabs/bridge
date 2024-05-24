@@ -34,8 +34,9 @@ def parse_connection_string(conn_string):
             'database': match.group('database') if match.group('database') else None
         }
     else:
-        azure_pattern = r"Server=tcp:(?P<host>[^,]+),(?P<port>\d+);\s*Database=(?P<database>[^;]+);\s*Uid=(?P<user>[^;]+);\s*Pwd=(?P<password>[^;]+);"
-                
+        azure_pattern = r"Server=tcp:(?P<host>[^,]+),(?P<port>\d+);Initial Catalog=(?P<database>[^;]+);.*User ID=(?P<user>[^;]+);Password=(?P<password>[^;]+);.*"
+
+        # Match the connection string against the Azure pattern
         match = re.search(azure_pattern, conn_string)
 
         if match:
@@ -46,8 +47,7 @@ def parse_connection_string(conn_string):
                 'password': match.group('password'),
                 'port': match.group('port') if match.group('port') else None,
                 'database': match.group('database') if match.group('database') else None
-                }
-
+            }
         else:
             return None
 
@@ -61,6 +61,12 @@ if __name__ == "__main__":
     conn_string = 'mysql://user:password@localhost:3306/mydatabase'
     parsed = parse_connection_string(conn_string)
     print(parsed)
+
+    conn_string = 'Server=tcp:arvoserver.database.windows.net,1433;Initial Catalog=myazuredb;Persist Security Info=False;User ID=CloudSAcc8c3958;Password=Myarvodatabase24;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+    parsed = parse_connection_string(conn_string)
+    print(parsed)
+
+    
     
     # result = magika.identify_bytes(b"# Example\nThis is an example of markdown!")
     # print(result.output.ct_label)
