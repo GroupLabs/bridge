@@ -48,7 +48,6 @@ celery_app = Celery(
 
 celery_app.conf.update(
     broker_connection_retry_on_startup=True,
-    broker_connection_retry_on_startup=True,
     task_serializer='json',
     accept_content=['json'],  # Ignore other content
     result_serializer='json',
@@ -280,6 +279,8 @@ def _db(db_type, host, user, password):
         postgres_to_yamls(host, user, password)
     elif db_type == "mysql":
         raise NotImplementedError
+    elif db_type == "azure":
+        azure_to_yamls(host=host, username=user, password=password)
     else:
         raise NotImplementedError
 
