@@ -1,7 +1,7 @@
 @echo off
 docker-compose down
-cd ..\backend
+cd ..\..\..\backend
 docker build -t api .
-cd ..\deployment
+cd ..\deployment\production
 docker-compose up -d
 pause
