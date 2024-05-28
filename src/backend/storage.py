@@ -8,7 +8,9 @@ from pathlib import Path
 
 from celery import Celery
 
-from unstructured.partition.pdf import partition_pdf # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.pdf import partition_pdf  # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.text import partition_text
+
 
 from connect.postgres import postgres_to_yamls
 from config import config
@@ -48,7 +50,6 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    broker_connection_retry_on_startup=True,
     broker_connection_retry_on_startup=True,
     task_serializer='json',
     accept_content=['json'],  # Ignore other content
@@ -97,7 +98,7 @@ def load_data(filepath: str, read=True):
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-            pass
+            _txt(filepath)
 
         # mix
         elif pathtype == "dir":
@@ -254,6 +255,52 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
             "embedding" : [0],
             "last_updated" : int(time.time()), # current time in long int
             "data_hash" : "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
+
+
+def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_txt:  # read txt
+        try:
+            elements = partition_text(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+                
+
+
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
         }
 
         es.insert_document(fields, index="document_meta")

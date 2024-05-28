@@ -151,7 +151,8 @@ class Search:
 
         # add embeddings
         if index == "text_chunk":
-            document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+            #document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+            document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
 
         if index == "table_meta":
