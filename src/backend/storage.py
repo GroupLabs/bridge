@@ -10,6 +10,10 @@ from celery import Celery
 
 from unstructured.partition.pdf import partition_pdf  # pikapdf dependency is not fork safe, can we remove this dep?
 from unstructured.partition.text import partition_text
+from unstructured.partition.md import partition_md
+from unstructured.partition.doc import partition_doc
+from unstructured.partition.docx import partition_docx
+from unstructured.partition.odt import partition_odt
 
 
 from connect.postgres import postgres_to_yamls
@@ -98,7 +102,19 @@ def load_data(filepath: str, read=True):
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-            _txt(filepath)
+            _txt(filepath, read_txt=read)
+            
+        elif pathtype == "markdown":
+            _md(filepath, read_md=read)
+
+        elif pathtype == "doc":
+            _doc(filepath, read_doc=read)
+
+        elif pathtype == "docx":
+            _docx(filepath, read_docx=read)
+
+        elif pathtype == "odt":
+            _odt(filepath, read_odt=read)
 
         # mix
         elif pathtype == "dir":
@@ -231,10 +247,6 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                 )  # remove control characters
                 
 
-
-
-                
-
                 fields = {
                     "document_id": doc_id,  # document id from path
                     "access_group": "",  # not yet implemented
@@ -289,9 +301,46 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
                 
                 es.insert_document(fields, index="text_chunk")
 
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
+
+def _md(filepath, read_md=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_md:  # read txt
+        try:
+            elements = partition_md(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
                 
-
-
+                es.insert_document(fields, index="text_chunk")
 
     else:
         fields = {
@@ -307,6 +356,129 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
     
     os.remove(filepath)
 
+def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_doc:  # read txt
+        try:
+            elements = partition_doc(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
+
+def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_docx:  # read txt
+        try:
+            elements = partition_docx(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
+
+
+def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_odt:  # read txt
+        try:
+            elements = partition_odt(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use
