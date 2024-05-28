@@ -157,13 +157,30 @@ class Search:
                 logger.warn(e.error)
                 raise
 
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='chat_history',
+                mappings={
+                    'properties': {
+                        'history_id': {'type': 'keyword'},
+                        'queries': {'type': 'text'},
+                        'responses': {'type': 'text'},
+                        'title': {'type': 'text'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+        
         logger.info("Configured.")
 
         self.registered_indices = [
             "text_chunk",
             "table_meta",
             "model_meta",
-            "file_meta"
+            "file_meta",
+            "chat_history"
         ]
 
         logger.info("Indices Registered.")
@@ -319,6 +336,25 @@ class Search:
         logger.info(f"Hybrid search returned {len(rrf_results)} elements.")
 
         return rrf_results
+    
+    def save_chat_to_history(self, history_id, query, response):
+        try:
+            res = self.es.search(index='chat_history', query={'match': {'history_id': history_id}})
+            if res['hits']['total']['value'] > 0:
+                doc_id = res['hits']['hits'][0]['_id']
+                chat_history = res['hits']['hits'][0]['_source']
+                chat_history['chats'].append({"query": query, "response": response})
+                self.es.update(index='chat_history', id=doc_id, body={"doc": chat_history})
+            else:
+                chat_history = {
+                    'history_id': history_id,
+                    'chats': [{"query": query, "response": response}],
+                    'title': f"Chat History {history_id}"
+                }
+                self.es.index(index='chat_history', body=chat_history)
+            logger.info(f"Chat history {history_id} updated successfully.")
+        except Exception as e:
+            logger.error(f"Error saving chat history: {str(e)}")
 
 
 if __name__ == "__main__":    
