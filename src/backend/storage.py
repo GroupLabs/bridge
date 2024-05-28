@@ -207,9 +207,7 @@ def extract_io_metadata(config, io_type):
 
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
-#removes white spaces in text
-def remove_whitespace(text):
-    return re.sub(r'\s+', '', text)
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -231,17 +229,6 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
                 
-                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) #this will add a space character after every ". ? !"
-                #just makes it more readable you can delete it
-                
-                pdf_reader = PyPDF2.PdfReader(pdf_file)
-                num_pages = len(pdf_reader.pages)
-                
-                for page_num in range(num_pages):
-                    page = pdf_reader.pages[page_num]
-                    text = remove_whitespace(page.extract_text()) #remove white spaces from page in pdf
-                    if remove_whitespace(formatted_chunk) in text: #remove white space from chunk and compares to pdf
-                        page_number = page_num + 1  # Page numbers start from 1
 
 
 
@@ -250,10 +237,9 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                 fields = {
                     "document_id": doc_id,  # document id from path
                     "access_group": "",  # not yet implemented
-                    "chunk_text": formatted_chunk,
+                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number": page_number,
                 }
 
                 # Insert the document into Elasticsearch
