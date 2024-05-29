@@ -1,5 +1,3 @@
-
-
 services:
   setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
@@ -178,6 +176,7 @@ services:
       - AZURE_CONNECTION_STRING=${AZURE_CONNECTION_STRING}
       - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
     depends_on:
@@ -201,15 +200,28 @@ services:
     environment:
       - AZURE_STORAGE_KEY=${AZURE_STORAGE_KEY}
       - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT_NAME}
+      - MODEL_REPOSITORY_PATH=${MODEL_REPOSITORY_PATH}  # Pass the environment variable
     networks:
       - bridge-net
-    volumes:
-      - ${MODEL_REPOSITORY_PATH}:/root/.model_repository
     ports:
       - "9000:9000"
       - "9001:9001"
       - "9002:9002"
-    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=explicit --http-port=9000 --grpc-port=9001 
+    command: tritonserver --model-repository=${MODEL_REPOSITORY_PATH} --model-control-mode=explicit --http-port=9000 --grpc-port=9001
+
+  mlflow:
+    image: api  # Assuming your API image includes MLflow
+    networks:
+      - bridge-net
+    environment:
+      - BACKEND_STORE_URI=sqlite:///mlflow.db
+      - ARTIFACT_ROOT=./artifacts
+    volumes:
+      - ./mlflow:/mlflow
+    ports:
+      - "5001:5000"
+    command: >
+      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./artifacts --host 0.0.0.0 --port 5000
 
 volumes:
   certs:

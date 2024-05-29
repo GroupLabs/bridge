@@ -32,7 +32,7 @@ class config:
     ELASTIC_USER = str(os.getenv('ELASTIC_USER', "elastic"))
     ELASTIC_URL = str(os.getenv('ELASTIC_URL', "https://localhost:9200"))
 
-    TRITON_URL = str(os.getenv('TRITON_URL', "https://localhost:9000"))
+    TRITON_URL = str(os.getenv('TRITON_URL', "localhost:9000"))
 
     MODEL_REPOSITORY_PATH = str(os.getenv('MODEL_REPOSITORY_PATH', "./"))
 
@@ -40,3 +40,4 @@ class config:
     MODEL_CONTAINER_NAME = str(os.getenv('MODEL_CONTAINER_NAME', "x"))
     MODEL_SOURCE_FOLDER = str(os.getenv('MODEL_SOURCE_FOLDER', "x"))
 
+    MLFLOW_TRACKING_URI="http://mlflow:5000"
