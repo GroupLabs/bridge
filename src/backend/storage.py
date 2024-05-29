@@ -332,6 +332,58 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
+#for txt files:
+def _text(filepath, read_text=True, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_text:  # read text file
+        try:
+            with open(filepath, 'r', encoding='utf-8') as file:
+                content = file.read()
+                logger.info(f"content: {content}")
+                elements = content.split('\n\n')  # Split by paragraphs or your preferred chunking method
+                logger.info(f"elements: {elements}")
+        except Exception as e:
+            logger.error(f"Failed to read text file: {e}")
+            return
+
+        if elements is not None:
+            for i, e in enumerate(elements):
+                logger.info(f"element: .\run.bat{e}")
+                chunk = "".join(
+                    ch for ch in e if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk)  # Add space after punctuation
+
+                logger.info(formatted_chunk)
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": formatted_chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number": 1,  # For text files, consider page_number as 1
+                }
+
+                # Insert the document into Elasticsearch
+                es.insert_document(document=fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(document=fields, index="document_meta")
+
+    os.remove(filepath)
+
 
 def get_next_version(model_name: str) -> int:
     client = MlflowClient()
