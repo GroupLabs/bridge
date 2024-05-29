@@ -49,7 +49,34 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
-        
+
+        # configure picture_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='picture_meta', 
+                mappings={
+                    'properties': {
+                        'picture_name': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'description_text': {'type': 'text'},
+                        'time_added': {'type': 'text'},
+
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        'colbert': {'type': 'object', 'enabled': False} # disable indexing for the 'colbert' field
+                        # meta
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+            
         # configure table_meta
         try:
             self.es.indices.create( # may fail if index exists
@@ -156,13 +183,20 @@ class Search:
             document['colbert'] = {}
 
         if index == "table_meta":
-            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
         if index == "model_meta":
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['colbert'] = {}
+
+        if index == "picture_meta":
+            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['e5'] = [0.0,0.0,0.1]
+            document['colbert'] = {}
+            # correlation embeddings are handled at storage
             
         logger.info("Inserting document.")
 

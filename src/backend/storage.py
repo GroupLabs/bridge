@@ -14,7 +14,11 @@ from unstructured.partition.md import partition_md
 from unstructured.partition.doc import partition_doc
 from unstructured.partition.docx import partition_docx
 from unstructured.partition.odt import partition_odt
-
+from unstructured.partition.rtf import partition_rtf
+import pandas as pd
+from PIL import Image
+import pillow_heif
+from auto_description import describe_table
 
 from connect.postgres import postgres_to_yamls
 from config import config
@@ -115,6 +119,20 @@ def load_data(filepath: str, read=True):
 
         elif pathtype == "odt":
             _odt(filepath, read_odt=read)
+
+        elif pathtype == "rtf":
+            _rtf(filepath, read_odt=read)
+
+        elif pathtype == "csv":
+            _csv(filepath)
+
+        elif pathtype == "xlsx" or pathtype == "xls":
+            _excel(filepath)
+
+        elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png" or pathtype == "heic":
+            _picture(filepath)    
+        
+
 
         # mix
         elif pathtype == "dir":
@@ -479,6 +497,206 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
         es.insert_document(fields, index="document_meta")
     
     os.remove(filepath)
+
+def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_rtf:  # read txt
+        try:
+            elements = partition_rtf(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
+
+
+def get_detailed_dtypes(df):
+    detailed_dtypes = {}
+    for column in df.columns:
+        if pd.api.types.is_string_dtype(df[column]):
+            detailed_dtypes[column] = 'string'
+        elif pd.api.types.is_numeric_dtype(df[column]):
+            if pd.api.types.is_integer_dtype(df[column]):
+                detailed_dtypes[column] = 'integer'
+            elif pd.api.types.is_float_dtype(df[column]):
+                detailed_dtypes[column] = 'float'
+        elif pd.api.types.is_bool_dtype(df[column]):
+            detailed_dtypes[column] = 'boolean'
+        else:
+            detailed_dtypes[column] = 'object'
+    return detailed_dtypes
+
+
+def _csv(filepath):
+    print("reached")
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    df = pd.read_csv(filepath)
+
+    # Get the number of rows and columns
+    rows, columns = df.shape
+
+    # Get detailed data types of each column
+    detailed_data_types = get_detailed_dtypes(df)
+    
+    # Convert columns to appropriate types if necessary
+    for column, dtype in detailed_data_types.items():
+        if dtype == 'string':
+            df[column] = df[column].astype(str)
+        elif dtype == 'integer':
+            df[column] = pd.to_numeric(df[column], errors='coerce', downcast='integer')
+        elif dtype == 'float':
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Generate YAML structure for the CSV file
+    dimensions = {
+        "rows": rows,
+        "columns": columns
+    }
+    
+    column_details = []
+    for column in df.columns:
+        column_info = {
+            "name": column,
+            "type": detailed_data_types[column]
+        }
+        column_details.append(column_info)
+    
+    table_name = os.path.basename(filepath)
+    metadata = {
+        "name": table_name,
+        "dimensions": dimensions,
+        "columns": column_details,
+    }
+
+
+
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(metadata)}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "table_name": table_name,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+
+
+    }
+
+    es.insert_document(fields, index="table_meta")
+    os.remove(filepath)
+
+
+def _excel(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    df = pd.read_excel(filepath)
+
+    # Get the number of rows and columns
+    rows, columns = df.shape
+
+    # Get detailed data types of each column
+    detailed_data_types = get_detailed_dtypes(df)
+    
+    # Convert columns to appropriate types if necessary
+    for column, dtype in detailed_data_types.items():
+        if dtype == 'string':
+            df[column] = df[column].astype(str)
+        elif dtype == 'integer':
+            df[column] = pd.to_numeric(df[column], errors='coerce', downcast='integer')
+        elif dtype == 'float':
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Generate YAML structure for the Excel file
+    dimensions = {
+        "rows": rows,
+        "columns": columns
+    }
+    
+    column_details = []
+    for column in df.columns:
+        column_info = {
+            "name": column,
+            "type": detailed_data_types[column]
+        }
+        column_details.append(column_info)
+    
+    table_name = os.path.basename(filepath)
+    metadata = {
+        "name": table_name,
+        "dimensions": dimensions,
+        "columns": column_details,
+    }
+
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(metadata)}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "table_name": table_name,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+    }
+
+    es.insert_document(fields, index="table_meta")
+    os.remove(filepath)
+
+def _picture(filepath):
+
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    pillow_heif.register_heif_opener()
+    image = Image.open(filepath)
+
+    # Get basic metadata
+    metadata = {
+        'Format': image.format,
+        'Size': image.size,
+    }
+
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(metadata)}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+    }
+
+    es.insert_document(fields, index="picture_meta")
+    os.remove(filepath)
+
+    
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use

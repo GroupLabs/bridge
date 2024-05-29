@@ -1,10 +1,10 @@
-# from ollama import gen
+from ollama import gen
 
 def describe_table(input):
 
-    # resp = gen(f"The following is a table. Look at the columns and infer what the table is about. Return just the description - as detailed as possible, but keep it straight to the point: {input}")
+    resp = gen(f"The following is a table. Look at the columns and infer what the table is about. Return just the description - as detailed as possible, but keep it straight to the point: {input}")
 
-    resp = "There is no LLM pluuged in. Check auto-description"
+
     return resp
 
 if __name__ == "__main__":
