@@ -107,39 +107,51 @@ def load_data(filepath: str, read=True):
 
         # unstructured
         if pathtype == "pdf":
+
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
+
             _txt(filepath, read_txt=read)
             
         elif pathtype == "markdown":
+
             _md(filepath, read_md=read)
 
         elif pathtype == "doc":
+
             _doc(filepath, read_doc=read)
 
         elif pathtype == "docx":
+
             _docx(filepath, read_docx=read)
 
         elif pathtype == "odt":
+
             _odt(filepath, read_odt=read)
 
         elif pathtype == "rtf":
+
             _rtf(filepath, read_odt=read)
 
         elif pathtype == "csv":
+
             _csv(filepath)
 
         elif pathtype == "xlsx" or pathtype == "xls":
+
             _excel(filepath)
 
         elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
+
             _picture(filepath)    
 
         elif pathtype == "ppt":
+
             _ppt(filepath)    
 
         elif pathtype == "pptx":
+
             _pptx(filepath)   
 
         # mix
@@ -186,7 +198,6 @@ def get_inference(model, data):
 
 
     return models_inputs
-
 
 
 @celery_app.task(name="load_model_task")
@@ -251,6 +262,22 @@ def extract_io_metadata(config, io_type):
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
 
+def insert_parent(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    # Get the file size in bytes
+    file_size_bytes = os.path.getsize(filepath)
+    # Convert bytes to megabytes
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    size = f"{file_size_mb:.2f} MB"
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "Name": os.path.basename(filepath),  # not yet implemented
+        "Size": size,
+        "Type": os.path.splitext(filepath)[-1],
+        "Created": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    es.insert_document(fields, index="parent_doc")
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -296,7 +323,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 
@@ -338,7 +365,7 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _md(filepath, read_md=True, chunking_strategy="by_title"):
@@ -379,7 +406,7 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
@@ -420,7 +447,7 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
@@ -461,7 +488,7 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 
@@ -503,7 +530,7 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
@@ -544,7 +571,7 @@ def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 
@@ -745,7 +772,7 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
@@ -787,7 +814,7 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
     
 

@@ -29,7 +29,8 @@ class Search:
                 index='text_chunk', 
                 mappings={
                     'properties': {
-                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'main_doc_id': {'type': 'keyword'},
+                        'chunk_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'access_group': {'type': 'keyword'},
                         'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
@@ -49,6 +50,34 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
+
+        # configure parent_doc
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='parent_doc', 
+                mappings={
+                    'properties': {
+                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'document_name': {'type': 'text'},
+                        'Size': {'type': 'text'},
+                        'Type': {'type': 'text'},
+                        'Last_modified': {'type': 'text'},
+                        'Created': {'type': 'text'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
 
         # configure picture_meta
         try:
