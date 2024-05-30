@@ -15,10 +15,14 @@ from unstructured.partition.doc import partition_doc
 from unstructured.partition.docx import partition_docx
 from unstructured.partition.odt import partition_odt
 from unstructured.partition.rtf import partition_rtf
+from unstructured.partition.ppt import partition_ppt
+from unstructured.partition.pptx import partition_pptx
 import pandas as pd
 from PIL import Image
-import pillow_heif
-from auto_description import describe_table
+from datetime import datetime
+
+
+from auto_description import describe_table, describe_picture
 
 from connect.postgres import postgres_to_yamls
 from config import config
@@ -129,10 +133,14 @@ def load_data(filepath: str, read=True):
         elif pathtype == "xlsx" or pathtype == "xls":
             _excel(filepath)
 
-        elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png" or pathtype == "heic":
+        elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
             _picture(filepath)    
-        
 
+        elif pathtype == "ppt":
+            _ppt(filepath)    
+
+        elif pathtype == "pptx":
+            _pptx(filepath)   
 
         # mix
         elif pathtype == "dir":
@@ -674,18 +682,20 @@ def _excel(filepath):
 def _picture(filepath):
 
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
-    pillow_heif.register_heif_opener()
     image = Image.open(filepath)
 
     # Get basic metadata
     metadata = {
         'Format': image.format,
         'Size': image.size,
+        'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
+
+    description = describe_picture(filepath)
 
     fields = {
         "document_id": doc_id,  # document id from path
-        "description_text": f"{describe_table(metadata)}",
+        "description_text": description,
         "metadata": metadata,
         "file_path": filepath,
         "embedding": [0],
@@ -696,6 +706,89 @@ def _picture(filepath):
     es.insert_document(fields, index="picture_meta")
     os.remove(filepath)
 
+def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_ppt:  # read txt
+        try:
+            elements = partition_ppt(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
+
+def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_pptx:  # read txt
+        try:
+            elements = partition_pptx(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    
+    os.remove(filepath)
     
 
 def _db(db_type, host, user, password):
