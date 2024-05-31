@@ -86,6 +86,92 @@ try:
 except Exception as e:
     print(f"Triton not available: {e}")
 
+@celery_app.task(name="sort_documents_task")
+def sort_docs(type: str):
+    ordered = []
+    # Define the index
+    index_name = 'parent_doc'
+    if type == "name":
+        # Perform the search query with sorting
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "document_name.keyword": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+    if type == "size":
+        # Perform the search query with sorting by Size_numeric
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "Size_numeric": {
+                            "order": "desc"
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+    if type == "type":
+        # Perform the search query with sorting by Type
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "Type": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+    if type == "created":
+        # Perform the search query with sorting by Created
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "Created": {
+                            "order": "asc"  # Change to "desc" for descending order
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+
+
+    # Print the results
+    for hit in response['hits']['hits']:
+        print(hit["_source"])
+        ordered.append(hit)
+    ordered.reverse()
+    return ordered
+
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
 
@@ -273,8 +359,9 @@ def insert_parent(filepath):
         "document_id": doc_id,  # document id from path
         "Name": os.path.basename(filepath),  # not yet implemented
         "Size": size,
+        'Size_numeric': file_size_mb,  
         "Type": os.path.splitext(filepath)[-1],
-        "Created": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
     }
     es.insert_document(fields, index="parent_doc")
 
@@ -649,6 +736,7 @@ def _csv(filepath):
     }
 
     es.insert_document(fields, index="table_meta")
+    insert_parent(filepath)
     os.remove(filepath)
 
 
@@ -704,6 +792,7 @@ def _excel(filepath):
     }
 
     es.insert_document(fields, index="table_meta")
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _picture(filepath):
@@ -731,6 +820,7 @@ def _picture(filepath):
     }
 
     es.insert_document(fields, index="picture_meta")
+    insert_parent(filepath)
     os.remove(filepath)
 
 def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):

@@ -58,11 +58,20 @@ class Search:
                 mappings={
                     'properties': {
                         'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
-                        'document_name': {'type': 'text'},
+                        'document_name': {
+                            'type': 'text',
+                            'fields': {
+                                'keyword': {
+                                    'type': 'keyword',
+                                    'ignore_above': 256
+                                }
+                            }
+                        },
                         'Size': {'type': 'text'},
-                        'Type': {'type': 'text'},
+                        'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
+                        'Type': {'type': 'keyword'},
                         'Last_modified': {'type': 'text'},
-                        'Created': {'type': 'text'},
+                        'Created': {'type': 'date'},
                         # embeddings
                         'e5': {
                             'type': 'dense_vector',

@@ -7,7 +7,7 @@ import os
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
+from storage import load_data, load_model, query, get_inference, add_model_to_mlflow, sort_docs
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
@@ -17,6 +17,7 @@ from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
+
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -35,6 +36,8 @@ async def lifespan(app: FastAPI):
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
+
+
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -176,6 +179,14 @@ async def nl_query(input: Query):
     logger.info(f"QUERY success: {input.query}")
 
     return {"health": health, "status" : "success", "resp" : resp}
+
+@app.post("/sort")
+async def sort_docs_ep(type: str=Form(...)):
+    type_of_sort = ["name", "size", "type", "created"]
+    if type not in type_of_sort:
+        return "invalid sort"
+
+    return sort_docs(type)
 
 #endpoint to chat with gpt-4:
 #to do: stream the response
