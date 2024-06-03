@@ -1,23 +1,22 @@
+
 from fastapi import Depends, FastAPI, Response, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import os
 import json
-import logging
-import httpx
 
 from log import setup_logger
 from storage import load_data, load_model, query, get_inference, add_model_to_mlflow, sort_docs
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
-from ollama import chat, gen
+# from ollama import chat, gen
+# from ollama import chat, gen
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
-from elasticutils import Search  # Import the Search class
 
 
 TEMP_DIR = config.TEMP_DIR
@@ -25,9 +24,15 @@ TEMP_DIR = config.TEMP_DIR
 logger = setup_logger("api")
 logger.info("LOGGER READY")
 
+# https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     yield
+    # free_db(dbconn)
+    # free resources
+    # telemetry?
+
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
@@ -36,7 +41,10 @@ app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
+    # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
 ]
+
+# TODO remove CORS
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,14 +54,26 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+
 @app.get("/health-check")
 async def health_endpoint():
     return {"health": health}
 
+
 @app.get("/task/{task_id}")
 async def get_task_result(task_id: str):
     task = load_data.AsyncResult(task_id)
+
+    # return result obj
+    # if task.state == 'SUCCESS':
+    #     result = task.get(timeout=1)
+    #     return {"task_id": task_id, "status": task.state, "result": result}
+
     return {"task_id": task_id, "status": task.state}
+
+# load collection (dir)/document (pdf, txt) or database (postgres, mssql, duckdb)/table (csv, tsv, parquet)
+# accepts path to data (unstructurded | structured)
+# returns ok
 
 @app.post("/load_by_path")
 async def load_data_by_path(input: Load, response: Response):
@@ -71,8 +91,10 @@ async def load_data_by_path(input: Load, response: Response):
 async def load_data_ep(response: Response, file: UploadFile = File(...)):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
+
         with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
             temp_file.write(await file.read())
+
         task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
@@ -81,17 +103,26 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         logger.warn(f"LOAD incomplete: {file.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-
+    
 @app.post("/load_model")
-async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
+#add description
+async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str=Form(...)):
     try:
         os.makedirs(f"{TEMP_DIR}/models", exist_ok=True)
+
         model_path = f"{TEMP_DIR}/models/{model.filename}"
         config_path = f"{TEMP_DIR}/models/{config.filename}"
+
         with open(model_path, "wb") as temp_file:
             temp_file.write(await model.read())
+
         with open(config_path, "wb") as temp_file:
             temp_file.write(await config.read())
+
+        add_model_to_mlflow(model_path)
+
+        add_model_to_mlflow(model_path)
+
         task = load_model.delay(model=model_path, config=config_path, description=description)
         response.status_code = 202
         logger.info(f"LOAD accepted: {model.filename}")
@@ -101,32 +132,53 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
+
 @app.post("/get_inference")
 async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
+
     try:
+        # Parse the input string to a dictionary
         data_dict = json.loads(data)
     except json.JSONDecodeError as e:
         logger.error(f"JSON decoding error: {e}")
         return {"error": "Invalid JSON input"}
 
-    results = get_inference(model, data_dict)
+    
+    results = get_inference(model,data_dict)
+    
     if results is None:
         return "not a valid model"
 
-    results_serializable = {}
+    results_serializable = {} 
+
     for key in results.keys():
         if type(results[key]) == list:
             results_serializable[key] = results[key]
         else:
             results_serializable[key] = results[key].tolist()
+
     return results_serializable
+
+
+# search
+# accepts NL query
+# returns distance
 
 @app.post("/query")
 async def nl_query(input: Query):
+
     resp = query(input.query, input.index)
+
+    if input.use_llm:
+        # context_list = [x["fields"]["text"] for x in resp.hits] this is for vespa, need to switch to es
+
+        prompt = f"{input.query}\n"
+        prompt += "Use the following for context:\n"
+        # prompt += " ".join(context_list) this is for vespa, need to switch to es
+
     logger.info(f"QUERY success: {input.query}")
 
-    return {"health": health, "status": "success", "resp": resp}
+    return {"health": health, "status" : "success", "resp" : resp}
 
 @app.post("/sort")
 async def sort_docs_ep(type: str=Form(...)):
@@ -192,54 +244,35 @@ async def sort_docs_ep(type: str=Form(...)):
 #     return resp
     # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
-# Create an instance of Search class
-search = Search()
 
-async def string_to_async_generator(response_string: str):
-    yield response_string
 
-@app.post("/chat")
-async def chat_with_model(chat_request: ChatRequest):
-    try:
-        response_message = gen(chat_request.message)  # Assume gen returns a string
-        async_generator = string_to_async_generator(response_message)
 
-        search.save_chat_to_history(chat_request.id, chat_request.message, response_message)
-        return StreamingResponse(async_generator, media_type="application/json")
-    except Exception as e:
-        logger.error(f"Error during chat: {str(e)}")
-        return {"error": str(e)}
-
-@app.get("/chat_history/{history_id}")
-async def get_chat_history(history_id: int):
-    try:
-        response = search.es.search(index='chat_history', query={'match': {'history_id': history_id}})
-        if response['hits']['total']['value'] > 0:
-            return response['hits']['hits'][0]['_source']
-        else:
-            return {"error": "Chat history not found"}
-    except Exception as e:
-        logger.error(f"Error retrieving chat history: {str(e)}")
-        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
-    if not config.ENV:
+
+    if not config.ENV: # requires environment declaration
         print("Missing environment variable.")
         exit(1)
+
     if config.ENV == "DEBUG":
         import socket
+
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
+
+        try: 
             s.connect(("8.8.8.8", 80))
             ip_address = s.getsockname()[0]
+
             print("\n\nServer available @ http://" + ip_address + ":" + str(config.PORT) + "\n\n")
         except OSError as e:
             print(e)
+
     if config.ENV == "PROD":
         print("Please consider the following command to start the server:")
         print("\t EXPERIMENTAL: uvicorn your_app_module:app --workers 3")
-    global health
+        
+    global health 
     health = Health(status=Status.OK, ENV=config.ENV)
     logger.info("SYSTEM READY")
     uvicorn.run(app, host="0.0.0.0", port=config.PORT)
