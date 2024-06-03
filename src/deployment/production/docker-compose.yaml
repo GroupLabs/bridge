@@ -200,7 +200,6 @@ services:
     environment:
       - AZURE_STORAGE_KEY=${AZURE_STORAGE_KEY}
       - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT_NAME}
-      - MODEL_REPOSITORY_PATH=${MODEL_REPOSITORY_PATH}  # Pass the environment variable
     networks:
       - bridge-net
     ports:
