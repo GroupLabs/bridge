@@ -6,7 +6,7 @@ import os
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, add_model_to_mlflow
+from storage import load_data, load_model, query, get_inference
 from serverutils import Health, Status, Load, Query
 
 from config import config
@@ -93,62 +93,6 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
     
-@app.post("/load_model")
-#add description
-async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str=Form(...)):
-    try:
-        os.makedirs(f"{TEMP_DIR}/models", exist_ok=True)
-
-        model_path = f"{TEMP_DIR}/models/{model.filename}"
-        config_path = f"{TEMP_DIR}/models/{config.filename}"
-
-        with open(model_path, "wb") as temp_file:
-            temp_file.write(await model.read())
-
-        with open(config_path, "wb") as temp_file:
-            temp_file.write(await config.read())
-
-        add_model_to_mlflow(model_path)
-
-        add_model_to_mlflow(model_path)
-
-        task = load_model.delay(model=model_path, config=config_path, description=description)
-        response.status_code = 202
-        logger.info(f"LOAD accepted: {model.filename}")
-        return {"status": "accepted", "task_id": task.id}
-    except NotImplementedError:
-        logger.warn(f"LOAD incomplete: {model.filename}")
-        response.status_code = 400
-        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-
-
-@app.post("/get_inference")
-async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
-
-    try:
-        # Parse the input string to a dictionary
-        data_dict = json.loads(data)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decoding error: {e}")
-        return {"error": "Invalid JSON input"}
-
-    
-    results = get_inference(model,data_dict)
-    
-    if results is None:
-        return "not a valid model"
-
-    results_serializable = {} 
-
-    for key in results.keys():
-        if type(results[key]) == list:
-            results_serializable[key] = results[key]
-        else:
-            results_serializable[key] = results[key].tolist()
-
-    return results_serializable
-
-
 # search
 # accepts NL query
 # returns distance
@@ -167,7 +111,7 @@ async def nl_query(input: Query):
 
     logger.info(f"QUERY success: {input.query}")
 
-    return {"health": health, "status" : "success", "resp" : resp}
+    return {"health": health, "status" : "success", "query" : input.query, "resp" : resp}
 
 if __name__ == "__main__":
     import uvicorn
