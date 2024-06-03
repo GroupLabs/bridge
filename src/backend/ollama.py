@@ -6,6 +6,7 @@ from openai import OpenAI
 from log import setup_logger
 import base64
 
+
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
 
@@ -17,9 +18,11 @@ LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL #currently set to gpt-3.5 turbo, switch to gpt-4 in .env and docker-compose
 OPENAI_KEY = config.OPENAI_KEY
 
+
 client = OpenAI(
     api_key=OPENAI_KEY
 )
+
 
 async def chat(messages):
     headers = {
@@ -60,6 +63,7 @@ def gen(prompt: str):
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
         else:
             raise Exception("Failed to generate text: " + response.text)
+
         
 
 # Function to encode the image
@@ -107,3 +111,6 @@ def chat_with_model_to_get_description(image_path):
 if __name__ == "__main__":
     # Example usage
     print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
+
+
+
