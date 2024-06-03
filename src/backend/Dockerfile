@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-eng \
     libtesseract-dev \
     libgl1-mesa-glx \
+    libreoffice \
     jq \
     curl \
     unixodbc-dev \
@@ -21,7 +22,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt ./
 
-RUN pip install --no-cache-dir magika FastAPI python-dotenv "unstructured[pdf]" uvicorn requests celery httpx psycopg2-binary openai "tritonclient[http]" elasticsearch azure-storage-blob scikit-learn PyPDF2 torch mlflow transformers msal pymongo pyodbc
+RUN pip install --no-cache-dir magika FastAPI python-dotenv "unstructured[pdf]" uvicorn requests celery httpx psycopg2-binary openai "tritonclient[http]" elasticsearch azure-storage-blob scikit-learn PyPDF2 torch mlflow transformers python-docx openpyxl xlrd pillow python-pptx msal pymongo pyodbc
 
 COPY . ./
 

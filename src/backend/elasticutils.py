@@ -58,7 +58,8 @@ class Search:
                 index='text_chunk', 
                 mappings={
                     'properties': {
-                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'main_doc_id': {'type': 'keyword'},
+                        'chunk_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'access_group': {'type': 'keyword'},
                         'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
@@ -78,7 +79,71 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
-        
+
+        # configure parent_doc
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='parent_doc', 
+                mappings={
+                    'properties': {
+                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'document_name': {
+                            'type': 'text',
+                            'fields': {
+                                'keyword': {
+                                    'type': 'keyword',
+                                    'ignore_above': 256
+                                }
+                            }
+                        },
+                        'Size': {'type': 'text'},
+                        'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
+                        'Type': {'type': 'keyword'},
+                        'Last_modified': {'type': 'text'},
+                        'Created': {'type': 'date'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+
+        # configure picture_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='picture_meta', 
+                mappings={
+                    'properties': {
+                        'picture_name': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'description_text': {'type': 'text'},
+                        'time_added': {'type': 'text'},
+
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        'colbert': {'type': 'object', 'enabled': False} # disable indexing for the 'colbert' field
+                        # meta
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+            
         # configure table_meta
         try:
             self.es.indices.create( # may fail if index exists
@@ -198,11 +263,13 @@ class Search:
 
         # add embeddings
         if index == "text_chunk":
-            document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+            #document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+            document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
 
         if index == "table_meta":
-            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
@@ -210,6 +277,13 @@ class Search:
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['colbert'] = {}
 
+
+        if index == "picture_meta":
+            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['e5'] = [0.0,0.0,0.1]
+            document['colbert'] = {}
+            # correlation embeddings are handled at storage
+            
         if index == "file_meta":
             document['created_time'] = datetime.utcfromtimestamp(document['created_time']).isoformat()
             document['last_modified_time'] = datetime.utcfromtimestamp(document['last_modified_time']).isoformat()

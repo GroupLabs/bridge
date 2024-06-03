@@ -8,9 +8,9 @@ import logging
 import httpx
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference
-from serverutils import Health, Status, Load
-from serverutils import Query
+from storage import load_data, load_model, query, get_inference, add_model_to_mlflow, sort_docs
+from serverutils import Health, Status, Load, Query
+
 from serverutils import ChatRequest
 from ollama import chat, gen
 from config import config
@@ -18,6 +18,7 @@ from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
 from elasticutils import Search  # Import the Search class
+
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI):
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
+
+
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -122,7 +125,72 @@ async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
 async def nl_query(input: Query):
     resp = query(input.query, input.index)
     logger.info(f"QUERY success: {input.query}")
+
     return {"health": health, "status": "success", "resp": resp}
+
+@app.post("/sort")
+async def sort_docs_ep(type: str=Form(...)):
+    type_of_sort = ["name", "size", "type", "created"]
+    if type not in type_of_sort:
+        return "invalid sort"
+
+    return sort_docs(type)
+
+#endpoint to chat with gpt-4:
+#to do: stream the response
+# @app.post("/chat")
+# async def chat_with_model(chat_request: ChatRequest):
+#     chat_generator = gen(chat_request.message)
+#     return chat_generator
+
+# this one streams
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
+# @app.post("/chat")
+# async def chat_with_model(chat_request: ChatRequest):
+#     chat_generator = gen(chat_request.message)
+#     return chat_generator
+
+# this one streams
+# @app.get("/llm")
+# async def llm_query(input: Query):
+#     messages = [{"role": "user", "content": input.query}]
+    
+#     chat_stream = chat(messages) # asynchronous generator
+
+#     return StreamingResponse(chat_stream, media_type="text/plain")
+
+# async def json_stream(async_generator):
+#     yield '{"messages":['
+#     first = True
+#    async for item in async_generator:
+#         if not first:
+#             yield ','
+#         first = False
+#         yield json.dumps(item)
+#     yield ']}'
+
+# from typing import Optional
+# from fastapi import Query, FastAPI
+
+# @app.get("/query")
+# async def nl_query(query_str: str = Query(..., alias="query"), use_llm: Optional[bool] = False):
+#     resp = query(query_str)
+
+#     if use_llm:
+#         context_list = [x["fields"]["text"] for x in resp.hits]
+#         prompt = f"{query_str}\n"
+#         prompt += "Use the following for context:\n"
+#         prompt += " ".join(context_list)
+
+#     logger.info(f"QUERY success: {query_str}")
+#     return resp
+    # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
 # Create an instance of Search class
 search = Search()

@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Navigate to the src/backend directory to build the Docker image
-cd ../backend
+cd ../../../backend
 docker build -t api .
 
 # Navigate to the src/deployment directory to manage docker-compose
-cd ../deployment
+cd ../deployment/production
 
 # Check if docker-compose is already running
 if docker-compose ps -q | grep -q '.'; then

@@ -8,7 +8,21 @@ from pathlib import Path
 
 from celery import Celery
 
-from unstructured.partition.pdf import partition_pdf # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.pdf import partition_pdf  # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.text import partition_text
+from unstructured.partition.md import partition_md
+from unstructured.partition.doc import partition_doc
+from unstructured.partition.docx import partition_docx
+from unstructured.partition.odt import partition_odt
+from unstructured.partition.rtf import partition_rtf
+from unstructured.partition.ppt import partition_ppt
+from unstructured.partition.pptx import partition_pptx
+import pandas as pd
+from PIL import Image
+from datetime import datetime
+
+
+from auto_description import describe_table, describe_picture
 
 from connect.postgres import postgres_to_yamls
 from connect.azure import azure_to_yamls
@@ -73,6 +87,92 @@ try:
 except Exception as e:
     print(f"Triton not available: {e}")
 
+@celery_app.task(name="sort_documents_task")
+def sort_docs(type: str):
+    ordered = []
+    # Define the index
+    index_name = 'parent_doc'
+    if type == "name":
+        # Perform the search query with sorting
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "document_name.keyword": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+    if type == "size":
+        # Perform the search query with sorting by Size_numeric
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "Size_numeric": {
+                            "order": "desc"
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+    if type == "type":
+        # Perform the search query with sorting by Type
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "Type": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+    if type == "created":
+        # Perform the search query with sorting by Created
+        response = es.search(
+            index='parent_doc',
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "sort": [
+                    {
+                        "Created": {
+                            "order": "asc"  # Change to "desc" for descending order
+                        }
+                    }
+                ]
+            },
+            size=10000  # Specify the number of documents to retrieve
+        )
+
+
+    # Print the results
+    for hit in response['hits']['hits']:
+        print(hit["_source"])
+        ordered.append(hit)
+    ordered.reverse()
+    return ordered
+
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
 
@@ -94,10 +194,52 @@ def load_data(filepath: str, read=True):
 
         # unstructured
         if pathtype == "pdf":
+
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-            pass
+
+            _txt(filepath, read_txt=read)
+            
+        elif pathtype == "markdown":
+
+            _md(filepath, read_md=read)
+
+        elif pathtype == "doc":
+
+            _doc(filepath, read_doc=read)
+
+        elif pathtype == "docx":
+
+            _docx(filepath, read_docx=read)
+
+        elif pathtype == "odt":
+
+            _odt(filepath, read_odt=read)
+
+        elif pathtype == "rtf":
+
+            _rtf(filepath, read_odt=read)
+
+        elif pathtype == "csv":
+
+            _csv(filepath)
+
+        elif pathtype == "xlsx" or pathtype == "xls":
+
+            _excel(filepath)
+
+        elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
+
+            _picture(filepath)    
+
+        elif pathtype == "ppt":
+
+            _ppt(filepath)    
+
+        elif pathtype == "pptx":
+
+            _pptx(filepath)   
 
         # mix
         elif pathtype == "dir":
@@ -158,7 +300,6 @@ def get_inference(model, data):
     logger.log(data)
         
     return models_inputs
-
 
 
 @celery_app.task(name="load_model_task")
@@ -222,9 +363,24 @@ def extract_io_metadata(config, io_type):
 
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
-#removes white spaces in text
-def remove_whitespace(text):
-    return re.sub(r'\s+', '', text)
+
+def insert_parent(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    # Get the file size in bytes
+    file_size_bytes = os.path.getsize(filepath)
+    # Convert bytes to megabytes
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    size = f"{file_size_mb:.2f} MB"
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "Name": os.path.basename(filepath),  # not yet implemented
+        "Size": size,
+        'Size_numeric': file_size_mb,  
+        "Type": os.path.splitext(filepath)[-1],
+        "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+    }
+    es.insert_document(fields, index="parent_doc")
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -246,29 +402,13 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
                 
-                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) #this will add a space character after every ". ? !"
-                #just makes it more readable you can delete it
-                
-                pdf_reader = PyPDF2.PdfReader(pdf_file)
-                num_pages = len(pdf_reader.pages)
-                
-                for page_num in range(num_pages):
-                    page = pdf_reader.pages[page_num]
-                    text = remove_whitespace(page.extract_text()) #remove white spaces from page in pdf
-                    if remove_whitespace(formatted_chunk) in text: #remove white space from chunk and compares to pdf
-                        page_number = page_num + 1  # Page numbers start from 1
-
-
-
-                
 
                 fields = {
                     "document_id": doc_id,  # document id from path
                     "access_group": "",  # not yet implemented
-                    "chunk_text": formatted_chunk,
+                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number": page_number,
                 }
 
                 # Insert the document into Elasticsearch
@@ -286,9 +426,503 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
+
+def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_txt:  # read txt
+        try:
+            elements = partition_text(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _md(filepath, read_md=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_md:  # read txt
+        try:
+            elements = partition_md(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_doc:  # read txt
+        try:
+            elements = partition_doc(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_docx:  # read txt
+        try:
+            elements = partition_docx(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+
+def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_odt:  # read txt
+        try:
+            elements = partition_odt(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_rtf:  # read txt
+        try:
+            elements = partition_rtf(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+
+def get_detailed_dtypes(df):
+    detailed_dtypes = {}
+    for column in df.columns:
+        if pd.api.types.is_string_dtype(df[column]):
+            detailed_dtypes[column] = 'string'
+        elif pd.api.types.is_numeric_dtype(df[column]):
+            if pd.api.types.is_integer_dtype(df[column]):
+                detailed_dtypes[column] = 'integer'
+            elif pd.api.types.is_float_dtype(df[column]):
+                detailed_dtypes[column] = 'float'
+        elif pd.api.types.is_bool_dtype(df[column]):
+            detailed_dtypes[column] = 'boolean'
+        else:
+            detailed_dtypes[column] = 'object'
+    return detailed_dtypes
+
+
+def _csv(filepath):
+    print("reached")
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    df = pd.read_csv(filepath)
+
+    # Get the number of rows and columns
+    rows, columns = df.shape
+
+    # Get detailed data types of each column
+    detailed_data_types = get_detailed_dtypes(df)
+    
+    # Convert columns to appropriate types if necessary
+    for column, dtype in detailed_data_types.items():
+        if dtype == 'string':
+            df[column] = df[column].astype(str)
+        elif dtype == 'integer':
+            df[column] = pd.to_numeric(df[column], errors='coerce', downcast='integer')
+        elif dtype == 'float':
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Generate YAML structure for the CSV file
+    dimensions = {
+        "rows": rows,
+        "columns": columns
+    }
+    
+    column_details = []
+    for column in df.columns:
+        column_info = {
+            "name": column,
+            "type": detailed_data_types[column]
+        }
+        column_details.append(column_info)
+    
+    table_name = os.path.basename(filepath)
+    metadata = {
+        "name": table_name,
+        "dimensions": dimensions,
+        "columns": column_details,
+    }
+
+
+
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(metadata)}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "table_name": table_name,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+
+
+    }
+
+    es.insert_document(fields, index="table_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+
+def _excel(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    df = pd.read_excel(filepath)
+
+    # Get the number of rows and columns
+    rows, columns = df.shape
+
+    # Get detailed data types of each column
+    detailed_data_types = get_detailed_dtypes(df)
+    
+    # Convert columns to appropriate types if necessary
+    for column, dtype in detailed_data_types.items():
+        if dtype == 'string':
+            df[column] = df[column].astype(str)
+        elif dtype == 'integer':
+            df[column] = pd.to_numeric(df[column], errors='coerce', downcast='integer')
+        elif dtype == 'float':
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Generate YAML structure for the Excel file
+    dimensions = {
+        "rows": rows,
+        "columns": columns
+    }
+    
+    column_details = []
+    for column in df.columns:
+        column_info = {
+            "name": column,
+            "type": detailed_data_types[column]
+        }
+        column_details.append(column_info)
+    
+    table_name = os.path.basename(filepath)
+    metadata = {
+        "name": table_name,
+        "dimensions": dimensions,
+        "columns": column_details,
+    }
+
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(metadata)}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "table_name": table_name,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+    }
+
+    es.insert_document(fields, index="table_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _picture(filepath):
+
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    image = Image.open(filepath)
+
+    # Get basic metadata
+    metadata = {
+        'Format': image.format,
+        'Size': image.size,
+        'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+    description = describe_picture(filepath)
+
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "description_text": description,
+        "metadata": metadata,
+        "file_path": filepath,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+    }
+
+    es.insert_document(fields, index="picture_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_ppt:  # read txt
+        try:
+            elements = partition_ppt(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_pptx:  # read txt
+        try:
+            elements = partition_pptx(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            for i, element in enumerate(elements):
+                chunk = "".join(
+                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                fields = {
+                    "document_id": doc_id,  # document id from path
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": chunk,
+                    "chunking_strategy": chunking_strategy,
+                    'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "chunk_no": i,
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+    
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use
