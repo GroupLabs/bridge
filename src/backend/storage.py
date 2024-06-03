@@ -20,10 +20,6 @@ from integration_layer import parse_config_from_string, format_model_inputs, pre
 
 import PyPDF2
 
-import mlflow
-from mlflow.tracking import MlflowClient
-from mlflow.exceptions import MlflowException
-
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="celery.platforms")
@@ -32,12 +28,6 @@ CELERY_BROKER_URL = config.CELERY_BROKER_URL
 
 # logger
 logger = setup_logger("storage")
-
-mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
-
-with mlflow.start_run():
-    mlflow.log_param("test", "value")
-    print("Logged test parameter to MLflow.")
 
 # celery config
 celery_app = Celery(
@@ -230,20 +220,6 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                 )  # remove control characters
                 
                 formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) #this will add a space character after every ". ? !"
-                #just makes it more readable you can delete it
-                
-                pdf_reader = PyPDF2.PdfReader(pdf_file)
-                num_pages = len(pdf_reader.pages)
-                
-                for page_num in range(num_pages):
-                    page = pdf_reader.pages[page_num]
-                    text = remove_whitespace(page.extract_text()) #remove white spaces from page in pdf
-                    if remove_whitespace(formatted_chunk) in text: #remove white space from chunk and compares to pdf
-                        page_number = page_num + 1  # Page numbers start from 1
-
-
-
-                
 
                 fields = {
                     "document_id": doc_id,  # document id from path
@@ -251,7 +227,6 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     "chunk_text": formatted_chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number": page_number,
                 }
 
                 # Insert the document into Elasticsearch
@@ -315,38 +290,6 @@ def _db(db_type, host, user, password):
                 es.insert_document(fields, index="table_meta")
                 
                 print("stored: " + file.split(".")[0])
-
-
-def get_next_version(model_name: str) -> int:
-    client = MlflowClient()
-    try:
-        versions = client.get_latest_versions(model_name, stages=["None", "Staging", "Production"])
-        if versions:
-            latest_version = max([int(v.version) for v in versions])
-            return latest_version + 1
-        else:
-            return 1
-    except MlflowException as e:
-        if "RESOURCE_DOES_NOT_EXIST" in str(e):
-            client.create_registered_model(model_name)
-            return 1
-        else:
-            raise
-
-def add_model_to_mlflow(model_path):
-    model_name = os.path.splitext(os.path.basename(model_path))[0]
-
-    try:
-        version = get_next_version(model_name)
-        with mlflow.start_run():
-            logger.info("Logging to MLflow.")
-            mlflow.log_param("model_name", model_name)
-            mlflow.log_param("model_version", version)
-            mlflow.log_artifact(local_path=model_path, artifact_path="triton_models")
-            mlflow.register_model(model_uri=f"runs:/{mlflow.active_run().info.run_id}/model", name=model_name)
-    except Exception as e:
-        logger.error(f"Failed to log to MLflow: {str(e)}")
-
 
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)

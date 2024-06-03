@@ -229,15 +229,19 @@ class Search:
         else:
             raise NotImplementedError
 
-        match_response = self.es.search(
-            query={
-                'match': {
-                    _field: query
-                }
-            },
-            _source=[_field],
-            index=index
-        )
+        try:
+            match_response = self.es.search(
+                query={
+                    'match': {
+                        _field: query
+                    }
+                },
+                _source=[_field],
+                index=index
+            )
+        except BadRequestError as e:
+            logger.info(e)
+            return None
 
         if INSPECT:
             print("MATCH")
@@ -248,17 +252,21 @@ class Search:
 
         match_results = match_response['hits']['hits']
 
-        # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
-        knn_response = self.es.search(
-            knn={
-                'field': 'e5',
-                'query_vector': embed_query(query).tolist()[0],
-                'k': 10,
-                'num_candidates': 50
-            },
-            _source=[_field],
-            index=index
-        )
+        try:
+            # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
+            knn_response = self.es.search(
+                knn={
+                    'field': 'e5',
+                    'query_vector': embed_query(query).tolist()[0],
+                    'k': 10,
+                    'num_candidates': 50
+                },
+                _source=[_field],
+                index=index
+            )
+        except BadRequestError as e:
+            logger.info(e)
+            return None
         
         if INSPECT:
             print("KNN")
