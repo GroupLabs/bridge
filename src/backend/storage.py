@@ -382,6 +382,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
             
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
@@ -393,6 +394,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
 
                 # Insert the document into Elasticsearch
@@ -426,9 +428,9 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -437,6 +439,7 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -467,9 +470,9 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -478,6 +481,7 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -508,9 +512,9 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -519,6 +523,7 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -549,9 +554,9 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -560,6 +565,7 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -591,9 +597,9 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -602,6 +608,7 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -632,9 +639,9 @@ def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -643,6 +650,7 @@ def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
                     "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -835,9 +843,9 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -847,6 +855,7 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
                     "chunking_strategy": chunking_strategy,
                     'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -877,9 +886,9 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            for i, element in enumerate(elements):
+            for i, e in enumerate(elements):
                 chunk = "".join(
-                    ch for ch in element.text if unicodedata.category(ch)[0] != "C"
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
                 fields = {
@@ -889,6 +898,7 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
                     "chunking_strategy": chunking_strategy,
                     'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
