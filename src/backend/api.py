@@ -165,8 +165,7 @@ async def ping_database(input: Connection):
     client = None
 
     if input.connectionString:
-        if input.database == "mongodb":
-            db_func_map_connection_string = {
+        db_func_map_connection_string = {
             "mysql": mysql_to_yamls_with_connection_string,
             "postgres": postgres_to_croissant_with_connection_string,
             "azure": azure_to_yamls_with_connection_string,
