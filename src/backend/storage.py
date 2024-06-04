@@ -90,7 +90,7 @@ except Exception as e:
 def sort_docs(type: str):
     ordered = []
     # Define the index
-    index_name = 'parent_doc'
+
     if type == "name":
         # Perform the search query with sorting
         response = es.search(
@@ -398,9 +398,10 @@ def insert_parent(filepath):
     # Convert bytes to megabytes
     file_size_mb = file_size_bytes / (1024 * 1024)
     size = f"{file_size_mb:.2f} MB"
+    basename_with_ext = os.path.basename(filepath)
     fields = {
         "document_id": doc_id,  # document id from path
-        "Name": os.path.basename(filepath),  # not yet implemented
+        "document_name": os.path.splitext(basename_with_ext)[0],  
         "Size": size,
         'Size_numeric': file_size_mb,  
         "Type": os.path.splitext(filepath)[-1],

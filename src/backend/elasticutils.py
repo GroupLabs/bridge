@@ -53,35 +53,49 @@ class Search:
 
         # configure parent_doc
         try:
-            self.es.indices.create( # may fail if index exists
+            self.es.indices.create(
                 index='parent_doc', 
-                mappings={
-                    'properties': {
-                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
-                        'document_name': {
-                            'type': 'text',
-                            'fields': {
-                                'keyword': {
-                                    'type': 'keyword',
-                                    'ignore_above': 256
+                body={
+                    'settings': {
+                        'analysis': {
+                            'normalizer': {
+                                'lowercase_normalizer': {
+                                    'type': 'custom',
+                                    'char_filter': [],
+                                    'filter': ['lowercase']
                                 }
                             }
-                        },
-                        'Size': {'type': 'text'},
-                        'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
-                        'Type': {'type': 'keyword'},
-                        'Last_modified': {'type': 'text'},
-                        'Created': {'type': 'date'},
-                        # embeddings
-                        'e5': {
-                            'type': 'dense_vector',
-                            # 'dim': 'not set',
-                            'similarity': 'cosine'
+                        }
+                    },
+                    'mappings': {
+                        'properties': {
+                            'document_id': {'type': 'keyword'},  # Using 'keyword' is appropriate for document_id
+                            'document_name': {
+                                'type': 'text',
+                                'fields': {
+                                    'keyword': {
+                                        'type': 'keyword',
+                                        'ignore_above': 256,
+                                        'normalizer': 'lowercase_normalizer'  # Apply the normalizer here
+                                    }
+                                }
                             },
-                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
-                        
+                            'Size': {'type': 'text'},
+                            'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
+                            'Type': {'type': 'keyword'},
+                            'Last_modified': {'type': 'text'},
+                            'Created': {'type': 'date'},
+                            # embeddings
+                            'e5': {
+                                'type': 'dense_vector',
+                                # 'dim': 'not set',
+                                'similarity': 'cosine'
+                            },
+                            'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        }
                     }
-                })
+                }
+            )
         except BadRequestError as e:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
