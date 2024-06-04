@@ -270,7 +270,7 @@ def postgres_to_dicts(host, user, password):
 # TODO: finish this. current format is not croissant supported   
 def postgres_to_croissant(host, user, password, auto_describe=True):
     # Connect to PostgreSQL server
-    conn = psycopg2.connect(host=host, user=user, password=password)
+    conn = psycopg2.connect(host=host, user=user, password=password, dbname="postgres")
     cur = conn.cursor()
     cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
     all_dbs = cur.fetchall()
@@ -335,12 +335,13 @@ def postgres_to_croissant(host, user, password, auto_describe=True):
 
 def convert_uri_to_dsn(uri):
     result = urlparse(uri)
-    return f"dbname={result.path[1:]} user={result.username} password={result.password} host={result.hostname} port={result.port}"
+    port = f" port={result.port}" if result.port else ""
+    return f"user={result.username} password={result.password} host={result.hostname}{port}"
 
 def postgres_to_croissant_with_connection_string(connection_string, auto_describe=True):
-    uri = convert_uri_to_dsn(connection_string)
+    dsn = convert_uri_to_dsn(connection_string)
     # Connect to PostgreSQL server
-    conn = psycopg2.connect(dsn=uri)
+    conn = psycopg2.connect(dsn=dsn, dbname="postgres")
     cur = conn.cursor()
     cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
     all_dbs = cur.fetchall()
@@ -349,7 +350,7 @@ def postgres_to_croissant_with_connection_string(connection_string, auto_describ
     croissant_metadata_list = []
 
     for db in all_dbs:
-        conn = psycopg2.connect(dsn=uri + f"/{db}")
+        conn = psycopg2.connect(dsn=dsn, dbname=db)
         cur = conn.cursor()
         cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
         tables = cur.fetchall()
