@@ -325,7 +325,8 @@ class Search:
         knn_response = self.es.search(
             knn={
                 'field': 'e5',
-                'query_vector': embed_query(query).tolist()[0],
+                'query_vector': [0.0,0.1,0.0],
+                #'query_vector': embed_query(query).tolist()[0],
                 'k': 10,
                 'num_candidates': 50
             },
@@ -340,7 +341,7 @@ class Search:
                 print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
 
         knn_results = knn_response['hits']['hits']
-
+        logger.info(knn_results)
         # (result set, weight)
         result_sets_with_rankings = {
             "match" : match_results,
