@@ -75,7 +75,7 @@ def get_columns(db_name, table_name, schema_name, connection):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-def get_connection(host, username, password, db_name):
+def get_connection(host, username, password, db_name=None):
     if db_name is None:
         connection_str = f"DRIVER=ODBC Driver 17 for SQL Server;SERVER={host};UID={username};PWD={password}"
     else:
@@ -87,7 +87,7 @@ def get_connection(host, username, password, db_name):
         print(f"An error occurred while connecting to the database: {e}")
         return None
     
-def get_connection_with_connection_string(connection_string, db_name):
+def get_connection_with_connection_string(connection_string, db_name=None):
     if db_name is not None:
         connection_string += f';DATABASE={db_name}'
     try:
