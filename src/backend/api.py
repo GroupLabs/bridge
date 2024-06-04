@@ -8,7 +8,7 @@ import logging
 import httpx
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, add_model_to_mlflow, sort_docs
+from storage import load_data, load_model, query, get_inference, sort_docs
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest

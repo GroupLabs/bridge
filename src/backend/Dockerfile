@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 # Install NLTK and download the 'punkt' tokenizer
 RUN pip install nltk && python -m nltk.downloader punkt
 
-COPY requirements.txt ./
+#COPY requirements.txt ./
 
 RUN pip install --no-cache-dir magika FastAPI python-dotenv "unstructured[pdf]" uvicorn requests celery httpx psycopg2-binary openai "tritonclient[http]" elasticsearch azure-storage-blob scikit-learn PyPDF2 torch mlflow transformers python-docx openpyxl xlrd pillow python-pptx
 
