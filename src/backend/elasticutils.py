@@ -382,8 +382,8 @@ class Search:
         knn_response = self.es.search(
             knn={
                 'field': 'e5',
-                # 'query_vector': embed_query(query).tolist()[0],
-                'query_vector': [0.0, 0.0, 0.1],
+                'query_vector': embed_query(query).tolist()[0],
+                #'query_vector': [0.0, 0.0, 0.1],
                 'k': 10,
                 'num_candidates': 50
             },
