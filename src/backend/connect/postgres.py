@@ -11,7 +11,7 @@ parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
 
 from auto_description import describe_table
-from .correlation import correlation_embedding
+# from .correlation import correlation_embedding
 
 # Function to fetch constraints data, adapted for PostgreSQL
 def get_constraints(db_name, table_name, conn):
@@ -148,7 +148,7 @@ def postgres_to_yamls(host, user, password):
                 column_data = pd.read_sql(query, conn)
 
                 # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
-                column["embedding"] = correlation_embedding(column_data[column_name].values)
+                # column["embedding"] = correlation_embedding(column_data[column_name].values)
 
                 if row["column_name"] in primary_keys:
                     column["primary_key"] = True
@@ -236,7 +236,7 @@ def postgres_to_dicts(host, user, password):
                 column_data = pd.read_sql(query, conn)
 
                 # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
-                column["embedding"] = correlation_embedding(column_data[column_name].values) # Assuming the output can be converted to a list
+                # column["embedding"] = correlation_embedding(column_data[column_name].values) # Assuming the output can be converted to a list
 
                 if row["column_name"] in primary_keys:
                     column["primary_key"] = True
@@ -297,12 +297,12 @@ def postgres_to_croissant(host, user, password, auto_describe=True):
                 column_data = pd.read_sql(query, conn)
 
                 # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
-                embedding = correlation_embedding(column_data[column_name].values, 10)
+                # embedding = correlation_embedding(column_data[column_name].values, 10)
 
                 column_data = {
                     "name": column_name,
                     "type": data_type,
-                    "emb": embedding
+                    # "emb": embedding
                     # "sql": column_name,  # SQL property seems unnecessary for Croissant format
                     # embedding logic should be defined here if needed
                 }

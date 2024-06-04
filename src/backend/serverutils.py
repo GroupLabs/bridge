@@ -26,4 +26,18 @@ class Load(BaseModel):
 
 #for chat with GPT-4:
 class ChatRequest(BaseModel):
+    id: int
     message: str
+
+class ChatHistory(BaseModel):
+    history_id: int
+    queries: List[str]
+    responses: List[str]
+    title: Optional[str] = None
+
+class Connection(BaseModel):
+    database: str
+    connectionString: Optional[str] = None
+    host: Optional[str] = None
+    user: Optional[str] = None
+    password: Optional[str] = None

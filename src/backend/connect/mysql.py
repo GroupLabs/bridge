@@ -11,7 +11,7 @@ from pathlib import Path
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
 
-from auto_description import desc_gen
+# from auto_description import desc_gen
 
 # Function to fetch constraints data
 def get_constraints(db_name, mydb):
@@ -64,7 +64,7 @@ def mysql_to_yamls(host, user, password):
         tables = df['table_name'].unique()
         for table in tables:        
             table_df = df[df['table_name'] == table]
-            description = desc_gen(table_df)
+            # description = desc_gen(table_df)
             table_constraints_df = df_constraints[df_constraints['table_name'] == table]
             primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
             foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']
@@ -91,7 +91,7 @@ def mysql_to_yamls(host, user, password):
                 "sql_name": f"{db_name}.{table}",
                 "dimensions": dimensions,
                 **({"joins": joins} if joins else {}),
-                "description":description
+                # "description":description
             }
 
             yamls.append(yaml_structure)
@@ -268,6 +268,5 @@ if __name__ == "__main__":
 
 # mycursor.close()
 # mydb.close()
-
 
 
