@@ -3,6 +3,8 @@ from elasticsearch import Elasticsearch, BadRequestError
 from config import config
 from log import setup_logger
 from embed.e5_small import embed_passage, embed_query
+from datetime import datetime
+
 
 # logger
 logger = setup_logger("elastic")
@@ -23,12 +25,41 @@ class Search:
         logger.info("ES is available")
         logger.info(str(client_info))
 
+
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='file_meta', 
+                mappings={
+                    'properties': {
+                        'user_id': {'type': 'keyword'},
+                        'file_type': {'type': 'keyword'},
+                        'file_id': {'type': 'keyword'},
+                        'file_name': {'type': 'text'},
+                        'file_description': {'type': 'text'},
+                        'file_size': {'type': 'long'},
+                        'permissions': {
+                            'type': 'nested',
+                            'properties': {
+                                'person': {'type': 'keyword'},
+                                'permission': {'type': 'keyword'}
+                            }
+                        },
+                        'last_modified_time': {'type': 'date'},
+                        'created_time': {'type': 'date'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
         # configure text_chunk
         try:
             self.es.indices.create( # may fail if index exists
                 index='text_chunk', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         'main_doc_id': {'type': 'keyword'},
                         'chunk_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'access_group': {'type': 'keyword'},
@@ -94,6 +125,7 @@ class Search:
                 index='picture_meta', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         'picture_name': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'description_text': {'type': 'text'},
@@ -121,6 +153,7 @@ class Search:
                 index='table_meta', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         'database_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'table_name': {'type': 'text'},
@@ -193,12 +226,31 @@ class Search:
                 logger.warn(e.error)
                 raise
 
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='chat_history',
+                mappings={
+                    'properties': {
+                        'user_id': {'type': 'keyword'},
+                        'history_id': {'type': 'keyword'},
+                        'queries': {'type': 'text'},
+                        'responses': {'type': 'text'},
+                        'title': {'type': 'text'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+        
         logger.info("Configured.")
 
         self.registered_indices = [
             "text_chunk",
             "table_meta",
-            "model_meta"
+            "model_meta",
+            "file_meta",
+            "chat_history"
         ]
 
         logger.info("Indices Registered.")
@@ -230,12 +282,17 @@ class Search:
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['colbert'] = {}
 
+
         if index == "picture_meta":
             #document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
             
+        if index == "file_meta":
+            document['created_time'] = datetime.utcfromtimestamp(document['created_time']).isoformat()
+            document['last_modified_time'] = datetime.utcfromtimestamp(document['last_modified_time']).isoformat()
+        
         logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
@@ -325,7 +382,8 @@ class Search:
         knn_response = self.es.search(
             knn={
                 'field': 'e5',
-                'query_vector': embed_query(query).tolist()[0],
+                # 'query_vector': embed_query(query).tolist()[0],
+                'query_vector': [0.0, 0.0, 0.1],
                 'k': 10,
                 'num_candidates': 50
             },
@@ -358,6 +416,37 @@ class Search:
         logger.info(f"Hybrid search returned {len(rrf_results)} elements.")
 
         return rrf_results
+
+    def save_chat_to_history(self, history_id, query, response, user_id):
+        try:
+            # Search for documents matching both history_id and user_id
+            res = self.es.search(index='chat_history', query={
+                'bool': {
+                    'must': [
+                        {'match': {'history_id': history_id}},
+                        {'match': {'user_id': user_id}}
+                    ]
+                }
+            })
+
+            # Check if there are any hits
+            if res['hits']['total']['value'] > 0:
+                doc_id = res['hits']['hits'][0]['_id']
+                chat_history= res['hits']['hits'][0]['_source']
+                chat_history['chats'].append({"query": query, "response": response})
+                self.es.update(index='chat_history', id=doc_id, body={"doc": chat_history})
+            else:
+                chat_history = {
+                    'user_id': user_id,
+                    'history_id': history_id,
+                    'chats': [{"query": query, "response": response}],
+                    'title': f"Chat History {user_id} - {history_id}"
+                }
+                self.es.index(index='chat_history', body=chat_history)
+
+            logger.info(f"Chat history {history_id} for user {user_id} updated successfully.")
+        except Exception as e:
+            logger.error(f"Error saving chat history: {str(e)}")
 
 
 if __name__ == "__main__":    
@@ -437,4 +526,3 @@ if __name__ == "__main__":
     print(es)
 
     # print(es.retrieve_document_by_id("iI78g44BIew1j5poztvp", "text_chunk"))
-
