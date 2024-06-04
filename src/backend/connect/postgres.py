@@ -5,6 +5,7 @@ import yaml
 import sys
 from pathlib import Path
 import json
+from urllib.parse import urlparse
 
 # Get the absolute path of the parent directory
 parent_dir = Path(__file__).resolve().parent.parent
@@ -332,6 +333,75 @@ def postgres_to_croissant(host, user, password, auto_describe=True):
     # Convert the metadata list to JSON
     return json.dumps(croissant_metadata_list, indent=2)
 
+def convert_uri_to_dsn(uri):
+    result = urlparse(uri)
+    return f"dbname={result.path[1:]} user={result.username} password={result.password} host={result.hostname} port={result.port}"
+
+def postgres_to_croissant_with_connection_string(connection_string, auto_describe=True):
+    uri = convert_uri_to_dsn(connection_string)
+    # Connect to PostgreSQL server
+    conn = psycopg2.connect(dsn=uri)
+    cur = conn.cursor()
+    cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
+    all_dbs = cur.fetchall()
+    all_dbs = [db[0] for db in all_dbs if db[0] != "postgres"]
+
+    croissant_metadata_list = []
+
+    for db in all_dbs:
+        conn = psycopg2.connect(dsn=uri + f"/{db}")
+        cur = conn.cursor()
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+        tables = cur.fetchall()
+        tables = [table[0] for table in tables]
+
+        for table in tables:
+            cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='{table}'")
+            columns = cur.fetchall()
+
+            dimensions = []
+            for column_name, data_type in columns:
+                quoted_column_name = f'"{column_name}"'  # Enclose the column name in double quotes
+
+                # Use the quoted column name in the SQL query
+                query = f"SELECT {quoted_column_name} FROM \"{table}\""
+                column_data = pd.read_sql(query, conn)
+
+                # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
+                # embedding = correlation_embedding(column_data[column_name].values, 10)
+
+                column_data = {
+                    "name": column_name,
+                    "type": data_type,
+                    # "emb": embedding
+                    # "sql": column_name,  # SQL property seems unnecessary for Croissant format
+                    # embedding logic should be defined here if needed
+                }
+                dimensions.append(column_data)
+
+            description = describe_table(str(columns)) if auto_describe else ""
+
+            croissant_table_metadata = {
+                "@type": "sc:Dataset",
+                "name": table,
+                "description": description,
+                "recordSet": [{
+                    "@type": "cr:RecordSet",
+                    "name": f"{table}_records",
+                    "field": dimensions
+                }]
+            }
+
+            with open('croissant_metadata.json', 'w') as file:
+                file.write(json.dumps(croissant_table_metadata, indent=2))
+
+            
+            croissant_metadata_list.append(croissant_table_metadata)
+
+    conn.close()
+
+    # Convert the metadata list to JSON
+    return json.dumps(croissant_metadata_list, indent=2)
 
 if __name__ == "__main__":
     from dotenv import load_dotenv, find_dotenv

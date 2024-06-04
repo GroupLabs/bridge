@@ -19,10 +19,10 @@ from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
 from elasticutils import Search  # Import the Search class
 from serverutils import Connection
-from connect.mongodb import get_mongo_connection
-from connect.mysql import mysql_to_yamls
-from connect.postgres import postgres_to_croissant
-from connect.azure import azure_to_yamls
+from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
+from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
+from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
+from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 
 
 TEMP_DIR = config.TEMP_DIR
@@ -166,16 +166,24 @@ async def ping_database(input: Connection):
 
     if input.connectionString:
         if input.database == "mongodb":
-            client = get_mongo_connection(input.connectionString)
+            db_func_map_connection_string = {
+            "mysql": mysql_to_yamls_with_connection_string,
+            "postgres": postgres_to_croissant_with_connection_string,
+            "azure": azure_to_yamls_with_connection_string,
+            "mongodb": get_mongo_connection
+        }
+        if input.database in db_func_map_connection_string:
+            client = db_func_map_connection_string[input.database](input.connectionString)
 
-    elif input.host:
-        db_func_map = {
+    elif input.host and input.user:
+        db_func_map_credentials = {
             "mysql": mysql_to_yamls,
             "postgres": postgres_to_croissant,
-            "azure": azure_to_yamls
+            "azure": azure_to_yamls,
+            "mongodb": get_mongo_connection_with_credentials
         }
-        if input.database in db_func_map:
-            client = db_func_map[input.database](input.host, input.user, input.password)
+        if input.database in db_func_map_credentials:
+            client = db_func_map_credentials[input.database](input.host, input.user, input.password)
 
     print(client)
     return {"client": "ok" if client else "error"}

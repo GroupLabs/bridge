@@ -74,6 +74,7 @@ def get_columns(db_name, table_name, schema_name, connection):
         return data_frame
     except Exception as e:
         print(f"An error occurred: {e}")
+
 def get_connection(host, username, password, db_name):
     if db_name is None:
         connection_str = f"DRIVER=ODBC Driver 17 for SQL Server;SERVER={host};UID={username};PWD={password}"
@@ -85,6 +86,17 @@ def get_connection(host, username, password, db_name):
     except Exception as e:
         print(f"An error occurred while connecting to the database: {e}")
         return None
+    
+def get_connection_with_connection_string(connection_string, db_name):
+    if db_name is not None:
+        connection_string += f';DATABASE={db_name}'
+    try:
+        connection = pyodbc.connect(connection_string)
+        return connection
+    except Exception as e:
+        print(f"An error occurred while connecting to the database: {e}")
+        return None
+    
 def get_all_databases(connection):
     try:
         cursor = connection.cursor()
@@ -147,6 +159,53 @@ def azure_to_yamls(host, username, password):
             os.makedirs(f"models/azure/yamls", exist_ok=True)
             # with open(f"models/azure/yamls/{table}.yaml", 'w') as yaml_file:
             #     yaml_file.write(yaml_str)
+
+    connection.close()
+    return yamls
+
+def azure_to_yamls_with_connection_string(connection_string):
+    connection = get_connection_with_connection_string(connection_string)
+    databases = get_all_databases(connection)
+    yamls = []
+    for db_name in databases:
+        connection = get_connection_with_connection_string(connection_string, db_name)
+        table_schemas = get_table_names(db_name, connection)
+        for schema_name, table_name in table_schemas:
+            columns = get_columns(db_name, table_name, schema_name, connection)
+            constraints = get_constraints(db_name, table_name, schema_name, connection)
+            primary_keys = constraints[constraints["constraint_type"] == "PRIMARY KEY"]["column_name"].tolist()
+            foreign_keys = constraints[constraints["constraint_type"] == "FOREIGN KEY"]
+            dimensions = []
+            for _, row in columns.iterrows():
+                column = {"name": row["column_name"], "type": row["data_type"], "sql": row["column_name"]}
+                column_name = row['column_name']
+                quoted_column_name = f'"{column_name}"'
+                query = f"SELECT {quoted_column_name} FROM \"{schema_name}\".\"{table_name}\""
+                column_data = pd.read_sql(query, connection)
+                if row["column_name"] in primary_keys:
+                    column["primary_key"] = True
+                elif row["column_name"] in foreign_keys["column_name"].tolist():
+                    column["foreign_key"] = True
+                dimensions.append(column)
+            joins = []
+            for _, fk_row in foreign_keys.iterrows():
+                join = {
+                    "name": fk_row["foreign_table_name"],
+                    "sql": f"{{{table_name}}}.{fk_row['column_name']} = {{{fk_row['foreign_table_name']}}}.{fk_row['foreign_column_name']}"
+                }
+                joins.append(join)
+            yaml_structure = {
+                "name": table_name,
+                "schema": schema_name,
+                "sql_name": f"{db_name}.{schema_name}.{table_name}",
+                "dimensions": dimensions,
+                **({"joins": joins} if joins else {}),
+                "description": ""
+            }
+            yamls.append(yaml_structure)
+
+            yaml_str = yaml.dump(yaml_structure, default_flow_style=None, sort_keys=False)
+            os.makedirs(f"models/azure/yamls", exist_ok=True)
 
     connection.close()
     return yamls

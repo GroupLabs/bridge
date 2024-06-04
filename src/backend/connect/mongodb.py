@@ -14,6 +14,18 @@ def get_mongo_connection(uri):
     except Exception as e:
         print(f"An error occurred while connecting to MongoDB: {e}")
         return None
+    
+def get_mongo_connection_with_credentials(host, user, password):
+    uri = f"mongodb+srv://{user}:{password}@{host}"
+    try:
+        client = MongoClient(uri, tls=True, tlsAllowInvalidCertificates=True)
+        client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+        print(client)
+        return client
+    except Exception as e:
+        print(f"An error occurred while connecting to MongoDB: {e}")
+        return None
 
 def get_all_databases(client):
     try:
