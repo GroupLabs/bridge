@@ -166,7 +166,7 @@ async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
 
 @app.post("/query")
 async def nl_query(input: Query):
-
+    logger.info(f'{input.index}')
     resp = query(input.query, input.index)
 
     if input.use_llm:
