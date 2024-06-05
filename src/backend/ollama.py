@@ -44,22 +44,35 @@ async def chat(messages):
                     continue  # Skip over lines that cannot be loaded as JSON
 
 #generates the text for a response:
-def gen(prompt: str):
+async def gen(prompt: str):
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {OPENAI_KEY}'
     }
     data = {
         "model": LLM_MODEL,
-        "messages": [{"role": "system", "content": prompt}]  
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": True,
+        "temperature": 0,
     }
+    timeout = httpx.Timeout(300.0, read=300.0)
 
-    with httpx.Client() as client:
-        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
-        if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
-        else:
-            raise Exception("Failed to generate text: " + response.text)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", LLM_URL + "/chat/completions", headers=headers, json=data) as response:
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line or line == '[DONE]':
+                        continue
+                    try:
+                        event = json.loads(line[len("data: "):])
+                        if 'delta' in event['choices'][0] and 'content' in event['choices'][0]['delta']:
+                            yield event['choices'][0]['delta']['content']
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        msg = f"get_aichat_reply_openai: Streaming error with OpenAI: {str(e)}"
+        logger.info(msg)
         
 
 # Function to encode the image
