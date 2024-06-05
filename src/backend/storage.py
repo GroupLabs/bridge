@@ -35,9 +35,9 @@ import torch
 
 import PyPDF2
 
-#import mlflow
-#from mlflow.tracking import MlflowClient
-#from mlflow.exceptions import MlflowException
+import mlflow
+from mlflow.tracking import MlflowClient
+from mlflow.exceptions import MlflowException
 
 import warnings
 
@@ -48,11 +48,11 @@ CELERY_BROKER_URL = config.CELERY_BROKER_URL
 # logger
 logger = setup_logger("storage")
 
-#mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
+mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
 
-#with mlflow.start_run():
-#    mlflow.log_param("test", "value")
-#    print("Logged test parameter to MLflow.")
+with mlflow.start_run():
+    mlflow.log_param("test", "value")
+    print("Logged test parameter to MLflow.")
 
 # celery config
 celery_app = Celery(
@@ -87,7 +87,7 @@ except Exception as e:
     print(f"Triton not available: {e}")
 
 @celery_app.task(name="sort_documents_task")
-def sort_docs(type: str):
+def sort_docs(type: str, order: str):
     ordered = []
     # Define the index
     index_name = 'parent_doc'
@@ -102,7 +102,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "document_name.keyword": {
-                            "order": "asc"
+                            "order": order
                         }
                     }
                 ]
@@ -120,7 +120,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Size_numeric": {
-                            "order": "desc"
+                            "order": order
                         }
                     }
                 ]
@@ -138,7 +138,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Type": {
-                            "order": "asc"
+                            "order": order
                         }
                     }
                 ]
@@ -156,7 +156,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Created": {
-                            "order": "asc"  # Change to "desc" for descending order
+                            "order": order  
                         }
                     }
                 ]
@@ -167,9 +167,7 @@ def sort_docs(type: str):
 
     # Print the results
     for hit in response['hits']['hits']:
-        print(hit["_source"])
         ordered.append(hit)
-    ordered.reverse()
     return ordered
 
 @celery_app.task(name="load_data_task")
@@ -961,7 +959,7 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
-"""
+
 def get_next_version(model_name: str) -> int:
     client = MlflowClient()
     try:
@@ -991,7 +989,7 @@ def add_model_to_mlflow(model_path):
             mlflow.register_model(model_uri=f"runs:/{mlflow.active_run().info.run_id}/model", name=model_name)
     except Exception as e:
         logger.error(f"Failed to log to MLflow: {str(e)}")
-"""
+
 
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
