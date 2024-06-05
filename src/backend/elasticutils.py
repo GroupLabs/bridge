@@ -1,3 +1,4 @@
+from typing import List
 from elasticsearch import Elasticsearch, BadRequestError
 
 from config import config
@@ -450,21 +451,6 @@ class Search:
         except Exception as e:
             logger.error(f"Error saving chat history: {str(e)}")
 
-    def get_user_chat_histories(self, user_id: str) -> List[int]:
-        try:
-            response = self.es.search(index='chat_history', query={
-                'match': {'user_id': user_id}
-            })
-
-            if response['hits']['total']['value'] > 0:
-                chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
-                return chat_history_ids
-            else:
-                return []
-        except Exception as e:
-            logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
-            return []
-        
     def get_user_chat_histories(self, user_id: str) -> List[int]:
         try:
             response = self.es.search(index='chat_history', query={
