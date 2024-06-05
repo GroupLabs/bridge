@@ -16,8 +16,7 @@ RUN pip install nltk && python -m nltk.downloader punkt
 
 #COPY requirements.txt ./
 
-RUN pip install --no-cache-dir quests celery httpx psycopg2-binary openai "tritonclient[http]" elasticsearch azure-storage-blob scikit-learn PyPDF2 torch mlflow transformers python-docx openpyxl xlrd pillow python-pptx google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client magika FastAPI python-dotenv "unstructured[pdf]" uvicorn requests
-
+RUN pip install --no-cache-dir magika FastAPI python-dotenv "unstructured[pdf]" uvicorn requests celery httpx psycopg2-binary openai "tritonclient[http]" elasticsearch azure-storage-blob scikit-learn PyPDF2 torch mlflow transformers python-docx openpyxl xlrd pillow python-pptx google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
 COPY . ./
 

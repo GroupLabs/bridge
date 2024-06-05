@@ -24,7 +24,6 @@ class Load(BaseModel):
     filepath: str
     typehint: Optional[str] = "unknown"
 
-#for chat with GPT-4:
 class ChatRequest(BaseModel):
     id: int
     message: str
@@ -34,3 +33,7 @@ class ChatHistory(BaseModel):
     queries: List[str]
     responses: List[str]
     title: Optional[str] = None    
+
+class UserChatHistories(BaseModel):
+    user_id: str
+    chat_histories: List[ChatHistory]

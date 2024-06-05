@@ -417,7 +417,7 @@ class Search:
 
         return rrf_results
 
-    def save_chat_to_history(self, history_id, query, response, user_id):
+    def save_chat_to_history(self, history_id: int, query: str, response: str, user_id: str):
         try:
             # Search for documents matching both history_id and user_id
             res = self.es.search(index='chat_history', query={
@@ -432,14 +432,16 @@ class Search:
             # Check if there are any hits
             if res['hits']['total']['value'] > 0:
                 doc_id = res['hits']['hits'][0]['_id']
-                chat_history= res['hits']['hits'][0]['_source']
-                chat_history['chats'].append({"query": query, "response": response})
+                chat_history = res['hits']['hits'][0]['_source']
+                chat_history['queries'].append(query)
+                chat_history['responses'].append(response)
                 self.es.update(index='chat_history', id=doc_id, body={"doc": chat_history})
             else:
                 chat_history = {
                     'user_id': user_id,
                     'history_id': history_id,
-                    'chats': [{"query": query, "response": response}],
+                    'queries': [query],
+                    'responses': [response],
                     'title': f"Chat History {user_id} - {history_id}"
                 }
                 self.es.index(index='chat_history', body=chat_history)
@@ -447,6 +449,36 @@ class Search:
             logger.info(f"Chat history {history_id} for user {user_id} updated successfully.")
         except Exception as e:
             logger.error(f"Error saving chat history: {str(e)}")
+
+    def get_user_chat_histories(self, user_id: str) -> List[int]:
+        try:
+            response = self.es.search(index='chat_history', query={
+                'match': {'user_id': user_id}
+            })
+
+            if response['hits']['total']['value'] > 0:
+                chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
+                return chat_history_ids
+            else:
+                return []
+        except Exception as e:
+            logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
+            return []
+        
+    def get_user_chat_histories(self, user_id: str) -> List[int]:
+        try:
+            response = self.es.search(index='chat_history', query={
+                'match': {'user_id': user_id}
+            })
+
+            if response['hits']['total']['value'] > 0:
+                chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
+                return chat_history_ids
+            else:
+                return []
+        except Exception as e:
+            logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
+            return []
 
 
 if __name__ == "__main__":    

@@ -262,6 +262,22 @@ async def get_chat_history(history_id: int):
     except Exception as e:
         logger.error(f"Error retrieving chat history: {str(e)}")
         return {"error": str(e)}
+    
+@app.get("/get_user_chat_histories/{user_id}")
+async def get_user_chat_histories(user_id: str):
+    try:
+        # Query Elasticsearch for all chat histories for the given user_id
+        response = search.es.search(index='chat_history', query={'match': {'user_id': user_id}})
+        
+        # Extract the chat history IDs from the response
+        if response['hits']['total']['value'] > 0:
+            chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
+            return {"user_id": user_id, "chat_history_ids": chat_history_ids}
+        else:
+            return {"user_id": user_id, "chat_history_ids": [], "message": "No chat histories found"}
+    except Exception as e:
+        logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
+        return {"error": str(e)}  
 
 if __name__ == '__main__':
     import uvicorn
