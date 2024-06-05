@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
 # Install NLTK and download the 'punkt' tokenizer
 RUN pip install nltk && python -m nltk.downloader punkt
 
-#COPY requirements.txt ./
+COPY requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
