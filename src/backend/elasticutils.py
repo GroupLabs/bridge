@@ -84,49 +84,35 @@ class Search:
 
         # configure parent_doc
         try:
-            self.es.indices.create(
+            self.es.indices.create( # may fail if index exists
                 index='parent_doc', 
-                body={
-                    'settings': {
-                        'analysis': {
-                            'normalizer': {
-                                'lowercase_normalizer': {
-                                    'type': 'custom',
-                                    'char_filter': [],
-                                    'filter': ['lowercase']
+                mappings={
+                    'properties': {
+                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'document_name': {
+                            'type': 'text',
+                            'fields': {
+                                'keyword': {
+                                    'type': 'keyword',
+                                    'ignore_above': 256
                                 }
                             }
-                        }
-                    },
-                    'mappings': {
-                        'properties': {
-                            'document_id': {'type': 'keyword'},  # Using 'keyword' is appropriate for document_id
-                            'document_name': {
-                                'type': 'text',
-                                'fields': {
-                                    'keyword': {
-                                        'type': 'keyword',
-                                        'ignore_above': 256,
-                                        'normalizer': 'lowercase_normalizer'  # Apply the normalizer here
-                                    }
-                                }
+                        },
+                        'Size': {'type': 'text'},
+                        'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
+                        'Type': {'type': 'keyword'},
+                        'Last_modified': {'type': 'text'},
+                        'Created': {'type': 'date'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
                             },
-                            'Size': {'type': 'text'},
-                            'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
-                            'Type': {'type': 'keyword'},
-                            'Last_modified': {'type': 'text'},
-                            'Created': {'type': 'date'},
-                            # embeddings
-                            'e5': {
-                                'type': 'dense_vector',
-                                # 'dim': 'not set',
-                                'similarity': 'cosine'
-                            },
-                            'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
-                        }
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        
                     }
-                }
-            )
+                })
         except BadRequestError as e:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
@@ -396,10 +382,8 @@ class Search:
         knn_response = self.es.search(
             knn={
                 'field': 'e5',
-
                 'query_vector': embed_query(query).tolist()[0],
                 #'query_vector': [0.0, 0.0, 0.1],
-
                 'k': 10,
                 'num_candidates': 50
             },
@@ -414,7 +398,7 @@ class Search:
                 print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
 
         knn_results = knn_response['hits']['hits']
-        logger.info(knn_results)
+
         # (result set, weight)
         result_sets_with_rankings = {
             "match" : match_results,
