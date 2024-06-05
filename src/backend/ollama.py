@@ -66,7 +66,7 @@ def gen(prompt: str):
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
-
+    
 def chat_with_model_to_get_description(image_path):
     base64_image = encode_image(image_path)
 
@@ -97,17 +97,12 @@ def chat_with_model_to_get_description(image_path):
 
     timeout = httpx.Timeout(300.0, read=300.0)
 
-    try:
-        with httpx.Client(timeout=timeout) as client:
-            response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
-            response.raise_for_status()  # Raises an exception for 4xx/5xx responses
+    with httpx.Client() as client:
+        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
+        if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
-    except httpx.TimeoutException:
-        raise Exception("The request timed out. Please try again later.")
-    except httpx.RequestError as exc:
-        raise Exception(f"An error occurred while making the request: {exc}")
-    except Exception as exc:
-        raise Exception(f"An unexpected error occurred: {exc}")
+        else:
+            raise Exception("Failed to generate text: " + response.text)
 
 if __name__ == "__main__":
     # Example usage
