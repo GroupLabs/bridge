@@ -184,8 +184,8 @@ async def nl_query(input: Query):
 
     return {"health": health, "status" : "success", "resp" : resp}
 
-@app.post("/sort")
-async def sort_docs_ep(type: str=Form(...)):
+async def sort_docs_ep(type: str = Form(...)):
+    global last_sort_type, last_sort_order
     type_of_sort = ["name", "size", "type", "created"]
     if type not in type_of_sort:
         return "invalid sort"
