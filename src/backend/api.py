@@ -17,6 +17,10 @@ from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
+from elasticutils import Search
+
+# elasticsearch
+es = Search()
 
 
 TEMP_DIR = config.TEMP_DIR
@@ -210,6 +214,89 @@ async def sort_docs_ep(type: str = Form(...)):
 @app.post("/get_parent")
 async def get_parent_ep(chunk: str=Form(...)):
     return get_parent(chunk)
+
+def sort_by_score(data):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+    return sorted_data
+
+def concatenate_top_entries(data, top_n=5):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+    
+    # Get the top N entries
+    top_entries = sorted_data[:top_n]
+    
+    # Create the concatenated string
+    concatenated_string = ""
+    for i, entry in enumerate(top_entries, start=1):
+        concatenated_string += f'here is context {i}: "{entry[1]["text"]}"\n'
+    
+    return concatenated_string
+
+def get_top_ids(data, top_n=5):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+    
+    # Get the top N entries
+    top_entries = sorted_data[:top_n]
+    
+    # Extract the IDs
+    top_ids = [entry[0] for entry in top_entries]
+    
+    return top_ids
+
+def find_document_by_id(doc_id, indices):
+    for index in indices:
+        query = {
+            "query": {
+                "term": {
+                    "_id": doc_id
+                }
+            }
+        }
+        response = es.search(index=index, body=query)
+        if response['hits']['hits']:
+            return response['hits']['hits'][0]['_source']['document_id']
+    return None
+
+def find_name_by_document_id(document_id, parent_index = "parent_doc"):
+    query = {
+        "query": {
+            "term": {
+                "document_id": document_id
+            }
+        }
+    }
+    response = es.search(index=parent_index, body=query)
+    if response['hits']['hits']:
+        return response['hits']['hits'][0]['_source']['document_name']
+    return None
+
+
+@app.post("/query_all")
+async def get_query_parent_ep(input: Query):
+    indices = ["table_meta", "picture_meta","text_chunk"]
+    all_responses = []
+
+    # Loop through the indices and collect responses
+    for index in indices:
+        resp = query(input.query, index)
+        all_responses.append(resp)
+
+    # Concatenate the responses
+    concatenated_responses = [item for sublist in all_responses for item in sublist]
+
+    sorted_responses = sort_by_score(concatenated_responses)
+
+
+    result = get_top_ids(sorted_responses)
+    for doc_id in result:
+        docs = find_document_by_id(doc_id,indices)
+        print(find_name_by_document_id(docs))
+    return sorted_responses
+
+        
 
 @app.post("/query_parent")
 async def get_query_parent_ep(input: Query):
