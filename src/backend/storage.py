@@ -383,7 +383,7 @@ def get_document_name(document_id):
     # Check if any hits are returned
     if response['hits']['total']['value'] > 0:
         # Extract the document_name from the first hit
-        document_name = response['hits']['hits'][0]['_source']['Name']
+        document_name = response['hits']['hits'][0]['_source']['document_name']
         return document_name
     else:
         return None

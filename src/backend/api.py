@@ -183,7 +183,6 @@ async def nl_query(input: Query):
     logger.info(f"QUERY success: {input.query}")
 
     return {"health": health, "status" : "success", "resp" : resp}
-
 @app.post("/sort")
 async def sort_docs_ep(type: str = Form(...)):
     global last_sort_type, last_sort_order
