@@ -37,6 +37,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Global variable to keep track of the last sort type and order
+last_sort_type = None
+last_sort_order = "asc"
+
 
 
 origins = [
@@ -186,7 +190,22 @@ async def sort_docs_ep(type: str=Form(...)):
     if type not in type_of_sort:
         return "invalid sort"
 
-    return sort_docs(type)
+    # Determine the sort order
+    if type == last_sort_type:
+        # Toggle the sort order
+        if last_sort_order == "asc":
+            sort_order = "desc"
+        else:
+            sort_order = "asc"
+    else:
+        sort_order = "asc"  # Default to ascending for a new sort type
+
+    # Update the last sort type and order
+    last_sort_type = type
+    last_sort_order = sort_order
+
+
+    return sort_docs(type, sort_order)
 
 @app.post("/get_parent")
 async def get_parent_ep(chunk: str=Form(...)):
