@@ -7,7 +7,7 @@ def describe_table(input):
     return resp
 
 def describe_picture(input):
-    print(input)
+
     resp = chat_with_model_to_get_description(input)
     return resp
 
