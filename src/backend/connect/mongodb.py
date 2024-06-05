@@ -9,6 +9,19 @@ def get_mongo_connection(uri):
         client = MongoClient(uri, tls=True, tlsAllowInvalidCertificates=True)
         client.admin.command('ping')
         print("Pinged your deployment. You successfully connected to MongoDB!")
+        print(client)
+        return client
+    except Exception as e:
+        print(f"An error occurred while connecting to MongoDB: {e}")
+        return None
+
+def get_mongo_connection_with_credentials(host, user, password):
+    uri = f"mongodb+srv://{user}:{password}@{host}"
+    try:
+        client = MongoClient(uri, tls=True, tlsAllowInvalidCertificates=True)
+        client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+        print(client)
         return client
     except Exception as e:
         print(f"An error occurred while connecting to MongoDB: {e}")
@@ -79,7 +92,7 @@ def mongo_to_yamls(uri):
     return yamls
 
 if __name__ == "__main__":
-    uri = "mongodb+srv://admin:1234Burger@codycluster.xullp6s.mongodb.net/?retryWrites=true&w=majority&appName=codycluster"
+    uri = "mongodb+srv://vercel-admin-user-652a2463fef2413d03fcec14:DN4xLUKZ1AraJrrF@cluster0.cy4okhg.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
     yamls = mongo_to_yamls(uri)
 
     for yaml_doc in yamls:

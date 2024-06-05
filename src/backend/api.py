@@ -1,5 +1,7 @@
 import os
 import json
+import logging
+import httpx
 from google.auth.transport.requests import Request as GoogleRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
@@ -21,6 +23,12 @@ from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
 from elasticutils import Search  # Import the Search class
 from starlette.middleware.sessions import SessionMiddleware
+from elasticutils import Search  # Import the Search class
+from serverutils import Connection
+from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
+from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
+from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
+from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 
 # Load environment variables
 load_dotenv()
@@ -277,7 +285,34 @@ async def get_user_chat_histories(user_id: str):
             return {"user_id": user_id, "chat_history_ids": [], "message": "No chat histories found"}
     except Exception as e:
         logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
-        return {"error": str(e)}  
+        return {"error": str(e)}
+    
+@app.post("/ping_database")
+async def ping_database(input: Connection):
+    client = None
+
+    if input.connectionString:
+        db_func_map_connection_string = {
+            "mysql": mysql_to_yamls_with_connection_string,
+            "postgres": postgres_to_croissant_with_connection_string,
+            "azure": azure_to_yamls_with_connection_string,
+            "mongodb": get_mongo_connection
+        }
+        if input.database in db_func_map_connection_string:
+            client = db_func_map_connection_string[input.database](input.connectionString)
+
+    elif input.host and input.user:
+        db_func_map_credentials = {
+            "mysql": mysql_to_yamls,
+            "postgres": postgres_to_croissant,
+            "azure": azure_to_yamls,
+            "mongodb": get_mongo_connection_with_credentials
+        }
+        if input.database in db_func_map_credentials:
+            client = db_func_map_credentials[input.database](input.host, input.user, input.password)
+
+    print(client)
+    return {"client": "ok" if client else "error"}
 
 if __name__ == '__main__':
     import uvicorn
