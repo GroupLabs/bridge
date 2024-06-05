@@ -146,6 +146,80 @@ def _upload(directory_path, connection_string, container_name):
 
     logger.info("All files successfully uploaded to Azure Blob Storage.")
 
+
+import requests
+import numpy as np
+import json
+
+def send_inference_request(model_name, model_version, input_data, server_url="http://localhost:8000"):
+    """
+    Sends an inference request to a model deployed on the Triton Inference Server via HTTP.
+
+    Parameters:
+    - model_name: str, name of the model
+    - model_version: str, version of the model
+    - input_data: np.ndarray, input data for inference
+    - server_url: str, URL of the Triton Inference Server
+
+    Returns:
+    - dict, inference result
+    """
+    
+
+    # Create the request payload
+    #call format_model_inputs to create a payload of this form:
+    
+    #example format: 
+    """{
+            "inputs": [
+                {
+                "name": "input_1",
+                "shape": [1, 3],
+                "datatype": "FP32",
+                "data": [[1.0, 2.0, 3.0]]
+                },
+                {
+                "name": "input_2",
+                "shape": [1, 2],
+                "datatype": "INT32",
+                "data": [[4, 5]]
+                }
+            ],
+            "outputs": [
+                {
+                "name": "output_1"
+                }
+            ]
+        }"""
+    
+    payload = {
+        "inputs": [
+            {
+                "name": "input_1",
+                "shape": list(input_data.shape),
+                "datatype": "FP32",
+                "data": input_data
+            }
+        ],
+        "outputs": [
+            {
+                "name": "output_1"
+            }
+        ]
+    }
+
+    # Construct the URL
+    url = f"{server_url}/v2/models/{model_name}/versions/{model_version}/infer"
+
+    # Send the request
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+
+    # Process and return the response
+    return response.json()
+
+
+  
 if __name__ == "__main__":
     tc = TritonClient()
     #tc.addToModels("/Users/codycf/Desktop/arvo/bridge/src/backend/models/distil_alert_v1.pt", "/Users/codycf/Desktop/arvo/bridge/src/backend/configs/config.pbtxt")
@@ -161,3 +235,12 @@ if __name__ == "__main__":
         logger.info(f"The 'data is {data}") 
     else:
         logger.info(f"Error: there is no data") 
+
+
+    #using triton: 
+    model_name = "ModelName"
+    model_version = "1"
+    input_data = np.array([[1.0, 2.0, 3.0]], dtype=np.float32)
+
+    result = send_inference_request(model_name, model_version, input_data)
+    print("Inference result:", result)
