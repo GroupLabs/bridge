@@ -363,6 +363,48 @@ def insert_parent(filepath):
     }
     es.insert_document(fields, index="parent_doc")
 
+def get_parent(chunk):
+    response = es.search(
+        index='text_chunk',
+        body={
+            "query": {
+                "match_phrase": {
+                    "chunk_text": chunk  # Replace with the text you want to search for
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_id from the first hit
+        document_id = response['hits']['hits'][0]['_source']['document_id']
+        return get_document_name(document_id)
+    else:
+        return None
+    
+def get_document_name(document_id):
+    response = es.search(
+        index='parent_doc',
+        body={
+            "query": {
+                "term": {
+                    "document_id": document_id  # Exact match on document_id
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_name from the first hit
+        document_name = response['hits']['hits'][0]['_source']['Name']
+        return document_name
+    else:
+        return None
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
