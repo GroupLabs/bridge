@@ -1,5 +1,5 @@
 
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
@@ -16,13 +16,12 @@ import httpx
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
-# from ollama import chat, gen
-# from ollama import chat, gen
+from ollama import chat, gen
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
-
+from elasticutils import Search  # Import the Search class
 
 TEMP_DIR = config.TEMP_DIR
 
@@ -268,6 +267,35 @@ async def sort_docs_ep(type: str = Form(...)):
     # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
 
 
+# Create an instance of Search class
+search = Search()
+
+async def string_to_async_generator(response_string: str):
+    yield response_string
+
+@app.post("/chat/{user_id}")
+async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
+    try:
+        response_message = gen(chat_request.message)  # Assume gen returns a string
+        async_generator = string_to_async_generator(response_message)
+
+        search.save_chat_to_history(chat_request.id, chat_request.message, response_message, user_id)
+        return StreamingResponse(async_generator, media_type="application/json")
+    except Exception as e:
+        logger.error(f"Error during chat: {str(e)}")
+        return {"error": str(e)}
+    
+@app.get("/chat_history/{history_id}")
+async def get_chat_history(history_id: int):
+    try:
+        response = search.es.search(index='chat_history', query={'match': {'history_id': history_id}})
+        if response['hits']['total']['value'] > 0:
+            return response['hits']['hits'][0]['_source']
+        else:
+            return {"error": "Chat history not found"}
+    except Exception as e:
+        logger.error(f"Error retrieving chat history: {str(e)}")
+        return {"error": str(e)}
 
 
 
