@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
@@ -8,9 +8,9 @@ import logging
 import httpx
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference
-from serverutils import Health, Status, Load
-from serverutils import Query
+from storage import load_data, load_model, query, get_inference, sort_docs
+from serverutils import Health, Status, Load, Query
+
 from serverutils import ChatRequest
 from ollama import chat, gen
 from config import config
@@ -70,13 +70,13 @@ async def load_data_by_path(input: Load, response: Response):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
-@app.post("/load")
-async def load_data_ep(response: Response, file: UploadFile = File(...)):
+@app.post("/load/{user_id}")
+async def load_data_ep(response: Response, file: UploadFile = File(...), user_id: str = Path()):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
         with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
             temp_file.write(await file.read())
-        task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", user_id)
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
         return {"status": "accepted", "task_id": task.id}
@@ -130,8 +130,7 @@ async def nl_query(input: Query):
     logger.info(f"QUERY success: {input.query}")
     return {"health": health, "status": "success", "resp": resp}
 
-# Create an instance of Search class
-search = Search()
+    return {"health": health, "status": "success", "resp": resp}
 
 async def string_to_async_generator(response_string: str):
     yield response_string
