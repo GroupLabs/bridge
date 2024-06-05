@@ -11,8 +11,8 @@ from storage import load_data, load_model, query, get_inference, add_model_to_ml
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
-# from ollama import chat, gen
-# from ollama import chat, gen
+
+from ollama import chat, gen
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
@@ -320,11 +320,11 @@ async def get_query_parent_ep(input: Query):
     return names
 
 #endpoint to chat with gpt-4:
-#to do: stream the response
-# @app.post("/chat")
-# async def chat_with_model(chat_request: ChatRequest):
-#     chat_generator = gen(chat_request.message)
-#     return chat_generator
+
+@app.post("/chat")
+async def chat_with_model(chat_request: ChatRequest):
+    chat_generator = gen(chat_request.message)
+    return chat_generator
 
 # this one streams
 # @app.get("/llm")
