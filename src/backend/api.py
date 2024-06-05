@@ -320,11 +320,10 @@ async def get_query_parent_ep(input: Query):
     return names
 
 #endpoint to chat with gpt-4:
-
 @app.post("/chat")
-async def chat_with_model(chat_request: ChatRequest):
+async def chat_with_model_ep(chat_request: ChatRequest):
     chat_generator = gen(chat_request.message)
-    return chat_generator
+    return StreamingResponse(chat_generator, media_type="text/plain")
 
 # this one streams
 # @app.get("/llm")
