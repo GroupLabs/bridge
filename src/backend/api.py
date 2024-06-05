@@ -1,16 +1,18 @@
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from contextlib import asynccontextmanager
 import os
 import json
-import logging
-import httpx
-
+from google.auth.transport.requests import Request as GoogleRequest
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse
+from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+import subprocess
+import time
 from log import setup_logger
 from storage import load_data, load_model, query, get_inference, sort_docs
 from serverutils import Health, Status, Load, Query
-
 from serverutils import ChatRequest
 from ollama import chat, gen
 from config import config
@@ -18,9 +20,14 @@ from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
 from elasticutils import Search  # Import the Search class
+from starlette.middleware.sessions import SessionMiddleware
 
+# Load environment variables
+load_dotenv()
 
 TEMP_DIR = config.TEMP_DIR
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
 
 logger = setup_logger("api")
 logger.info("LOGGER READY")
@@ -31,8 +38,6 @@ async def lifespan(app: FastAPI):
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
-
-
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -45,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# Add SessionMiddleware
+app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 
 @app.get("/health-check")
 async def health_endpoint():
@@ -136,61 +144,94 @@ async def sort_docs_ep(type: str=Form(...)):
 
     return sort_docs(type)
 
-#endpoint to chat with gpt-4:
-#to do: stream the response
-# @app.post("/chat")
-# async def chat_with_model(chat_request: ChatRequest):
-#     chat_generator = gen(chat_request.message)
-#     return chat_generator
+# Google Drive Authentication and Picker
+@app.get("/google_drive_auth")
+async def google_drive_auth(request: Request):
+    creds = None
+    if os.path.exists('token.json'):
+        with open('token.json', 'r') as token_file:
+            creds = Credentials.from_authorized_user_info(json.load(token_file), SCOPES)
 
-# this one streams
-# @app.get("/llm")
-# async def llm_query(input: Query):
-#     messages = [{"role": "user", "content": input.query}]
-    
-#     chat_stream = chat(messages) # asynchronous generator
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(GoogleRequest())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+            with open('token.json', 'w') as token_file:
+                token_file.write(creds.to_json())
 
-#     return StreamingResponse(chat_stream, media_type="text/plain")
-# @app.post("/chat")
-# async def chat_with_model(chat_request: ChatRequest):
-#     chat_generator = gen(chat_request.message)
-#     return chat_generator
+    # Store credentials in session
+    request.session['credentials'] = creds.to_json()
+    return RedirectResponse(url="/picker")
 
-# this one streams
-# @app.get("/llm")
-# async def llm_query(input: Query):
-#     messages = [{"role": "user", "content": input.query}]
-    
-#     chat_stream = chat(messages) # asynchronous generator
+@app.get("/picker", response_class=HTMLResponse)
+async def picker(request: Request):
+    creds_json = request.session.get('credentials')
+    if not creds_json:
+        return RedirectResponse(url="/google_drive_auth")
+    creds = Credentials.from_authorized_user_info(json.loads(creds_json), SCOPES)
 
-#     return StreamingResponse(chat_stream, media_type="text/plain")
+    picker_html = '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Picker Example</title>
+        <script type="text/javascript">
+            function onApiLoad() {
+                gapi.load('picker', {'callback': onPickerApiLoad});
+            }
 
-# async def json_stream(async_generator):
-#     yield '{"messages":['
-#     first = True
-#    async for item in async_generator:
-#         if not first:
-#             yield ','
-#         first = False
-#         yield json.dumps(item)
-#     yield ']}'
+            function onPickerApiLoad() {
+                var view = new google.picker.View(google.picker.ViewId.DOCS);
+                var picker = new google.picker.PickerBuilder()
+                    .setOAuthToken('%s')
+                    .addView(view)
+                    .setCallback(pickerCallback)
+                    .build();
+                picker.setVisible(true);
+            }
 
-# from typing import Optional
-# from fastapi import Query, FastAPI
+            function pickerCallback(data) {
+                var url = 'nothing';
+                if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+                    var doc = data[google.picker.Response.DOCUMENTS][0];
+                    var id = doc[google.picker.Document.ID];
+                    var name = doc[google.picker.Document.NAME];
+                    alert('You picked: ' + name);
+                    fetch('/selected_file', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({name: name}),
+                    }).then(response => {
+                        if (response.ok) {
+                            window.location = '/done';
+                        }
+                    });
+                }
+            }
+        </script>
+        <script type="text/javascript" src="https://apis.google.com/js/api.js?onload=onApiLoad"></script>
+    </head>
+    <body>
+        <h1>Google Picker</h1>
+    </body>
+    </html>
+    ''' % creds.token
 
-# @app.get("/query")
-# async def nl_query(query_str: str = Query(..., alias="query"), use_llm: Optional[bool] = False):
-#     resp = query(query_str)
+    return HTMLResponse(content=picker_html)
 
-#     if use_llm:
-#         context_list = [x["fields"]["text"] for x in resp.hits]
-#         prompt = f"{query_str}\n"
-#         prompt += "Use the following for context:\n"
-#         prompt += " ".join(context_list)
+@app.post("/selected_file")
+async def selected_file_ep(request: Request):
+    data = await request.json()
+    print("Selected file: ", data['name'])
+    return JSONResponse({'status': 'success'})
 
-#     logger.info(f"QUERY success: {query_str}")
-#     return resp
-    # return {"status": "success", "resp": [(x["fields"]["text"], x["fields"]["matchfeatures"]) for x in resp.hits]}
+@app.get("/done")
+async def done_ep():
+    return HTMLResponse("File selection complete.")
 
 # Create an instance of Search class
 search = Search()
@@ -222,7 +263,7 @@ async def get_chat_history(history_id: int):
         logger.error(f"Error retrieving chat history: {str(e)}")
         return {"error": str(e)}
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import uvicorn
     if not config.ENV:
         print("Missing environment variable.")
