@@ -90,7 +90,7 @@ except Exception as e:
 def sort_docs(type: str):
     ordered = []
     # Define the index
-    index_name = 'parent_doc'
+
     if type == "name":
         # Perform the search query with sorting
         response = es.search(
@@ -348,6 +348,49 @@ def extract_io_metadata(config, io_type):
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
 
+def get_parent(chunk):
+    response = es.search(
+        index='text_chunk',
+        body={
+            "query": {
+                "match_phrase": {
+                    "chunk_text": chunk  # Replace with the text you want to search for
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_id from the first hit
+        document_id = response['hits']['hits'][0]['_source']['document_id']
+        return get_document_name(document_id)
+    else:
+        return None
+    
+def get_document_name(document_id):
+    response = es.search(
+        index='parent_doc',
+        body={
+            "query": {
+                "term": {
+                    "document_id": document_id  # Exact match on document_id
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_name from the first hit
+        document_name = response['hits']['hits'][0]['_source']['Name']
+        return document_name
+    else:
+        return None
+
+
 def insert_parent(filepath):
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     # Get the file size in bytes
@@ -355,9 +398,10 @@ def insert_parent(filepath):
     # Convert bytes to megabytes
     file_size_mb = file_size_bytes / (1024 * 1024)
     size = f"{file_size_mb:.2f} MB"
+    basename_with_ext = os.path.basename(filepath)
     fields = {
         "document_id": doc_id,  # document id from path
-        "Name": os.path.basename(filepath),  # not yet implemented
+        "document_name": os.path.splitext(basename_with_ext)[0],  
         "Size": size,
         'Size_numeric': file_size_mb,  
         "Type": os.path.splitext(filepath)[-1],

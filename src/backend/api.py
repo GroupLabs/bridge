@@ -5,10 +5,8 @@ from contextlib import asynccontextmanager
 import os
 import json
 import logging
-import httpx
+from storage import load_data, load_model, query, get_inference, add_model_to_mlflow, sort_docs, get_parent
 
-from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
@@ -135,6 +133,31 @@ async def sort_docs_ep(type: str=Form(...)):
         return "invalid sort"
 
     return sort_docs(type)
+
+@app.post("/get_parent")
+async def get_parent_ep(chunk: str=Form(...)):
+    return get_parent(chunk)
+
+@app.post("/query_parent")
+async def get_query_parent_ep(input: Query):
+    names = set()
+    resp = query(input.query, input.index)
+
+    if input.use_llm:
+        # context_list = [x["fields"]["text"] for x in resp.hits] this is for vespa, need to switch to es
+
+        prompt = f"{input.query}\n"
+        prompt += "Use the following for context:\n"
+        # prompt += " ".join(context_list) this is for vespa, need to switch to es
+
+    for elements in resp:
+        if len(names) > 10:
+            break
+        text_chunk = elements[1]["text"]
+        names.add(get_parent(text_chunk))
+        
+    
+    return names
 
 #endpoint to chat with gpt-4:
 #to do: stream the response
