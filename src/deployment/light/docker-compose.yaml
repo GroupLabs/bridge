@@ -131,7 +131,7 @@ services:
     ports:
       - "8000:8000"
     command: >
-      sh -c "celery -A storage worker --loglevel=info -P prefork &
+      sh -c "celery -A storage worker --loglevel=info -P gevent &
         python api.py"
 
 volumes:
