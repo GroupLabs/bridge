@@ -87,7 +87,7 @@ except Exception as e:
     print(f"Triton not available: {e}")
 
 @celery_app.task(name="sort_documents_task")
-def sort_docs(type: str):
+def sort_docs(type: str, order: str):
     ordered = []
     # Define the index
 
@@ -102,7 +102,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "document_name.keyword": {
-                            "order": "asc"
+                            "order":order
                         }
                     }
                 ]
@@ -120,7 +120,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Size_numeric": {
-                            "order": "desc"
+                            "order": order
                         }
                     }
                 ]
@@ -138,7 +138,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Type": {
-                            "order": "asc"
+                            "order": order
                         }
                     }
                 ]
@@ -156,7 +156,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Created": {
-                            "order": "asc"  # Change to "desc" for descending order
+                            "order": order  
                         }
                     }
                 ]
@@ -167,9 +167,7 @@ def sort_docs(type: str):
 
     # Print the results
     for hit in response['hits']['hits']:
-        print(hit["_source"])
         ordered.append(hit)
-    ordered.reverse()
     return ordered
 
 @celery_app.task(name="load_data_task")
