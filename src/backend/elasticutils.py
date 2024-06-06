@@ -230,13 +230,13 @@ class Search:
 
         # add embeddings
         if index == "text_chunk":
-            #document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
-            document['e5'] = [0.0,0.0,0.1]
+            document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+           #document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
 
         if index == "table_meta":
-            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
-            document['e5'] = [0.0,0.0,0.1]
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            #document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
@@ -245,8 +245,8 @@ class Search:
             document['colbert'] = {}
 
         if index == "picture_meta":
-            #document['e5'] = embed_passage(document['description_text']).tolist()[0]
-            document['e5'] = [0.0,0.0,0.1]
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+           # document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
             
@@ -342,8 +342,8 @@ class Search:
         knn_response = self.es.search(
             knn={
                 'field': 'e5',
-                'query_vector': [0.0,0.1,0.0],
-                #'query_vector': embed_query(query).tolist()[0],
+                #'query_vector': [0.0,0.1,0.0],
+                'query_vector': embed_query(query).tolist()[0],
                 'k': 10,
                 'num_candidates': 50
             },

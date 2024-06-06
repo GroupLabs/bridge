@@ -7,7 +7,7 @@ import os
 import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, add_model_to_mlflow, sort_docs, get_parent
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
 from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
@@ -111,7 +111,8 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         logger.warn(f"LOAD incomplete: {file.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-    
+
+"""
 @app.post("/load_model")
 #add description
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str=Form(...)):
@@ -139,7 +140,7 @@ async def load_model_ep(response: Response, model: UploadFile = File(...), confi
         logger.warn(f"LOAD incomplete: {model.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-
+"""
 
 @app.post("/get_inference")
 async def get_inference_ep(model: str = Form(...), data: str = Form(...)):
