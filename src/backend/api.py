@@ -5,7 +5,7 @@ import httpx
 from google.auth.transport.requests import Request as GoogleRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse
 from contextlib import asynccontextmanager
@@ -29,6 +29,8 @@ from connect.mongodb import get_mongo_connection, get_mongo_connection_with_cred
 from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
 from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
+from uuid import uuid4
+from elasticsearch.exceptions import NotFoundError
 
 # elasticsearch
 es = Search()
@@ -312,6 +314,7 @@ async def get_user_chat_histories(user_id: str):
 @app.post("/ping_database")
 async def ping_database(input: Connection):
     client = None
+    connection_id = uuid4()
 
     if input.connectionString:
         db_func_map_connection_string = {
@@ -321,7 +324,7 @@ async def ping_database(input: Connection):
             "mongodb": get_mongo_connection
         }
         if input.database in db_func_map_connection_string:
-            client = db_func_map_connection_string[input.database](input.connectionString)
+            client = db_func_map_connection_string[input.database](input.connectionString, connection_id)
 
     elif input.host and input.user:
         db_func_map_credentials = {
@@ -332,6 +335,75 @@ async def ping_database(input: Connection):
         }
         if input.database in db_func_map_credentials:
             client = db_func_map_credentials[input.database](input.host, input.user, input.password)
+            search.add_connection(input.database, input.host, input.user, input.password, connection_id, None)
+
+    print(client)
+    return {"client": "ok" if client else "error"}
+
+
+@app.get("/databases/")
+async def get_databases():
+    try:
+        response = search.es.search(index='db_meta', size=1000)  # Retrieve up to 1000 documents
+        if response['hits']['total']['value'] > 0:
+            databases = []
+            for hit in response['hits']['hits']:
+                # Exclude the 'password' field from each document
+                database_info = {key: value for key, value in hit['_source'].items()}
+                databases.append(database_info)
+            return databases
+        else:
+            raise HTTPException(status_code=404, detail="No databases found")
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Index 'db_meta' not found")
+    except Exception as e:
+        logger.error(f"Error retrieving databases: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/edit_connection/{connection_id}")
+async def edit_connection(input: Connection, connection_id: str = Path()):
+    client = None
+
+    if input.connectionString:
+        db_func_map_connection_string = {
+            "mysql": mysql_to_yamls_with_connection_string,
+            "postgres": postgres_to_croissant_with_connection_string,
+            "azure": azure_to_yamls_with_connection_string,
+            "mongodb": get_mongo_connection
+        }
+        if input.database in db_func_map_connection_string:
+            client = db_func_map_connection_string[input.database](input.connectionString, connection_id)
+
+    elif input.host and input.user:
+        db_func_map_credentials = {
+            "mysql": mysql_to_yamls,
+            "postgres": postgres_to_croissant,
+            "azure": azure_to_yamls,
+            "mongodb": get_mongo_connection_with_credentials
+        }
+        if input.database in db_func_map_credentials:
+            client = db_func_map_credentials[input.database](input.host, input.user, input.password)
+            search.add_connection(input.database, input.host, input.user, input.password, connection_id)
+
+    print(client)
+    return {"client": "ok" if client else "error"}
+
+
+@app.delete("/delete_connection/{connection_id}")
+async def delete_connection(connection_id: str = Path()):
+    try:
+        res = search.es.delete_by_query(
+            index='db_meta',
+            body={'query': {'match': {'connection_id': connection_id}}}
+        )
+        if res['deleted'] > 0:
+            return {"message": f"Connection with ID {connection_id} deleted successfully."}
+        else:
+            return {"message": f"No connection with ID {connection_id} found."}
+    except Exception as e:
+        logger.error(f"Error deleting connection: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     print(client)
     return {"client": "ok" if client else "error"}

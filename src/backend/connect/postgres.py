@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 import json
 from urllib.parse import urlparse
+from elasticutils import Search
 
 # Get the absolute path of the parent directory
 parent_dir = Path(__file__).resolve().parent.parent
@@ -13,6 +14,8 @@ sys.path.append(str(parent_dir))
 
 from auto_description import describe_table
 from .correlation import correlation_embedding
+
+search = Search()
 
 # Function to fetch constraints data, adapted for PostgreSQL
 def get_constraints(db_name, table_name, conn):
@@ -338,7 +341,7 @@ def convert_uri_to_dsn(uri):
     port = f" port={result.port}" if result.port else ""
     return f"user={result.username} password={result.password} host={result.hostname}{port}"
 
-def postgres_to_croissant_with_connection_string(connection_string, auto_describe=True):
+def postgres_to_croissant_with_connection_string(connection_string, connection_id, auto_describe=True):
     dsn = convert_uri_to_dsn(connection_string)
     # Connect to PostgreSQL server
     conn = psycopg2.connect(dsn=dsn, dbname="postgres")
@@ -400,6 +403,12 @@ def postgres_to_croissant_with_connection_string(connection_string, auto_describ
             croissant_metadata_list.append(croissant_table_metadata)
 
     conn.close()
+
+    user = urlparse(connection_string).username
+    password = urlparse(connection_string).password
+    host = urlparse(connection_string).hostname
+    port = urlparse(connection_string).port
+    search.add_connection(db_type="postgres", host=host, user=user, password=password, connection_id=connection_id, connection_string=connection_string)
 
     # Convert the metadata list to JSON
     return json.dumps(croissant_metadata_list, indent=2)
