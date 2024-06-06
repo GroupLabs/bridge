@@ -398,8 +398,7 @@ class Search:
 
 
         match_results = match_response['hits']['hits']
-        if len(match_results) == 0:
-            return
+
         # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
         knn_response = self.es.search(
             knn={
@@ -412,6 +411,7 @@ class Search:
             _source=[_field],
             index=index
         )
+        
         if INSPECT:
             print("KNN")
             for hit in knn_response['hits']['hits']:
