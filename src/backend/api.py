@@ -142,9 +142,12 @@ async def nl_query(input: Query):
 async def load_data_ep(response: Response, file: UploadFile = File(...)):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
-
+        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
         with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
-            temp_file.write(await file.read())
+            content = await file.read()
+            temp_file.write(content)
+        with open(f"{DOWNLOAD_DIR}/{file.filename}", "wb") as download_file:
+            download_file.write(content)
 
         task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
         response.status_code = 202
