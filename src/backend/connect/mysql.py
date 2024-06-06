@@ -11,7 +11,8 @@ from pathlib import Path
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
 
-from auto_description import desc_gen
+from auto_description import describe_table
+
 
 # Function to fetch constraints data
 def get_constraints(db_name, mydb):
@@ -64,7 +65,9 @@ def mysql_to_yamls(host, user, password):
         tables = df['table_name'].unique()
         for table in tables:        
             table_df = df[df['table_name'] == table]
-            description = desc_gen(table_df)
+
+            description = describe_table(table_df)
+
             table_constraints_df = df_constraints[df_constraints['table_name'] == table]
             primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
             foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']
@@ -91,7 +94,84 @@ def mysql_to_yamls(host, user, password):
                 "sql_name": f"{db_name}.{table}",
                 "dimensions": dimensions,
                 **({"joins": joins} if joins else {}),
-                "description":description
+                # "description":description
+            }
+
+            yamls.append(yaml_structure)
+
+            yaml_str = yaml.dump(yaml_structure, default_flow_style=False, sort_keys=False)
+            os.makedirs("models/yamls", exist_ok=True)
+            with open(f"models/yamls/{table}_yaml.yaml", 'w') as yaml_file:
+                yaml_file.write(yaml_str)
+
+    # Closing the database connection
+    mydb.close()
+
+    return yamls
+
+def mysql_to_yamls_with_connection_string(connection_string):
+    # Parse the connection string
+    params = connection_string.split(';')
+    conn_params = {param.split('=')[0]: param.split('=')[1] for param in params if param}
+
+    # Establish database connection using the parsed parameters
+    mydb = mysql.connector.connect(
+        host=conn_params['Server'],
+        user=conn_params['Uid'],
+        password=conn_params['Pwd'],
+        database="information_schema"  # Use the information_schema database for metadata queries
+    )
+
+    # Main database for the process // EXCLUDED sys 'world' db for azure vm testing
+    system_mysql_dbs = ['information_schema', 'mysql', 'performance_schema','sakila','sys']
+
+    all_dbs = pd.read_sql("SHOW DATABASES", mydb)
+    all_dbs = all_dbs['Database'].values.tolist()
+
+    dbs_to_process = [db for db in all_dbs if db not in system_mysql_dbs]
+
+    yamls = []
+
+    for db_name in dbs_to_process:
+
+        # Fetching necessary data
+        df = get_tables_and_columns(db_name, mydb)
+        df_constraints = get_constraints(db_name, mydb)
+        df.columns = df.columns.str.lower()
+        df_constraints.columns = df_constraints.columns.str.lower()
+
+        # Process and create a YAML structure for each table
+        tables = df['table_name'].unique()
+        for table in tables:        
+            table_df = df[df['table_name'] == table]
+            # description = desc_gen(table_df)
+            table_constraints_df = df_constraints[df_constraints['table_name'] == table]
+            primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
+            foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']
+
+            dimensions = []
+            for _, row in table_df.iterrows():
+                column = {"name": row["column_name"], "type": row["data_type"], "sql": row["column_name"]}
+                if row["column_name"] in primary_keys:
+                    column["primary_key"] = True
+                elif row["column_name"] in foreign_keys['column_name'].values:
+                    column["foreign_key"] = True
+                dimensions.append(column)
+
+            joins = []
+            for _, fk_row in foreign_keys.iterrows():
+                join = {
+                    "name": fk_row["referenced_table_name"],
+                    "sql": f"{{{table}}}.{fk_row['column_name']} = {{{fk_row['referenced_table_name']}}}.{fk_row['referenced_column_name']}"
+                }
+                joins.append(join)
+
+            yaml_structure = {
+                "name": table,
+                "sql_name": f"{db_name}.{table}",
+                "dimensions": dimensions,
+                **({"joins": joins} if joins else {}),
+                # "description":description
             }
 
             yamls.append(yaml_structure)

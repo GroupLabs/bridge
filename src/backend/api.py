@@ -1,9 +1,11 @@
 import os
 import json
+import logging
+import httpx
 from google.auth.transport.requests import Request as GoogleRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse, FileResponse
 from contextlib import asynccontextmanager
@@ -11,16 +13,27 @@ from dotenv import load_dotenv
 import subprocess
 import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs
-from serverutils import Health, Status, Load, Query
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
+from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
-from ollama import chat, gen
+from ollama import chat1, chat2, gen2, gen1, gen_for_query
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
 from integration_layer import format_model_inputs
 from elasticutils import Search  # Import the Search class
 from starlette.middleware.sessions import SessionMiddleware
+from elasticutils import Search  # Import the Search class
+from serverutils import Connection
+from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
+from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
+from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
+from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
+from uuid import uuid4
+from elasticsearch.exceptions import NotFoundError
+
+# elasticsearch
+es = Search()
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +52,9 @@ async def lifespan(app: FastAPI):
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
+
+last_sort_type = None
+last_sort_order = "asc"
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -145,13 +161,46 @@ async def nl_query(input: Query):
 
     return {"health": health, "status": "success", "resp": resp}
 
+@app.post("/load_query")
+async def load_data_ep(response: Response, file: UploadFile = File(...)):
+    try:
+        os.makedirs(TEMP_DIR, exist_ok=True)
+
+        with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
+            temp_file.write(await file.read())
+
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
+        response.status_code = 202
+        logger.info(f"LOAD accepted: {file.filename}")
+        return {"status": "accepted", "task_id": task.id}
+    except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {file.filename}")
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
 @app.post("/sort")
 async def sort_docs_ep(type: str=Form(...)):
+    global last_sort_type, last_sort_order
     type_of_sort = ["name", "size", "type", "created"]
     if type not in type_of_sort:
         return "invalid sort"
 
-    return sort_docs(type)
+    # Determine the sort order
+    if type == last_sort_type:
+        # Toggle the sort order
+        if last_sort_order == "asc":
+            sort_order = "desc"
+        else:
+            sort_order = "asc"
+    else:
+        sort_order = "asc"  # Default to ascending for a new sort type
+
+    # Update the last sort type and order
+    last_sort_type = type
+    last_sort_order = sort_order
+
+
+    return sort_docs(type, sort_order)
 
 # Google Drive Authentication and Picker
 @app.get("/google_drive_auth")
@@ -251,7 +300,7 @@ async def string_to_async_generator(response_string: str):
 @app.post("/chat/{user_id}")
 async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
     try:
-        response_message = gen(chat_request.message)  # Assume gen returns a string
+        response_message = gen1(chat_request.message)  # Assume gen returns a string
         async_generator = string_to_async_generator(response_message)
 
         search.save_chat_to_history(chat_request.id, chat_request.message, response_message, user_id)
@@ -260,12 +309,23 @@ async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
         logger.error(f"Error during chat: {str(e)}")
         return {"error": str(e)}
     
-@app.get("/chat_history/{history_id}")
-async def get_chat_history(history_id: int):
+@app.get("/chat_history/{user_id}/{history_id}")
+async def get_chat_history(user_id: str, history_id: int):
     try:
-        response = search.es.search(index='chat_history', query={'match': {'history_id': history_id}})
+        response = search.es.search(
+            index='chat_history', 
+            query={
+                'bool': {
+                    'must': [
+                        {'match': {'user_id': user_id}},
+                        {'match': {'history_id': history_id}}
+                    ]
+                }
+            }
+        )
         if response['hits']['total']['value'] > 0:
-            return response['hits']['hits'][0]['_source']
+            chat_histories = [hit['_source'] for hit in response['hits']['hits']]
+            return {"user_id": user_id, "history_id": history_id, "chat_histories": chat_histories}
         else:
             return {"error": "Chat history not found"}
     except Exception as e:
@@ -286,7 +346,194 @@ async def get_user_chat_histories(user_id: str):
             return {"user_id": user_id, "chat_history_ids": [], "message": "No chat histories found"}
     except Exception as e:
         logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
-        return {"error": str(e)}  
+        return {"error": str(e)}
+    
+@app.post("/ping_database")
+async def ping_database(input: Connection):
+    client = None
+    connection_id = uuid4()
+
+    if input.connectionString:
+        db_func_map_connection_string = {
+            "mysql": mysql_to_yamls_with_connection_string,
+            "postgres": postgres_to_croissant_with_connection_string,
+            "azure": azure_to_yamls_with_connection_string,
+            "mongodb": get_mongo_connection
+        }
+        if input.database in db_func_map_connection_string:
+            client = db_func_map_connection_string[input.database](input.connectionString, connection_id)
+
+    elif input.host and input.user:
+        db_func_map_credentials = {
+            "mysql": mysql_to_yamls,
+            "postgres": postgres_to_croissant,
+            "azure": azure_to_yamls,
+            "mongodb": get_mongo_connection_with_credentials
+        }
+        if input.database in db_func_map_credentials:
+            client = db_func_map_credentials[input.database](input.host, input.user, input.password)
+            search.add_connection(input.database, input.host, input.user, input.password, connection_id, None)
+
+    print(client)
+    return {"client": "ok" if client else "error"}
+
+
+@app.get("/databases/")
+async def get_databases():
+    try:
+        response = search.es.search(index='db_meta', size=1000)  # Retrieve up to 1000 documents
+        if response['hits']['total']['value'] > 0:
+            databases = []
+            for hit in response['hits']['hits']:
+                # Exclude the 'password' field from each document
+                database_info = {key: value for key, value in hit['_source'].items()}
+                databases.append(database_info)
+            return databases
+        else:
+            raise HTTPException(status_code=404, detail="No databases found")
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Index 'db_meta' not found")
+    except Exception as e:
+        logger.error(f"Error retrieving databases: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/edit_connection/{connection_id}")
+async def edit_connection(input: Connection, connection_id: str = Path()):
+    client = None
+
+    if input.connectionString:
+        db_func_map_connection_string = {
+            "mysql": mysql_to_yamls_with_connection_string,
+            "postgres": postgres_to_croissant_with_connection_string,
+            "azure": azure_to_yamls_with_connection_string,
+            "mongodb": get_mongo_connection
+        }
+        if input.database in db_func_map_connection_string:
+            client = db_func_map_connection_string[input.database](input.connectionString, connection_id)
+
+    elif input.host and input.user:
+        db_func_map_credentials = {
+            "mysql": mysql_to_yamls,
+            "postgres": postgres_to_croissant,
+            "azure": azure_to_yamls,
+            "mongodb": get_mongo_connection_with_credentials
+        }
+        if input.database in db_func_map_credentials:
+            client = db_func_map_credentials[input.database](input.host, input.user, input.password)
+            search.add_connection(input.database, input.host, input.user, input.password, connection_id)
+
+    print(client)
+    return {"client": "ok" if client else "error"}
+
+
+@app.delete("/delete_connection/{connection_id}")
+async def delete_connection(connection_id: str = Path()):
+    try:
+        res = search.es.delete_by_query(
+            index='db_meta',
+            body={'query': {'match': {'connection_id': connection_id}}}
+        )
+        if res['deleted'] > 0:
+            return {"message": f"Connection with ID {connection_id} deleted successfully."}
+        else:
+            return {"message": f"No connection with ID {connection_id} found."}
+    except Exception as e:
+        logger.error(f"Error deleting connection: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    print(client)
+    return {"client": "ok" if client else "error"}
+
+def sort_by_score(data):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+    return sorted_data
+
+def concatenate_top_entries(data, top_n=5):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+
+    # Get the top N entries
+    top_entries = sorted_data[:top_n]
+
+    # Create the concatenated string
+    concatenated_string = ""
+    for i, entry in enumerate(top_entries, start=1):
+        concatenated_string += f'here is context {i}: "{entry[1]["text"]}"\n'
+
+    return concatenated_string
+
+def get_top_ids(data, top_n=5):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+
+    # Get the top N entries
+    top_entries = sorted_data[:top_n]
+
+    # Extract the IDs
+    top_ids = [entry[0] for entry in top_entries]
+
+    return top_ids
+
+def find_document_by_id(doc_id, indices):
+    for index in indices:
+        query = {
+            "query": {
+                "term": {
+                    "_id": doc_id
+                }
+            }
+        }
+        response = es.search(index=index, body=query)
+        if response['hits']['hits']:
+            return response['hits']['hits'][0]['_source']['document_id']
+    return None
+
+def find_name_by_document_id(document_id, parent_index = "parent_doc"):
+    query = {
+        "query": {
+            "term": {
+                "document_id": document_id
+            }
+        }
+    }
+    response = es.search(index=parent_index, body=query)
+    if response['hits']['hits']:
+        return response['hits']['hits'][0]['_source']['document_name']
+    return None
+
+
+@app.post("/query_all")
+async def get_query_parent_ep(input: QueryforAll):
+    names = set()
+    indices = ["table_meta", "picture_meta","text_chunk"]
+    all_responses = []
+
+    # Loop through the indices and collect responses
+    for index in indices:
+        resp = query(input.query, index)
+        all_responses.append(resp)
+
+    # Concatenate the responses
+    flattened_responses = [item for sublist in all_responses for item in sublist]
+
+    sorted_responses = sort_by_score(flattened_responses)
+
+    information = concatenate_top_entries(sorted_responses)
+
+    topids = get_top_ids(sorted_responses)
+    for doc_id in topids:
+        docs = find_document_by_id(doc_id,indices)
+        names.add(find_name_by_document_id(docs))
+
+    chat_generator = gen_for_query(input.query, information, names)
+    return StreamingResponse(chat_generator, media_type="text/plain")
+
+@app.post("/chat")
+async def chat_with_model_ep(chat_request: ChatRequest):
+    chat_generator = gen2(chat_request.message)
+    return StreamingResponse(chat_generator, media_type="text/plain")
 
 if __name__ == '__main__':
     import uvicorn

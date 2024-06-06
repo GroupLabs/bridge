@@ -1,4 +1,4 @@
-from ollama import gen, chat_with_model_to_get_description
+from ollama import gen2, chat_with_model_to_get_description
 
 def describe_table(input):
 
@@ -7,7 +7,6 @@ def describe_table(input):
     return resp
 
 def describe_picture(input):
-    print(input)
     resp = chat_with_model_to_get_description(input)
     return resp
 
