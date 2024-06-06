@@ -73,6 +73,40 @@ async def gen(prompt: str):
     except Exception as e:
         msg = f"get_aichat_reply_openai: Streaming error with OpenAI: {str(e)}"
         logger.info(msg)
+
+#generates the text for a response:
+async def gen_for_query(prompt: str, information:str, source: set):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_KEY}'
+    }
+    data = {
+        "model": LLM_MODEL,
+        "messages": [{"role": "user", "content": f"answer the following prompt:{prompt}. Base your answer on the following information {information}"}],
+        "stream": True,
+        "temperature": 0,
+    }
+    timeout = httpx.Timeout(300.0, read=300.0)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", LLM_URL + "/chat/completions", headers=headers, json=data) as response:
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line or line == '[DONE]':
+                        continue
+                    try:
+                        event = json.loads(line[len("data: "):])
+                        if 'delta' in event['choices'][0] and 'content' in event['choices'][0]['delta']:
+                            yield event['choices'][0]['delta']['content']
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        msg = f"get_aichat_reply_openai: Streaming error with OpenAI: {str(e)}"
+        logger.info(msg)
+        
+    # Yield the additional message at the end
+    yield f"\n\nThis response is based on these documents. {source}"
         
 
 # Function to encode the image

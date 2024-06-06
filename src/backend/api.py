@@ -12,7 +12,7 @@ from serverutils import Health, Status, Load, Query
 
 from serverutils import ChatRequest
 
-from ollama import chat, gen
+from ollama import chat, gen, gen_for_query
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
@@ -276,6 +276,7 @@ def find_name_by_document_id(document_id, parent_index = "parent_doc"):
 
 @app.post("/query_all")
 async def get_query_parent_ep(input: Query):
+    names = set()
     indices = ["table_meta", "picture_meta","text_chunk"]
     all_responses = []
 
@@ -285,16 +286,19 @@ async def get_query_parent_ep(input: Query):
         all_responses.append(resp)
 
     # Concatenate the responses
-    concatenated_responses = [item for sublist in all_responses for item in sublist]
+    flattened_responses = [item for sublist in all_responses for item in sublist]
 
-    sorted_responses = sort_by_score(concatenated_responses)
+    sorted_responses = sort_by_score(flattened_responses)
 
+    information = concatenate_top_entries(sorted_responses)
 
-    result = get_top_ids(sorted_responses)
-    for doc_id in result:
+    topids = get_top_ids(sorted_responses)
+    for doc_id in topids:
         docs = find_document_by_id(doc_id,indices)
-        print(find_name_by_document_id(docs))
-    return sorted_responses
+        names.add(find_name_by_document_id(docs))
+    
+    chat_generator = gen_for_query(input.query, information, names)
+    return StreamingResponse(chat_generator, media_type="text/plain")
 
         
 
