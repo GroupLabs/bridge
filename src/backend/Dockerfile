@@ -60,7 +60,8 @@ RUN pip install --no-cache-dir \
     pyodbc==5.1.0 \
     requests-oauthlib==1.3.1 \
     psutil==5.9.8 \
-    pyarrow==15.0.2
+    pyarrow==15.0.2 \
+    pymongo
 
 COPY . ./
 
