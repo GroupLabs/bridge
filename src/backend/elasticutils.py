@@ -243,6 +243,24 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
+
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='db_meta', 
+                mappings={
+                    'properties': {
+                        "db_type": {'type': 'keyword'},
+                        'connection_id': {'type': 'keyword'},
+                        'host': {'type': 'keyword'},
+                        'password': {'type': 'keyword'},
+                        'user': {'type': 'keyword'},
+                        'connection_string': {'type': 'keyword'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
         
         logger.info("Configured.")
 
@@ -465,6 +483,34 @@ class Search:
         except Exception as e:
             logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
             return []
+        
+    def add_connection(self, db_type: str=None, host: str=None, user: str=None, password: str=None, connection_id: str=None, connection_string: str = None):
+        logger.info("received db_info")
+        document = {
+            'db_type': db_type,
+            'host': host,
+            'user': user,
+            'password': password,
+            "connection_id": connection_id,
+            'connection_string': connection_string
+        }
+        try:
+            res = self.es.search(index='db_meta', body={'query': {'bool': {'must': [
+                {'match': {'connection_id': connection_id}}
+            ]}}})
+            if res['hits']['total']['value'] > 0:
+                doc_id = res['hits']['hits'][0]['_id']
+                # Update existing connection
+                self.es.update(index='db_meta', id=doc_id, body={"doc": document})
+                logger.info("Connection updated successfully.")
+            else:
+                logger.info("No existing connection found, creating a new one.")
+                # Create new connection
+                self.es.index(index='db_meta', body=document)
+                logger.info("New connection added successfully.")
+        except Exception as e:
+            logger.error(f"Error adding/editing connection: {str(e)}")
+            raise
 
 
 if __name__ == "__main__":    

@@ -3,18 +3,33 @@ from pymongo import MongoClient
 import ssl
 import yaml
 import pprint
+from urllib.parse import urlparse
+from elasticutils import Search
 
-def get_mongo_connection(uri):
+search = Search()
+
+def get_mongo_connection(uri, connection_id):
     try:
         client = MongoClient(uri, tls=True, tlsAllowInvalidCertificates=True)
         client.admin.command('ping')
         print("Pinged your deployment. You successfully connected to MongoDB!")
+
+        parsed_uri = urlparse(uri)
+        
+        # Extract the username, password, and hostname from the parsed URI
+        username = parsed_uri.username
+        password = parsed_uri.password
+        host = parsed_uri.hostname
+        
+        # Call the add_connection function with the extracted values
+        search.add_connection(db_type='mongodb', host=host, user=username, password=password, connection_id=connection_id, connection_string=uri)
+
         print(client)
         return client
     except Exception as e:
         print(f"An error occurred while connecting to MongoDB: {e}")
         return None
-
+    
 def get_mongo_connection_with_credentials(host, user, password):
     uri = f"mongodb+srv://{user}:{password}@{host}"
     try:
