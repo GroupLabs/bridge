@@ -184,7 +184,7 @@ def chat_with_model_to_get_description(image_path):
 
     timeout = httpx.Timeout(300.0, read=300.0)
 
-    with httpx.Client() as client:
+    with httpx.Client(timeout=timeout) as client:
         response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
