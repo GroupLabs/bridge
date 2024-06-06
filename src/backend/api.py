@@ -7,7 +7,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import subprocess
@@ -39,7 +39,6 @@ es = Search()
 load_dotenv()
 
 TEMP_DIR = config.TEMP_DIR
-DOWNLOAD_DIR = "downloads"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
 
@@ -96,12 +95,8 @@ async def load_data_by_path(input: Load, response: Response):
 async def load_data_ep(response: Response, file: UploadFile = File(...), user_id: str = Path()):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
-        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
         with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-        with open(f"{DOWNLOAD_DIR}/{file.filename}", "wb") as download_file:
-            download_file.write(content)
+            temp_file.write(await file.read())
         task = load_data.delay(f"{TEMP_DIR}/{file.filename}", user_id)
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
@@ -110,10 +105,6 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
         logger.warn(f"LOAD incomplete: {file.filename}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-    
-@app.get("/downloads/{filename}")
-async def download_file(filename: str):
-    return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
