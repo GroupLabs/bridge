@@ -300,12 +300,23 @@ async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
         logger.error(f"Error during chat: {str(e)}")
         return {"error": str(e)}
     
-@app.get("/chat_history/{history_id}")
-async def get_chat_history(history_id: int):
+@app.get("/chat_history/{user_id}/{history_id}")
+async def get_chat_history(user_id: str, history_id: int):
     try:
-        response = search.es.search(index='chat_history', query={'match': {'history_id': history_id}})
+        response = search.es.search(
+            index='chat_history', 
+            query={
+                'bool': {
+                    'must': [
+                        {'match': {'user_id': user_id}},
+                        {'match': {'history_id': history_id}}
+                    ]
+                }
+            }
+        )
         if response['hits']['total']['value'] > 0:
-            return response['hits']['hits'][0]['_source']
+            chat_histories = [hit['_source'] for hit in response['hits']['hits']]
+            return {"user_id": user_id, "history_id": history_id, "chat_histories": chat_histories}
         else:
             return {"error": "Chat history not found"}
     except Exception as e:
