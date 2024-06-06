@@ -39,6 +39,7 @@ es = Search()
 load_dotenv()
 
 TEMP_DIR = config.TEMP_DIR
+
 DOWNLOAD_DIR = "downloads"
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -92,29 +93,6 @@ async def load_data_by_path(input: Load, response: Response):
         logger.warn(f"LOAD incomplete: {input.filepath}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-
-@app.post("/load/{user_id}")
-async def load_data_ep(response: Response, file: UploadFile = File(...), user_id: str = Path()):
-    try:
-        os.makedirs(TEMP_DIR, exist_ok=True)
-        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-        with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-        with open(f"{DOWNLOAD_DIR}/{file.filename}", "wb") as download_file:
-            download_file.write(content)
-        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", user_id)
-        response.status_code = 202
-        logger.info(f"LOAD accepted: {file.filename}")
-        return {"status": "accepted", "task_id": task.id}
-    except NotImplementedError:
-        logger.warn(f"LOAD incomplete: {file.filename}")
-        response.status_code = 400
-        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
-    
-@app.get("/downloads/{filename}")
-async def download_file(filename: str):
-    return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
@@ -535,6 +513,29 @@ async def get_query_parent_ep(input: QueryforAll):
 async def chat_with_model_ep(chat_request: ChatRequest):
     chat_generator = gen2(chat_request.message)
     return StreamingResponse(chat_generator, media_type="text/plain")
+
+@app.post("/load/{user_id}")
+async def load_data_ep(response: Response, file: UploadFile = File(...), user_id: str = Path()):
+    try:
+        os.makedirs(TEMP_DIR, exist_ok=True)
+        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+        with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+        with open(f"{DOWNLOAD_DIR}/{file.filename}", "wb") as download_file:
+            download_file.write(content)
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", user_id)
+        response.status_code = 202
+        logger.info(f"LOAD accepted: {file.filename}")
+        return {"status": "accepted", "task_id": task.id}
+    except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {file.filename}")
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+    
+@app.get("/downloads/{filename}")
+async def download_file(filename: str):
+    return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
 if __name__ == '__main__':
     import uvicorn
