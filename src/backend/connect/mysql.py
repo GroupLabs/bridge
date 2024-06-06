@@ -13,6 +13,7 @@ sys.path.append(str(parent_dir))
 
 from auto_description import describe_table
 
+
 # Function to fetch constraints data
 def get_constraints(db_name, mydb):
     query = f"""
@@ -64,7 +65,9 @@ def mysql_to_yamls(host, user, password):
         tables = df['table_name'].unique()
         for table in tables:        
             table_df = df[df['table_name'] == table]
+
             description = describe_table(table_df)
+
             table_constraints_df = df_constraints[df_constraints['table_name'] == table]
             primary_keys = table_constraints_df[table_constraints_df['constraint_name'] == 'PRIMARY']['column_name'].tolist()
             foreign_keys = table_constraints_df[table_constraints_df['constraint_name'] != 'PRIMARY']

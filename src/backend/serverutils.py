@@ -44,3 +44,7 @@ class Connection(BaseModel):
     host: Optional[str] = None
     user: Optional[str] = None
     password: Optional[str] = None
+
+class QueryforAll(BaseModel):
+    query: str
+    use_llm: Optional[bool] = False
