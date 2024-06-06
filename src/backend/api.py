@@ -16,7 +16,7 @@ from log import setup_logger
 from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
 from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
-from ollama import chat, gen, gen_for_query
+from ollama import chat1, chat2, gen2, gen1, gen_for_query
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
@@ -274,7 +274,7 @@ async def string_to_async_generator(response_string: str):
 @app.post("/chat/{user_id}")
 async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
     try:
-        response_message = gen(chat_request.message)  # Assume gen returns a string
+        response_message = gen1(chat_request.message)  # Assume gen returns a string
         async_generator = string_to_async_generator(response_message)
 
         search.save_chat_to_history(chat_request.id, chat_request.message, response_message, user_id)
@@ -495,7 +495,7 @@ async def get_query_parent_ep(input: QueryforAll):
 
 @app.post("/chat")
 async def chat_with_model_ep(chat_request: ChatRequest):
-    chat_generator = gen(chat_request.message)
+    chat_generator = gen2(chat_request.message)
     return StreamingResponse(chat_generator, media_type="text/plain")
 
 if __name__ == '__main__':
