@@ -152,6 +152,23 @@ async def nl_query(input: Query):
 
     return {"health": health, "status": "success", "resp": resp}
 
+@app.post("/load_query")
+async def load_data_ep(response: Response, file: UploadFile = File(...)):
+    try:
+        os.makedirs(TEMP_DIR, exist_ok=True)
+
+        with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
+            temp_file.write(await file.read())
+
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
+        response.status_code = 202
+        logger.info(f"LOAD accepted: {file.filename}")
+        return {"status": "accepted", "task_id": task.id}
+    except NotImplementedError:
+        logger.warn(f"LOAD incomplete: {file.filename}")
+        response.status_code = 400
+        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
 @app.post("/sort")
 async def sort_docs_ep(type: str=Form(...)):
     global last_sort_type, last_sort_order
