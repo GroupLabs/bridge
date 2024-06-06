@@ -49,11 +49,11 @@ CELERY_BROKER_URL = config.CELERY_BROKER_URL
 logger = setup_logger("storage")
 
 #mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
-
-#with mlflow.start_run():
-#    mlflow.log_param("test", "value")
-#    print("Logged test parameter to MLflow.")
-
+"""
+with mlflow.start_run():
+    mlflow.log_param("test", "value")
+    print("Logged test parameter to MLflow.")
+"""
 # celery config
 celery_app = Celery(
     "worker",
@@ -87,10 +87,10 @@ except Exception as e:
     print(f"Triton not available: {e}")
 
 @celery_app.task(name="sort_documents_task")
-def sort_docs(type: str):
+def sort_docs(type: str, order: str):
     ordered = []
     # Define the index
-    index_name = 'parent_doc'
+
     if type == "name":
         # Perform the search query with sorting
         response = es.search(
@@ -102,7 +102,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "document_name.keyword": {
-                            "order": "asc"
+                            "order":order
                         }
                     }
                 ]
@@ -120,7 +120,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Size_numeric": {
-                            "order": "desc"
+                            "order": order
                         }
                     }
                 ]
@@ -138,7 +138,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Type": {
-                            "order": "asc"
+                            "order": order
                         }
                     }
                 ]
@@ -156,7 +156,7 @@ def sort_docs(type: str):
                 "sort": [
                     {
                         "Created": {
-                            "order": "asc"  # Change to "desc" for descending order
+                            "order": order  
                         }
                     }
                 ]
@@ -167,9 +167,7 @@ def sort_docs(type: str):
 
     # Print the results
     for hit in response['hits']['hits']:
-        print(hit["_source"])
         ordered.append(hit)
-    ordered.reverse()
     return ordered
 
 @celery_app.task(name="load_data_task")
@@ -348,6 +346,49 @@ def extract_io_metadata(config, io_type):
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
 
+def get_parent(chunk):
+    response = es.search(
+        index='text_chunk',
+        body={
+            "query": {
+                "match_phrase": {
+                    "chunk_text": chunk  # Replace with the text you want to search for
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_id from the first hit
+        document_id = response['hits']['hits'][0]['_source']['document_id']
+        return get_document_name(document_id)
+    else:
+        return None
+    
+def get_document_name(document_id):
+    response = es.search(
+        index='parent_doc',
+        body={
+            "query": {
+                "term": {
+                    "document_id": document_id  # Exact match on document_id
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_name from the first hit
+        document_name = response['hits']['hits'][0]['_source']['document_name']
+        return document_name
+    else:
+        return None
+
+
 def insert_parent(filepath):
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     # Get the file size in bytes
@@ -355,9 +396,10 @@ def insert_parent(filepath):
     # Convert bytes to megabytes
     file_size_mb = file_size_bytes / (1024 * 1024)
     size = f"{file_size_mb:.2f} MB"
+    basename_with_ext = os.path.basename(filepath)
     fields = {
         "document_id": doc_id,  # document id from path
-        "Name": os.path.basename(filepath),  # not yet implemented
+        "document_name": os.path.splitext(basename_with_ext)[0],  
         "Size": size,
         'Size_numeric': file_size_mb,  
         "Type": os.path.splitext(filepath)[-1],

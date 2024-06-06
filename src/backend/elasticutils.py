@@ -357,6 +357,8 @@ class Search:
             _field = "description_text"
         elif index == 'model_meta':
             _field = "description_text"
+        elif index == 'picture_meta':
+            _field = "description_text"
         else:
             raise NotImplementedError
 

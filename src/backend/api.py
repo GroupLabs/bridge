@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 import subprocess
 import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs
-from serverutils import Health, Status, Load, Query
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
+from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
-from ollama import chat, gen
+from ollama import chat, gen, gen_for_query
 from config import config
 from integration_layer import parse_config_from_string
 from integration_layer import prepare_inputs_for_model
@@ -29,6 +29,9 @@ from connect.mongodb import get_mongo_connection, get_mongo_connection_with_cred
 from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
 from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
+
+# elasticsearch
+es = Search()
 
 # Load environment variables
 load_dotenv()
@@ -46,6 +49,9 @@ async def lifespan(app: FastAPI):
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
+
+last_sort_type = None
+last_sort_order = "asc"
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -146,11 +152,27 @@ async def nl_query(input: Query):
 
 @app.post("/sort")
 async def sort_docs_ep(type: str=Form(...)):
+    global last_sort_type, last_sort_order
     type_of_sort = ["name", "size", "type", "created"]
     if type not in type_of_sort:
         return "invalid sort"
 
-    return sort_docs(type)
+    # Determine the sort order
+    if type == last_sort_type:
+        # Toggle the sort order
+        if last_sort_order == "asc":
+            sort_order = "desc"
+        else:
+            sort_order = "asc"
+    else:
+        sort_order = "asc"  # Default to ascending for a new sort type
+
+    # Update the last sort type and order
+    last_sort_type = type
+    last_sort_order = sort_order
+
+
+    return sort_docs(type, sort_order)
 
 # Google Drive Authentication and Picker
 @app.get("/google_drive_auth")
@@ -313,6 +335,96 @@ async def ping_database(input: Connection):
 
     print(client)
     return {"client": "ok" if client else "error"}
+
+def sort_by_score(data):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+    return sorted_data
+
+def concatenate_top_entries(data, top_n=5):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+
+    # Get the top N entries
+    top_entries = sorted_data[:top_n]
+
+    # Create the concatenated string
+    concatenated_string = ""
+    for i, entry in enumerate(top_entries, start=1):
+        concatenated_string += f'here is context {i}: "{entry[1]["text"]}"\n'
+
+    return concatenated_string
+
+def get_top_ids(data, top_n=5):
+    # Sort the data by the "score" in descending order
+    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
+
+    # Get the top N entries
+    top_entries = sorted_data[:top_n]
+
+    # Extract the IDs
+    top_ids = [entry[0] for entry in top_entries]
+
+    return top_ids
+
+def find_document_by_id(doc_id, indices):
+    for index in indices:
+        query = {
+            "query": {
+                "term": {
+                    "_id": doc_id
+                }
+            }
+        }
+        response = es.search(index=index, body=query)
+        if response['hits']['hits']:
+            return response['hits']['hits'][0]['_source']['document_id']
+    return None
+
+def find_name_by_document_id(document_id, parent_index = "parent_doc"):
+    query = {
+        "query": {
+            "term": {
+                "document_id": document_id
+            }
+        }
+    }
+    response = es.search(index=parent_index, body=query)
+    if response['hits']['hits']:
+        return response['hits']['hits'][0]['_source']['document_name']
+    return None
+
+
+@app.post("/query_all")
+async def get_query_parent_ep(input: QueryforAll):
+    names = set()
+    indices = ["table_meta", "picture_meta","text_chunk"]
+    all_responses = []
+
+    # Loop through the indices and collect responses
+    for index in indices:
+        resp = query(input.query, index)
+        all_responses.append(resp)
+
+    # Concatenate the responses
+    flattened_responses = [item for sublist in all_responses for item in sublist]
+
+    sorted_responses = sort_by_score(flattened_responses)
+
+    information = concatenate_top_entries(sorted_responses)
+
+    topids = get_top_ids(sorted_responses)
+    for doc_id in topids:
+        docs = find_document_by_id(doc_id,indices)
+        names.add(find_name_by_document_id(docs))
+
+    chat_generator = gen_for_query(input.query, information, names)
+    return StreamingResponse(chat_generator, media_type="text/plain")
+
+@app.post("/chat")
+async def chat_with_model_ep(chat_request: ChatRequest):
+    chat_generator = gen(chat_request.message)
+    return StreamingResponse(chat_generator, media_type="text/plain")
 
 if __name__ == '__main__':
     import uvicorn
