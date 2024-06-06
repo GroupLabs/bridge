@@ -300,23 +300,12 @@ async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
         logger.error(f"Error during chat: {str(e)}")
         return {"error": str(e)}
     
-@app.get("/chat_history/{user_id}/{history_id}")
-async def get_chat_history(user_id: str, history_id: int):
+@app.get("/chat_history/{history_id}")
+async def get_chat_history(history_id: int):
     try:
-        response = search.es.search(
-            index='chat_history', 
-            query={
-                'bool': {
-                    'must': [
-                        {'match': {'user_id': user_id}},
-                        {'match': {'history_id': history_id}}
-                    ]
-                }
-            }
-        )
+        response = search.es.search(index='chat_history', query={'match': {'history_id': history_id}})
         if response['hits']['total']['value'] > 0:
-            chat_histories = [hit['_source'] for hit in response['hits']['hits']]
-            return {"user_id": user_id, "history_id": history_id, "chat_histories": chat_histories}
+            return response['hits']['hits'][0]['_source']
         else:
             return {"error": "Chat history not found"}
     except Exception as e:
@@ -494,17 +483,65 @@ def find_name_by_document_id(document_id, parent_index = "parent_doc"):
         return response['hits']['hits'][0]['_source']['document_name']
     return None
 
+def find_document_by_id_rel_docs(document_id, parent_index="parent_doc"):
+    query = {
+        "query": {
+            "term": {
+                "document_id": document_id
+            }
+        }
+    }
+    response = es.search(index=parent_index, body=query)
+    if response['hits']['hits']:
+        return response['hits']['hits'][0]['_source']
+    return None
 
-@app.post("/query_all")
-async def get_query_parent_ep(input: QueryforAll):
-    names = set()
+@app.post("/rel_docs")
+async def relevant_docs_ep(input: QueryforAll):
+    docs = []
     indices = ["table_meta", "picture_meta","text_chunk"]
     all_responses = []
 
     # Loop through the indices and collect responses
     for index in indices:
         resp = query(input.query, index)
-        all_responses.append(resp)
+        if resp is not None:
+            all_responses.append(resp)
+
+    # Concatenate the responses
+    flattened_responses = [item for sublist in all_responses for item in sublist]
+
+    sorted_responses = sort_by_score(flattened_responses)
+
+    topids = get_top_ids(sorted_responses)
+
+    for doc_id in topids:
+        documents = find_document_by_id(doc_id, indices)
+        data = find_document_by_id_rel_docs(documents)
+        docs.append(data)
+
+    seen = set()
+    unique_documents = []
+    for doc in docs:
+        doc_id = doc['document_id']
+        if doc_id not in seen:
+            unique_documents.append(doc)
+            seen.add(doc_id)
+
+    return unique_documents
+    
+
+@app.post("/query_all")
+async def get_query_parent_ep(input: QueryforAll):
+    names = set()
+    indices = ["table_meta", "picture_meta", "text_chunk"]
+    all_responses = []
+
+    # Loop through the indices and collect responses
+    for index in indices:
+        resp = query(input.query, index)
+        if resp is not None:
+            all_responses.append(resp)
 
     # Concatenate the responses
     flattened_responses = [item for sublist in all_responses for item in sublist]
