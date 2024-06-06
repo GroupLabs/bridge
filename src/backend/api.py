@@ -550,7 +550,9 @@ async def get_query_parent_ep(input: QueryforAll):
     # Loop through the indices and collect responses
     for index in indices:
         resp = query(input.query, index)
-        all_responses.append(resp)
+        if resp is not None:
+            all_responses.append(resp)
+        
 
     # Concatenate the responses
     flattened_responses = [item for sublist in all_responses for item in sublist]
