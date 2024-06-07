@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import base64
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
+from pathlib import Path
 
 #to do: 
 #Connect to an entire organizations workspace, not individual user
@@ -14,7 +15,8 @@ from dotenv import load_dotenv
 #store and autogenerate metadata in ES, link that metadata to actual data using an external ID
 #read the metadata upon request
 
-load_dotenv()
+env_path = Path('..') / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Path to your OAuth 2.0 client credentials file
 CLIENT_SECRETS_FILE = os.getenv('CLIENT_SECRETS_FILE')
