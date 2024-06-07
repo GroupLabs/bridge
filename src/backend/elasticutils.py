@@ -269,7 +269,9 @@ class Search:
             "table_meta",
             "model_meta",
             "file_meta",
-            "chat_history"
+            "chat_history",
+            "picture_meta",
+            "parent_doc"
         ]
 
         logger.info("Indices Registered.")
