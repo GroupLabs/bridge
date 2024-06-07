@@ -53,8 +53,9 @@ def gen1(prompt: str):
         "model": LLM_MODEL,
         "messages": [{"role": "system", "content": prompt}]  
     }
+    timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
-    with httpx.Client() as client:
+    with httpx.Client(timeout) as client:
         response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
@@ -72,7 +73,7 @@ async def chat2(messages):
     }
     timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout) as client:
         async with client.stream("POST", LLM_URL + "chat/completions", json=data, headers=headers) as response:
             response.raise_for_status()
             async for line in response.aiter_text():
@@ -83,27 +84,6 @@ async def chat2(messages):
                 except json.JSONDecodeError:
                     continue  # Skip over lines that cannot be loaded as JSON
 
-#generates the text for a response:
-def gen2(prompt: str):
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {OPENAI_KEY}'
-    }
-    data = {
-        "model": LLM_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": True,
-        "temperature": 0,  
-    }
-
-    timeout = httpx.Timeout(300.0, read=300.0)
-
-    with httpx.Client(timeout=timeout) as client:
-        response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
-        if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
-        else:
-            raise Exception("Failed to generate text: " + response.text)
 
 #generates the text for a response:
 async def gen_for_query(prompt: str, information:str, source: set):
