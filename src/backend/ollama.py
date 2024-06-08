@@ -5,7 +5,7 @@ from config import config
 from openai import OpenAI
 from log import setup_logger
 import base64
-
+import os
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
 
@@ -32,7 +32,7 @@ async def chat1(messages):
     }
     timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream("POST", LLM_URL + "chat/completions", json=data, headers=headers) as response:
             response.raise_for_status()
             async for line in response.aiter_text():
@@ -53,8 +53,8 @@ def gen1(prompt: str):
         "model": LLM_MODEL,
         "messages": [{"role": "system", "content": prompt}]  
     }
-
-    with httpx.Client() as client:
+    timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
+    with httpx.Client(timeout=timeout) as client:
         response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']  # Adjusted path for chat API responses
@@ -95,6 +95,7 @@ async def gen2(prompt: str):
         "stream": True,
         "temperature": 0,  
     }
+
     timeout = httpx.Timeout(300.0, read=300.0)
 
     try:
@@ -156,6 +157,8 @@ def encode_image(image_path):
     
 def chat_with_model_to_get_description(image_path):
     base64_image = encode_image(image_path)
+    name = os.path.basename(image_path)
+
 
     headers = {
         'Content-Type': 'application/json',
@@ -169,7 +172,7 @@ def chat_with_model_to_get_description(image_path):
                 "content": [
                     {
                         "type": "text",
-                        "text": "The following is a picture, Describe what is in the picture - as detailed as possible, but keep it straight to the point, summarize in 30 words: "
+                        "text": f"The following is a picture, Describe what is in the picture - as detailed as possible, but keep it straight to the point, summarize in 30 words, include the file name. Keep in mind the file name as it might help in your description {name}: "
                     },
                     {
                         "type": "image_url",

@@ -421,6 +421,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
         if elements is not None:
             pdf_file = open(filepath, 'rb')
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
@@ -428,12 +429,18 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
-                
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
@@ -470,15 +477,26 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
@@ -512,15 +530,26 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
@@ -554,15 +583,26 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
@@ -596,22 +636,32 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
                 }
                 
                 es.insert_document(fields, index="text_chunk")
-
     else:
         fields = {
             "access_group": "",  # not yet implemented
@@ -639,15 +689,26 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
@@ -681,15 +742,26 @@ def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                     "page_number" : e.metadata.page_number
@@ -730,7 +802,6 @@ def get_detailed_dtypes(df):
 
 
 def _csv(filepath):
-    print("reached")
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     df = pd.read_csv(filepath)
 
@@ -770,11 +841,17 @@ def _csv(filepath):
         "columns": column_details,
     }
 
+    context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+    # Get the current local time
+    local_time = datetime.now().astimezone()
 
+    # Format the local time in the desired format
+    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
     fields = {
+        "Created": formatted_time,
         "document_id": doc_id,  # document id from path
-        "description_text": f"{describe_table(metadata)}",
+        "description_text": f"{describe_table(context_chunk+str(metadata))}",
         "metadata": metadata,
         "file_path": filepath,
         "table_name": table_name,
@@ -829,10 +906,17 @@ def _excel(filepath):
         "dimensions": dimensions,
         "columns": column_details,
     }
+    context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+    # Get the current local time
+    local_time = datetime.now().astimezone()
+
+    # Format the local time in the desired format
+    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
     fields = {
+        "Created": formatted_time,
         "document_id": doc_id,  # document id from path
-        "description_text": f"{describe_table(metadata)}",
+        "description_text": f"{describe_table(context_chunk+str(metadata))}",
         "metadata": metadata,
         "file_path": filepath,
         "table_name": table_name,
@@ -858,8 +942,14 @@ def _picture(filepath):
     }
 
     description = describe_picture(filepath)
+    # Get the current local time
+    local_time = datetime.now().astimezone()
+
+    # Format the local time in the desired format
+    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
     fields = {
+        "Created": formatted_time,
         "document_id": doc_id,  # document id from path
         "description_text": description,
         "metadata": metadata,
@@ -885,15 +975,26 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "chunk_no": i,
@@ -928,15 +1029,26 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
             return
 
         if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
 
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": chunk,
                     "chunking_strategy": chunking_strategy,
                     'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "chunk_no": i,
@@ -944,7 +1056,6 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
                 }
                 
                 es.insert_document(fields, index="text_chunk")
-
     else:
         fields = {
             "access_group": "",  # not yet implemented
