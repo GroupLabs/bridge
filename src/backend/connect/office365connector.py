@@ -261,6 +261,68 @@ def download_file(access_token, file_name):
         f.write(response.content)
     print(f"File downloaded as {file_path}")
 
+def download_file_by_type(access_token, file_name):
+    # Check if file_name contains a "."
+    if "." not in file_name:
+        print(f"File name {file_name} does not contain a '.'")
+        return
+
+    files = list_files(access_token)
+    file_id = None
+    for file in files:
+        if file['name'] == file_name:
+            file_id = file['id']
+            break
+
+    if not file_id:
+        print(f"File named {file_name} not found.")
+        return
+
+    headers = {'Authorization': f'Bearer {access_token}'}
+    download_url = f'https://graph.microsoft.com/v1.0/me/drive/items/{file_id}/content'
+    response = requests.get(download_url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+
+    # Separate the extension from the file_name
+    file_extension = file_name.split(".")[-1]
+
+    # Create a directory with the extension name under "downloads" if it doesn't exist
+    download_dir = os.path.join(os.getcwd(), 'downloads', file_extension)
+    if not os.path.exists(download_dir):
+        os.makedirs(download_dir)
+
+    # Save the file in the directory with the extension name under "downloads"
+    file_path = os.path.join(download_dir, file_name)
+
+    with open(file_path, 'wb') as f:
+        f.write(response.content)
+    print(f"File downloaded as {file_path}")
+
+def download_files(access_token, folder_id='root'):
+    try:
+        print("STARTED")
+        # Get the list of files
+        files = list_files(access_token, folder_id)
+        print("GOT FILES")
+        
+        # Iterate over the files
+        for file in files:
+            print("INSIDE LOOP")
+            # print(file)
+            
+            # Get the file name
+            file_name = file['name']
+            print(file_name)
+            
+            print(f"Downloading file: {file_name}")
+            # Download the file
+            download_file_by_type(access_token, file['name'])
+            print(f"Downloaded file: {file_name}")
+            
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 # Example usage
 if __name__ == '__main__':
     access_token = authenticate()
@@ -277,7 +339,7 @@ if __name__ == '__main__':
     # list_contacts(access_token)
     
     print("Listing tasks in Microsoft To-Do:")
-    list_tasks(access_token)
+    download_files(access_token)
     
     # Commented out because not all ms accounts have the sharepoint app
     #print("Listing SharePoint sites:")
