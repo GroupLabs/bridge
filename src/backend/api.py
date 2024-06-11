@@ -5,7 +5,7 @@ import httpx
 from google.auth.transport.requests import Request as GoogleRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse, FileResponse
 from contextlib import asynccontextmanager
@@ -31,6 +31,8 @@ from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_c
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 from uuid import uuid4
 from elasticsearch.exceptions import NotFoundError
+from connect.googleconnector import download_and_load, get_flow
+from pydantic import BaseModel
 
 # elasticsearch
 es = Search()
@@ -585,6 +587,57 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
 @app.get("/downloads/{filename}")
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
+
+REDIRECT_URI = 'http://localhost:8000/oauth2callback'
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+
+class DownloadRequest(BaseModel):
+    file_names: list[str]
+
+@app.get("/google_auth")
+async def google_auth():
+    try:
+        flow = get_flow()
+        auth_url, state = flow.authorization_url(
+            access_type='offline',  # Ensure offline access to get a refresh token
+            prompt='consent',  # Force consent screen to ensure refresh token is issued
+            include_granted_scopes='true'
+        )
+        logger.debug(f"Generated auth URL: {auth_url} with state: {state}")
+        return {"auth_url": auth_url}
+    except Exception as e:
+        logger.error(f"Error during authentication initiation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Authentication initiation failed: {e}")
+
+@app.get("/oauth2callback")
+async def oauth_callback(request: Request, background_tasks: BackgroundTasks):
+    try:
+        state = request.query_params.get('state')
+        code = request.query_params.get('code')
+        if not state or not code:
+            raise HTTPException(status_code=400, detail="Missing state or code parameter")
+
+        logger.debug(f"Received state: {state} and code: {code}")
+
+        flow = get_flow()
+        authorization_response = str(request.url)
+        logger.debug(f"Received authorization response: {authorization_response}")
+
+        flow.fetch_token(authorization_response=authorization_response)
+        creds = flow.credentials
+        logger.debug(f"Fetched token with scopes: {creds.scopes}")
+
+        if creds.refresh_token:
+            logger.debug("Refresh token received")
+        else:
+            logger.error("Refresh token is missing")
+            raise ValueError("Refresh token is missing")
+
+        background_tasks.add_task(download_and_load, creds.to_json())
+        return {"status": "success", "message": "Authentication successful, download started in background"}
+    except Exception as e:
+        logger.error(f"Error during OAuth2 callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Authentication callback failed: {e}")
 
 if __name__ == '__main__':
     import uvicorn
