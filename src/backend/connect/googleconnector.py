@@ -140,9 +140,19 @@ async def send_file_to_endpoint(file_stream, file_name):
         else:
             logger.warning(f"File '{file_name}' was not accepted for loading. Status code: {response.status_code}")
 
-async def send_data_to_endpoint(data_type, data):
+async def send_data_as_text_file_to_endpoint(data_type, data):
     async with httpx.AsyncClient() as client:
-        response = await client.post("http://localhost:8000/load_query", json={"type": data_type, "data": data})
+        if data_type == 'calendar_events':
+            file_content = '\n'.join([f"Event: {event['summary']}, Start: {event['start']}, End: {event['end']}" for event in data])
+        elif data_type == 'emails':
+            file_content = '\n'.join([f"Email Subject: {email['subject']}, Body: {email['body']}" for email in data])
+        else:
+            file_content = ''
+
+        file_name = f"{data_type}.txt"
+        file_stream = io.BytesIO(file_content.encode('utf-8'))
+        files = {'file': (file_name, file_stream, 'text/plain')}
+        response = await client.post("http://localhost:8000/load_query", files=files)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{data_type} data accepted for loading")
@@ -178,7 +188,7 @@ async def download_and_load(creds_json):
         calendar_service = build_calendar_service(creds)
         events = list_calendar_events(calendar_service)
         if events:
-            await send_data_to_endpoint('calendar_events', events)
+            await send_data_as_text_file_to_endpoint('calendar_events', events)
 
         # Handle Gmail messages
         gmail_service = build_gmail_service(creds)
@@ -191,7 +201,7 @@ async def download_and_load(creds_json):
                 msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
                 msg_body = get_message_body(msg_payload)
                 emails.append({"subject": msg_subject, "body": msg_body})
-            await send_data_to_endpoint('emails', emails)
+            await send_data_as_text_file_to_endpoint('emails', emails)
 
         logger.info("Files, events, and emails streamed and sent successfully")
     except Exception as e:
@@ -222,7 +232,10 @@ def list_calendar_events(service):
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
             logger.info(f"{event['summary']} - 'start': {start} - 'end': {end}")
-    return events
+    # Structure the events for the API
+    structured_events = [{'summary': event['summary'], 'start': event['start'], 'end': event['end']} for event in events]
+    return structured_events
+
 
 def list_messages(service, user_id, label_ids=[], max_results=10):
     results = service.users().messages().list(userId=user_id, labelIds=label_ids, maxResults=max_results).execute()
