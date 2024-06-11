@@ -28,7 +28,7 @@ load_dotenv()
 # Path to your OAuth 2.0 client credentials file
 CLIENT_SECRETS_FILE = os.getenv('CLIENT_SECRET_FILE')
 SCOPES = [
-    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/gmail.readonly'
 ]
@@ -54,9 +54,12 @@ def build_gmail_service(creds):
     service = build('gmail', 'v1', credentials=creds)
     return service
 
-def list_files(service):
+def list_files(service, created_after=None):
     try:
-        results = service.files().list(pageSize=1000, fields="files(id, name, mimeType)").execute()
+        query = "mimeType != 'application/vnd.google-apps.folder'"
+        if created_after:
+            query += f" and createdTime > '{created_after}'"
+        results = service.files().list(q=query, pageSize=1000, fields="files(id, name, mimeType)").execute()
         items = results.get('files', [])
         if not items:
             logger.info('No files found.')
@@ -64,6 +67,14 @@ def list_files(service):
             logger.info('Files:')
             for item in items:
                 logger.info(f"{item['name']} ({item['id']}) - {item['mimeType']}")
+        # Filter to include only specific mime types if needed
+        supported_mime_types = [
+            'application/vnd.google-apps.document',
+            'application/vnd.google-apps.spreadsheet',
+            'application/vnd.google-apps.presentation',
+            # Add more supported mime types here
+        ]
+        items = [item for item in items if item['mimeType'] in supported_mime_types]
         return items
     except Exception as e:
         logger.error(f"Error listing files: {str(e)}")
@@ -129,6 +140,15 @@ async def send_file_to_endpoint(file_stream, file_name):
         else:
             logger.warning(f"File '{file_name}' was not accepted for loading. Status code: {response.status_code}")
 
+async def send_data_to_endpoint(data_type, data):
+    async with httpx.AsyncClient() as client:
+        response = await client.post("http://localhost:8000/load_query", json={"type": data_type, "data": data})
+        logger.debug(f"Response from server: {response.text}")
+        if response.status_code == 202:
+            logger.info(f"{data_type} data accepted for loading")
+        else:
+            logger.warning(f"{data_type} data was not accepted for loading. Status code: {response.status_code}")
+
 async def download_and_load(creds_json):
     try:
         creds_dict = json.loads(creds_json)
@@ -137,20 +157,43 @@ async def download_and_load(creds_json):
             raise ValueError("Missing 'refresh_token' field in credentials")
         
         creds = Credentials.from_authorized_user_info(creds_dict, SCOPES)
-        service = build_service(creds)
-        items = list_files(service)
-        logger.debug(f"Files found: {items}")
+        
+        # Calculate the date one month ago
+        created_after = (datetime.now() - timedelta(days=30)).isoformat() + 'Z'
+        
+        # Handle Google Drive files
+        drive_service = build_service(creds)
+        files = list_files(drive_service, created_after=created_after)
+        logger.debug(f"Files found: {files}")
 
-        if not items:
-            logger.info("No files found.")
-        else:
-            for item in items:
-                file_stream, file_name = await stream_file(service, item['id'], item['name'])
+        if files:
+            for item in files:
+                file_stream, file_name = await stream_file(drive_service, item['id'], item['name'])
                 if file_stream and file_name:
                     await send_file_to_endpoint(file_stream, file_name)
                 else:
                     logger.warning(f"Skipping file '{item['name']}' due to export/download issues.")
-            logger.info("Files streamed and sent successfully")
+
+        # Handle Google Calendar events
+        calendar_service = build_calendar_service(creds)
+        events = list_calendar_events(calendar_service)
+        if events:
+            await send_data_to_endpoint('calendar_events', events)
+
+        # Handle Gmail messages
+        gmail_service = build_gmail_service(creds)
+        messages = list_messages(gmail_service, 'me', ['INBOX'])
+        if messages:
+            emails = []
+            for msg in messages:
+                msg_data = get_message(gmail_service, 'me', msg['id'])
+                msg_payload = msg_data['payload']
+                msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
+                msg_body = get_message_body(msg_payload)
+                emails.append({"subject": msg_subject, "body": msg_body})
+            await send_data_to_endpoint('emails', emails)
+
+        logger.info("Files, events, and emails streamed and sent successfully")
     except Exception as e:
         logger.error(f"Error in downloading and loading files: {str(e)}")
 
@@ -172,13 +215,14 @@ def list_calendar_events(service):
     
     events = events_result.get('items', [])
     if not events:
-        print('No upcoming events found.')
+        logger.info('No upcoming events found.')
     else:
-        print('Upcoming events:')
+        logger.info('Upcoming events:')
         for event in events:
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
-            print(f"{event['summary']} - 'start': {start} - 'end': {end}")
+            logger.info(f"{event['summary']} - 'start': {start} - 'end': {end}")
+    return events
 
 def list_messages(service, user_id, label_ids=[], max_results=10):
     results = service.users().messages().list(userId=user_id, labelIds=label_ids, maxResults=max_results).execute()
@@ -188,6 +232,18 @@ def list_messages(service, user_id, label_ids=[], max_results=10):
 def get_message(service, user_id, msg_id):
     msg = service.users().messages().get(userId=user_id, id=msg_id, format='full').execute()
     return msg
+
+def get_message_body(msg_payload):
+    msg_body = ''
+    if 'data' in msg_payload['body']:
+        msg_body = base64.urlsafe_b64decode(msg_payload['body']['data']).decode('utf-8')
+    elif 'parts' in msg_payload:
+        for part in msg_payload['parts']:
+            if part['mimeType'] == 'text/plain':
+                msg_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                break
+    return msg_body
+
 
 def print_emails(service, label_id, message_type):
     messages = list_messages(service, 'me', [label_id])
