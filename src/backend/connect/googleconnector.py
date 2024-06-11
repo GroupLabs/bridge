@@ -79,16 +79,19 @@ async def stream_file(service, file_id, file_name):
                 'application/vnd.google-apps.document': 'application/pdf',
                 'application/vnd.google-apps.spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'application/vnd.google-apps.presentation': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-            }.get(mime_type, 'application/pdf')
+            }.get(mime_type, None)
             
-            request = service.files().export_media(fileId=file_id, mimeType=export_mime_type)
-            file_extension = {
-                'application/pdf': '.pdf',
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-                'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx'
-            }.get(export_mime_type, '.pdf')
-            
-            file_name += file_extension
+            if export_mime_type:
+                request = service.files().export_media(fileId=file_id, mimeType=export_mime_type)
+                file_extension = {
+                    'application/pdf': '.pdf',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx'
+                }.get(export_mime_type, '')
+                file_name += file_extension
+            else:
+                logger.error(f"File '{file_name}' cannot be exported because it's not a supported Google Docs editors file.")
+                return None, None
         else:
             request = service.files().get_media(fileId=file_id)
         
@@ -113,6 +116,7 @@ async def stream_file(service, file_id, file_name):
     except Exception as e:
         logger.error(f"Error in streaming file '{file_name}': {str(e)}")
         return None, None
+
 
 
 async def send_file_to_endpoint(file_stream, file_name):
@@ -144,9 +148,12 @@ async def download_and_load(creds_json):
                 file_stream, file_name = await stream_file(service, item['id'], item['name'])
                 if file_stream and file_name:
                     await send_file_to_endpoint(file_stream, file_name)
+                else:
+                    logger.warning(f"Skipping file '{item['name']}' due to export/download issues.")
             logger.info("Files streamed and sent successfully")
     except Exception as e:
         logger.error(f"Error in downloading and loading files: {str(e)}")
+
 
 REDIRECT_URI = 'http://localhost:8000/oauth2callback'
 
