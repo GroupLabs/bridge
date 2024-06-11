@@ -31,6 +31,8 @@ from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_c
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 from uuid import uuid4
 from elasticsearch.exceptions import NotFoundError
+from connect.office365connector import list_emails, list_contacts, list_calendar_events
+import msal
 
 # elasticsearch
 es = Search()
@@ -43,8 +45,21 @@ DOWNLOAD_DIR = "downloads"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
 
+# Azure AD configuration
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+AUTHORITY = os.getenv('AUTHORITY')
+REDIRECT_URI = os.getenv('REDIRECT_URI')
+SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
+
 logger = setup_logger("api")
 logger.info("LOGGER READY")
+
+# Initialize the MSAL confidential client
+msal_app = msal.ConfidentialClientApplication(
+    CLIENT_ID, authority=AUTHORITY,
+    client_credential=CLIENT_SECRET,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -91,6 +106,49 @@ async def load_data_by_path(input: Load, response: Response):
         logger.warn(f"LOAD incomplete: {input.filepath}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+    
+@app.post("/auth")
+async def auth():
+    try:
+        # Step 1: Get authorization URL
+        auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+        
+        # Print or return the authorization URL so user can authorize manually
+        return JSONResponse(content={"auth_url": auth_url})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/token")
+async def get_token(request: Request):
+    code = request.query_params.get('code')
+    if not code:
+        return {"error": "Authorization code not found in the request."}
+    
+    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
+    if 'access_token' not in result:
+        return {"error": f"Could not acquire token: {result.get('error_description')}"}
+    
+    access_token = result['access_token']
+
+    try:
+        # Step 3: List and download emails
+        emails = list_emails(access_token, folder='inbox', top=10)
+        
+        # List and save calendar events
+        events = list_calendar_events(access_token, top=10)
+        
+        # List and save contacts
+        contacts = list_contacts(access_token)
+        
+        return {
+            "emails": emails,
+            "events": events,
+            "contacts": contacts,
+            "status": "success"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):

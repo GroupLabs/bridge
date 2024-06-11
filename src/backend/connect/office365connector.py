@@ -44,6 +44,7 @@ def authenticate():
     server.handle_request()
     
     code = server.auth_code[0] if server.auth_code else None
+    print(code)
     if not code:
         raise Exception("Failed to get authorization code")
     
@@ -78,7 +79,38 @@ def list_emails(access_token, folder='inbox', top=10):
     emails = response.json().get('value', [])
     for email in emails:
         print(f"Subject: {email['subject']}, Received: {email['receivedDateTime']}, From: {email['from']['emailAddress']['address']}")
+        download_email(access_token, email['id'], email['subject'])
     return emails
+
+def download_email(access_token, email_id, email_subject):
+    headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/vnd.ms-outlook'}
+    response = requests.get(f'https://graph.microsoft.com/v1.0/me/messages/{email_id}/$value', headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} - {response.json()}")
+    
+    safe_subject = ''.join(c for c in email_subject if c.isalnum() or c in (' ', '_')).rstrip()
+    file_name = f"{safe_subject}.eml"
+    
+    # Define the directory path
+    directory_path = os.path.join(os.getcwd(), 'office365', 'email')
+    
+    # Create the directory if it does not exist
+    os.makedirs(directory_path, exist_ok=True)
+    
+    # Ensure the file name is unique
+    file_path = os.path.join(directory_path, file_name)
+    if os.path.exists(file_path):
+        # If the file already exists, add a timestamp to the file name
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        file_name = f"{safe_subject}_{timestamp}.eml"
+        file_path = os.path.join(directory_path, file_name)
+    
+    print(file_path)
+    
+    # Write the email content to the file
+    with open(file_path, 'wb') as f:
+        f.write(response.content)
+    print(f"Email saved as {file_path}")
 
 def list_calendar_events(access_token, top=10):
     headers = {'Authorization': f'Bearer {access_token}'}
@@ -87,8 +119,48 @@ def list_calendar_events(access_token, top=10):
         raise Exception(f"Error: {response.status_code} - {response.json()}")
     
     events = response.json().get('value', [])
+    
+    # Ensure the directory exists
+    directory = os.path.join(os.getcwd(), 'office365', 'events')
+    os.makedirs(directory, exist_ok=True)
+    
     for event in events:
-        print(f"Event: {event['subject']} at {event['start']['dateTime']} to {event['end']['dateTime']}")
+        event_metadata = {
+            "subject": event.get('subject', 'N/A'),
+            "body": event.get('body', {}).get('content', 'N/A'),
+            "bodyPreview": event.get('bodyPreview', 'N/A'),
+            "start": event.get('start', {}).get('dateTime', 'N/A'),
+            "end": event.get('end', {}).get('dateTime', 'N/A'),
+            "location": event.get('location', {}).get('displayName', 'N/A'),
+            "attendees": [attendee['emailAddress']['name'] for attendee in event.get('attendees', [])],
+            "organizer": event.get('organizer', {}).get('emailAddress', {}).get('name', 'N/A'),
+            "isAllDay": event.get('isAllDay', 'N/A'),
+            "isCancelled": event.get('isCancelled', 'N/A'),
+            "isOrganizer": event.get('isOrganizer', 'N/A'),
+            "importance": event.get('importance', 'N/A'),
+            "showAs": event.get('showAs', 'N/A'),
+            "onlineMeetingUrl": event.get('onlineMeetingUrl', 'N/A'),
+            "responseStatus": event.get('responseStatus', {}).get('response', 'N/A'),
+            "categories": event.get('categories', []),
+            "reminderMinutesBeforeStart": event.get('reminderMinutesBeforeStart', 'N/A'),
+            "recurrence": event.get('recurrence', 'N/A'),
+            "seriesMasterId": event.get('seriesMasterId', 'N/A'),
+            "webLink": event.get('webLink', 'N/A'),
+            "sensitivity": event.get('sensitivity', 'N/A'),
+            "hasAttachments": event.get('hasAttachments', 'N/A'),
+            "attachments": event.get('attachments', []),
+            "createdDateTime": event.get('createdDateTime', 'N/A'),
+            "lastModifiedDateTime": event.get('lastModifiedDateTime', 'N/A'),
+        }
+
+        # Sanitize the event subject to be a valid filename
+        filename = f"{event['subject']}.txt".replace('/', '_').replace('\\', '_')
+        filepath = os.path.join(directory, filename)
+        
+        # Save to a .txt file
+        with open(filepath, 'w') as file:
+            json.dump(event_metadata, file, indent=4)
+    
     return events
 
 def list_contacts(access_token):
@@ -98,8 +170,46 @@ def list_contacts(access_token):
         raise Exception(f"Error: {response.status_code} - {response.json()}")
     
     contacts = response.json().get('value', [])
+    
+    # Ensure the directory exists
+    directory = os.path.join(os.getcwd(), 'office365', 'contacts')
+    os.makedirs(directory, exist_ok=True)
+    
     for contact in contacts:
-        print(f"Contact: {contact['displayName']} - {contact['emailAddresses'][0]['address'] if contact['emailAddresses'] else 'No email'}")
+        contact_metadata = {
+            "id": contact.get('id', 'N/A'),
+            "displayName": contact.get('displayName', 'N/A'),
+            "givenName": contact.get('givenName', 'N/A'),
+            "surname": contact.get('surname', 'N/A'),
+            "emailAddresses": [email['address'] for email in contact.get('emailAddresses', [])],
+            "businessPhones": contact.get('businessPhones', []),
+            "homePhones": contact.get('homePhones', []),
+            "mobilePhone": contact.get('mobilePhone', 'N/A'),
+            "companyName": contact.get('companyName', 'N/A'),
+            "jobTitle": contact.get('jobTitle', 'N/A'),
+            "department": contact.get('department', 'N/A'),
+            "officeLocation": contact.get('officeLocation', 'N/A'),
+            "profession": contact.get('profession', 'N/A'),
+            "businessAddress": contact.get('businessAddress', 'N/A'),
+            "homeAddress": contact.get('homeAddress', 'N/A'),
+            "birthday": contact.get('birthday', 'N/A'),
+            "personalNotes": contact.get('personalNotes', 'N/A'),
+            "assistantName": contact.get('assistantName', 'N/A'),
+            "manager": contact.get('manager', 'N/A'),
+            "spouseName": contact.get('spouseName', 'N/A'),
+            "children": contact.get('children', 'N/A'),
+            "createdDateTime": contact.get('createdDateTime', 'N/A'),
+            "lastModifiedDateTime": contact.get('lastModifiedDateTime', 'N/A'),
+        }
+
+        # Sanitize the contact display name to be a valid filename
+        filename = f"{contact['displayName']}.txt".replace('/', '_').replace('\\', '_')
+        filepath = os.path.join(directory, filename)
+        
+        # Save to a .txt file
+        with open(filepath, 'w') as file:
+            json.dump(contact_metadata, file, indent=4)
+    
     return contacts
 
 def list_tasks(access_token):
@@ -145,32 +255,30 @@ def download_file(access_token, file_name):
     if response.status_code != 200:
         raise Exception(f"Error: {response.status_code} - {response.json()}")
     
-    with open(file_name, 'wb') as f:
+    file_path = os.path.join(os.getcwd(), file_name)
+    
+    with open(file_path, 'wb') as f:
         f.write(response.content)
-    print(f"File downloaded as {file_name}")
+    print(f"File downloaded as {file_path}")
 
 # Example usage
 if __name__ == '__main__':
     access_token = authenticate()
-    #print("Listing all files in OneDrive:")
-    #list_files(access_token)
+    # print("Listing the last 10 received emails in Outlook:")
+    # list_emails(access_token, folder='inbox', top=10)
     
-    print("Listing the last 10 received emails in Outlook:")
-    list_emails(access_token, folder='inbox', top=10)
+    # print("Listing the last 10 sent emails in Outlook:")
+    # list_emails(access_token, folder='sentitems', top=10)
     
-    print("Listing the last 10 sent emails in Outlook:")
-    list_emails(access_token, folder='sentitems', top=10)
+    # print("Listing the next 10 calendar events:")
+    # list_calendar_events(access_token)
     
-    print("Listing the next 10 calendar events:")
-    list_calendar_events(access_token)
-    
-    print("Listing contacts in Outlook:")
-    list_contacts(access_token)
+    # print("Listing contacts in Outlook:")   
+    # list_contacts(access_token)
     
     print("Listing tasks in Microsoft To-Do:")
     list_tasks(access_token)
     
-
     # Commented out because not all ms accounts have the sharepoint app
     #print("Listing SharePoint sites:")
     #list_sharepoint_sites(access_token)
