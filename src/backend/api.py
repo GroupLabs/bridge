@@ -107,7 +107,7 @@ async def load_data_by_path(input: Load, response: Response):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
     
-@app.post("/auth")
+@app.get("/auth")
 async def auth():
     try:
         # Step 1: Get authorization URL
