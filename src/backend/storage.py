@@ -32,8 +32,9 @@ from elasticutils import Search
 from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
 import torch
-
+import asyncio
 from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
+from connect.googleconnector import download_and_load
 
 #import mlflow
 #from mlflow.tracking import MlflowClient
@@ -302,6 +303,10 @@ def load_model(model, config, description):
     tc.add_model(model,config) # TODO this function needs to leave the path of the original alone so that
     # we can do an os.remove at this level, or maybe we should pass file objects to each of these functions?
 
+
+@celery_app.task(name="download_and_load_task")
+def download_and_load_task(creds_json):
+    asyncio.run(download_and_load(creds_json))
 
 def extract_io_metadata(config, io_type):
     with open(config, 'r') as file:
