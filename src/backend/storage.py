@@ -33,7 +33,7 @@ from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
 import torch
 import asyncio
-import PyPDF2
+from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
 from connect.googleconnector import download_and_load
 
 #import mlflow
@@ -171,73 +171,68 @@ def sort_docs(type: str, order: str):
         ordered.append(hit)
     return ordered
 
+
+@celery_app.task(name="download_office365")
+def download_office365(access_token: str):
+    file_paths = download_files(access_token)
+    for file_path in file_paths:
+        load_data.delay(file_path)
+
+
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
-
     # check if input is a connection string
     c_string = parse_connection_string(filepath)
 
     # structured
-    if c_string: # or other structured filetypes!
+    if c_string:  # or other structured filetypes!
         _db(
             db_type=c_string["database_type"],
             host=c_string["host"],
             user=c_string["user"],
             password=c_string["password"],
-            )
+        )
     else:
-        filepath = Path(filepath).absolute().as_posix() # standardize path
+        filepath = Path(filepath).absolute().as_posix()  # standardize path
 
-        pathtype = get_pathtype(filepath) # checks for illegal paths and returns type
+        pathtype = get_pathtype(filepath)  # checks for illegal paths and returns type
 
         # unstructured
         if pathtype == "pdf":
-
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-
             _txt(filepath, read_txt=read)
-            
-        elif pathtype == "markdown":
 
+        elif pathtype == "markdown":
             _md(filepath, read_md=read)
 
         elif pathtype == "doc":
-
             _doc(filepath, read_doc=read)
 
         elif pathtype == "docx":
-
             _docx(filepath, read_docx=read)
 
         elif pathtype == "odt":
-
             _odt(filepath, read_odt=read)
 
         elif pathtype == "rtf":
-
             _rtf(filepath, read_odt=read)
 
         elif pathtype == "csv":
-
             _csv(filepath)
 
         elif pathtype == "xlsx" or pathtype == "xls":
-
             _excel(filepath)
 
         elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
-
-            _picture(filepath)    
+            _picture(filepath)
 
         elif pathtype == "ppt":
-
-            _ppt(filepath)    
+            _ppt(filepath)
 
         elif pathtype == "pptx":
-
-            _pptx(filepath)   
+            _pptx(filepath)
 
         # mix
         elif pathtype == "dir":
@@ -247,9 +242,9 @@ def load_data(filepath: str, read=True):
         else:
             logger.warning("unsupported filetype encountered.")
             raise NotImplementedError(f"File ({pathtype}) type is not supported.")
-    
-    if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
-            os.remove(filepath)
+
+    if os.path.exists(filepath):  # remove tempfile, not needed if we don't create the temp file
+        os.remove(filepath)
 
 @celery_app.task(name="get_inference_task")
 def get_inference(model, data):
@@ -1028,7 +1023,7 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
 
     if read_pptx:  # read txt
         try:
-            elements = partition_pptx(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_pptx(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return

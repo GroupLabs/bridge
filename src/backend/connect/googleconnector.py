@@ -14,6 +14,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.errors import HttpError
 import sys
 from config import config
+from pathlib import Path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -28,7 +29,8 @@ logger.info("LOGGER READY")
 #store and autogenerate metadata in ES, link that metadata to actual data using an external ID
 #read the metadata upon request
 
-load_dotenv()
+env_path = Path('..') / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Path to your OAuth 2.0 client credentials file
 CLIENT_SECRETS_FILE = os.getenv('CLIENT_SECRET_FILE')

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import subprocess
 import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task, download_office365
 from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
 from ollama import chat1, chat2, gen2, gen1, gen_for_query
@@ -33,6 +33,7 @@ from uuid import uuid4
 from elasticsearch.exceptions import NotFoundError
 from connect.googleconnector import download_and_load, get_flow
 from config import config
+import msal
 
 # elasticsearch
 es = Search()
@@ -45,8 +46,21 @@ DOWNLOAD_DIR = "downloads"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
 
+# Azure AD configuration
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+AUTHORITY = os.getenv('AUTHORITY')
+REDIRECT_URI = os.getenv('REDIRECT_URI')
+SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
+
 logger = setup_logger("api")
 logger.info("LOGGER READY")
+
+# Initialize the MSAL confidential client
+msal_app = msal.ConfidentialClientApplication(
+    CLIENT_ID, authority=AUTHORITY,
+    client_credential=CLIENT_SECRET,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -93,6 +107,33 @@ async def load_data_by_path(input: Load, response: Response):
         logger.warn(f"LOAD incomplete: {input.filepath}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+    
+@app.get("/office_auth")
+async def auth():
+    try:
+        # Step 1: Get authorization URL
+        auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+        
+        # Print or return the authorization URL so user can authorize manually
+        return JSONResponse(content={"auth_url": auth_url})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/token")
+async def get_token(request: Request):
+    code = request.query_params.get('code')
+    if not code:
+        return {"error": "Authorization code not found in the request."}
+    
+    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
+    if 'access_token' not in result:
+        return {"error": f"Could not acquire token: {result.get('error_description')}"}
+    
+    access_token = result['access_token']
+    task = download_office365.delay(access_token)
+
+    return {"status": "accepted", "task_id": task.id}
 
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
