@@ -3,12 +3,12 @@ import { ArrowRight } from 'lucide-react'
 
 const exampleMessages = [
   {
-    heading: "What's new with the iPad Pro?",
-    message: "What's new with the iPad Pro?"
+    heading: "What is sliding GQA?",
+    message: "What is sliding GQA?"
   },
   {
-    heading: 'Why is Nvidia growing rapidly?',
-    message: 'Why is Nvidia growing rapidly?'
+    heading: 'Where is the golden gate bridge?',
+    message: 'Where is the golden gate bridge?'
   },
   {
     heading: 'How does the Vercel AI SDK work?',
