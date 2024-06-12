@@ -33,6 +33,7 @@ from uuid import uuid4
 from elasticsearch.exceptions import NotFoundError
 from connect.googleconnector import download_and_load, get_flow
 from pydantic import BaseModel
+from config import config
 
 # elasticsearch
 es = Search()
@@ -588,7 +589,6 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
-REDIRECT_URI = 'http://localhost:8000/oauth2callback'
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
 class DownloadRequest(BaseModel):

@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.errors import HttpError
 import sys
+from config import config
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -36,8 +37,6 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/gmail.readonly'
 ]
-
-REDIRECT_URI = 'http://localhost:8000/oauth2callback'
 
 def authenticate():
     # Run local server to get the credentials
@@ -232,7 +231,7 @@ async def download_and_load(creds_json):
         logger.error(f"Error in downloading and loading files: {str(e)}")
 
 def get_flow():
-    return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI)
+    return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=config.REDIRECT_URI)
   
 
 def list_calendar_events(service):

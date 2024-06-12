@@ -177,7 +177,7 @@ services:
       - OAUTHLIB_INSECURE_TRANSPORT=1
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
-      - C:\Users\nidhi\Documents\Arvo\:/app/credentials
+      - ${LOCAL_GOOGLE_CREDENTIALS_PATH}:/app/credentials
     depends_on:
       es01:
         condition: service_healthy
