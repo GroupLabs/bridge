@@ -297,20 +297,15 @@ def download_file_by_type(access_token, file_name):
 def download_files(access_token, folder_id='root'):
     downloaded_files = []
     try:
-        print("STARTED")
         files = list_files(access_token, folder_id)
-        print("GOT FILES")
         
         for file in files:
-            print("INSIDE LOOP")
             file_name = file['name']
-            print(file_name)
-            
-            print(f"Downloading file: {file_name}")
+
             file_path = download_file_by_type(access_token, file_name)
             if file_path:
                 downloaded_files.append(file_path)
-            print(f"Downloaded file: {file_name}")
+
             
     except Exception as e:
         print(f"An error occurred: {e}")
