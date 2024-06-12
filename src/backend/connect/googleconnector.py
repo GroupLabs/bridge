@@ -7,12 +7,16 @@ from datetime import datetime, timedelta, timezone
 import base64
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
-from log import setup_logger
 import json
 import httpx
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.errors import HttpError
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from log import setup_logger
 
 logger = setup_logger("googelconnector")
 logger.info("LOGGER READY")
@@ -32,6 +36,8 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/gmail.readonly'
 ]
+
+REDIRECT_URI = 'http://localhost:8000/oauth2callback'
 
 def authenticate():
     # Run local server to get the credentials
@@ -59,22 +65,24 @@ def list_files(service, created_after=None):
         query = "mimeType != 'application/vnd.google-apps.folder'"
         if created_after:
             query += f" and createdTime > '{created_after}'"
+        logger.debug(f"Query: {query}")
         results = service.files().list(q=query, pageSize=1000, fields="files(id, name, mimeType)").execute()
         items = results.get('files', [])
+        logger.debug(f"API Response: {results}")
         if not items:
             logger.info('No files found.')
         else:
             logger.info('Files:')
+            supported_mime_types = [
+                'application/vnd.google-apps.document',  # Google Docs
+                'application/vnd.google-apps.spreadsheet',  # Google Sheets
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # Excel files
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # Word files
+                'application/pdf',  # PDF files
+            ]
+            items = [item for item in items if item['mimeType'] in supported_mime_types]
             for item in items:
                 logger.info(f"{item['name']} ({item['id']}) - {item['mimeType']}")
-        # Filter to include only specific mime types if needed
-        supported_mime_types = [
-            'application/vnd.google-apps.document',
-            'application/vnd.google-apps.spreadsheet',
-            'application/vnd.google-apps.presentation',
-            # Add more supported mime types here
-        ]
-        items = [item for item in items if item['mimeType'] in supported_mime_types]
         return items
     except Exception as e:
         logger.error(f"Error listing files: {str(e)}")
@@ -142,10 +150,11 @@ async def send_file_to_endpoint(file_stream, file_name):
 
 async def send_data_as_text_file_to_endpoint(data_type, data):
     async with httpx.AsyncClient() as client:
-        if data_type == 'calendar_events':
-            file_content = '\n'.join([f"Event: {event['summary']}, Start: {event['start']}, End: {event['end']}" for event in data])
-        elif data_type == 'emails':
-            file_content = '\n'.join([f"Email Subject: {email['subject']}, Body: {email['body']}" for email in data])
+        if data_type in ['calendar_events', 'received_emails', 'sent_emails']:
+            if data_type == 'calendar_events':
+                file_content = '\n'.join([f"Event: {event['summary']}, Start: {event['start']}, End: {event['end']}" for event in data])
+            else:
+                file_content = '\n'.join([f"Email Subject: {email['subject']}, Body: {email['body']}" for email in data])
         else:
             file_content = ''
 
@@ -158,6 +167,7 @@ async def send_data_as_text_file_to_endpoint(data_type, data):
             logger.info(f"{data_type} data accepted for loading")
         else:
             logger.warning(f"{data_type} data was not accepted for loading. Status code: {response.status_code}")
+
 
 async def download_and_load(creds_json):
     try:
@@ -192,23 +202,34 @@ async def download_and_load(creds_json):
 
         # Handle Gmail messages
         gmail_service = build_gmail_service(creds)
-        messages = list_messages(gmail_service, 'me', ['INBOX'])
-        if messages:
-            emails = []
-            for msg in messages:
+        
+        # Get the last 10 received emails
+        received_messages = list_messages(gmail_service, 'me', ['INBOX'])
+        if received_messages:
+            received_emails = []
+            for msg in received_messages:
                 msg_data = get_message(gmail_service, 'me', msg['id'])
                 msg_payload = msg_data['payload']
                 msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
                 msg_body = get_message_body(msg_payload)
-                emails.append({"subject": msg_subject, "body": msg_body})
-            await send_data_as_text_file_to_endpoint('emails', emails)
+                received_emails.append({"subject": msg_subject, "body": msg_body})
+            await send_data_as_text_file_to_endpoint('received_emails', received_emails)
+
+        # Get the last 10 sent emails
+        sent_messages = list_messages(gmail_service, 'me', ['SENT'])
+        if sent_messages:
+            sent_emails = []
+            for msg in sent_messages:
+                msg_data = get_message(gmail_service, 'me', msg['id'])
+                msg_payload = msg_data['payload']
+                msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
+                msg_body = get_message_body(msg_payload)
+                sent_emails.append({"subject": msg_subject, "body": msg_body})
+            await send_data_as_text_file_to_endpoint('sent_emails', sent_emails)
 
         logger.info("Files, events, and emails streamed and sent successfully")
     except Exception as e:
         logger.error(f"Error in downloading and loading files: {str(e)}")
-
-
-REDIRECT_URI = 'http://localhost:8000/oauth2callback'
 
 def get_flow():
     return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI)
@@ -286,7 +307,9 @@ if __name__ == '__main__':
     gmail_service = build_gmail_service(creds)
 
     print("Listing all files in Google Drive:")
-    list_files(service)
+    files = list_files(service)
+    for file in files:
+        print(f"{file['name']} ({file['id']}) - {file['mimeType']}")
 
     #file_name_to_download = input("Enter the name of the file to download: ")
     #download_file(service, file_name_to_download)
