@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import subprocess
 import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task
 from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
 from ollama import chat1, chat2, gen2, gen1, gen_for_query
@@ -604,7 +604,7 @@ async def google_auth():
         raise HTTPException(status_code=500, detail=f"Authentication initiation failed: {e}")
 
 @app.get("/oauth2callback")
-async def oauth_callback(request: Request, background_tasks: BackgroundTasks):
+async def oauth_callback(request: Request):
     try:
         state = request.query_params.get('state')
         code = request.query_params.get('code')
@@ -627,7 +627,9 @@ async def oauth_callback(request: Request, background_tasks: BackgroundTasks):
             logger.error("Refresh token is missing")
             raise ValueError("Refresh token is missing")
 
-        background_tasks.add_task(download_and_load, creds.to_json())
+        # Call the Celery task
+        download_and_load_task.delay(creds.to_json())
+        
         return {"status": "success", "message": "Authentication successful, download started in background"}
     except Exception as e:
         logger.error(f"Error during OAuth2 callback: {str(e)}")
