@@ -13,6 +13,7 @@ from simple_salesforce import Salesforce
 import sys
 import base64
 import hashlib
+import urllib.parse
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -33,8 +34,8 @@ TOKEN_URL = 'https://login.salesforce.com/services/oauth2/token'
 class OAuthHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/callback'):
-            query_components = dict(qc.split("=") for qc in self.path.split("?")[1].split("&"))
-            self.server.auth_code = query_components['code']
+            query_components = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            self.server.auth_code = query_components.get('code', [None])[0]
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
@@ -64,7 +65,7 @@ def authenticate():
     oauth = OAuth2Session(
         SALESFORCE_CLIENT_ID, 
         redirect_uri=SALESFORCE_REDIRECT_URI, 
-        scope=["api", "refresh_token", "offline_access"]
+        scope=["api", "refresh_token", "offline_access", "id", "profile", "email", "address", "phone", "full"]
     )
     authorization_url, state = oauth.authorization_url(
         AUTHORIZATION_BASE_URL, 
@@ -87,19 +88,40 @@ def authenticate():
     auth_code = httpd.auth_code
     logger.info(f"Auth Code: {auth_code}")
 
-    # Fetch the token with PKCE
-    token = oauth.fetch_token(
-        TOKEN_URL,
-        client_secret=SALESFORCE_CLIENT_SECRET,
-        code=auth_code,
-        code_verifier=code_verifier
-    )
-    logger.info(f"Token: {token}")
-    return token
+    if auth_code:
+        try:
+            # URL decode the authorization code
+            auth_code = urllib.parse.unquote(auth_code)
+            logger.info(f"Decoded Auth Code: {auth_code}")
+
+            # Fetch the token with PKCE
+            token = oauth.fetch_token(
+                TOKEN_URL,
+                client_secret=SALESFORCE_CLIENT_SECRET,
+                code=auth_code,
+                code_verifier=code_verifier
+            )
+            logger.info(f"Token: {token}")
+            return token
+        except Exception as e:
+            logger.error(f"Error fetching token: {str(e)}")
+            raise
+    else:
+        logger.error("No authorization code received.")
+        raise ValueError("No authorization code received.")
 
 def get_salesforce_instance(token):
     sf = Salesforce(instance_url=token['instance_url'], session_id=token['access_token'])
     return sf
+
+def get_field_names(sf, object_name):
+    try:
+        desc = sf.__getattr__(object_name).describe()
+        field_names = [field['name'] for field in desc['fields']]
+        return field_names
+    except Exception as e:
+        logger.error(f"Error getting field names for {object_name}: {str(e)}")
+        return []
 
 def list_objects(sf):
     try:
@@ -114,7 +136,11 @@ def list_objects(sf):
 
 def list_records(sf, object_name):
     try:
-        records = sf.query(f"SELECT * FROM {object_name} LIMIT 1000")
+        fields = get_field_names(sf, object_name)
+        if not fields:
+            raise ValueError(f"No fields found for {object_name}")
+        query = f"SELECT {', '.join(fields)} FROM {object_name} LIMIT 1000"
+        records = sf.query(query)
         logger.info(f"Records from {object_name}:")
         for record in records["records"]:
             logger.info(record)
