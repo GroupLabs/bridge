@@ -589,8 +589,6 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
-os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
-
 class DownloadRequest(BaseModel):
     file_names: list[str]
 
