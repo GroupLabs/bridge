@@ -32,7 +32,6 @@ from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 from uuid import uuid4
 from elasticsearch.exceptions import NotFoundError
 from connect.googleconnector import download_and_load, get_flow
-from pydantic import BaseModel
 from config import config
 
 # elasticsearch
@@ -588,9 +587,6 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
 @app.get("/downloads/{filename}")
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
-
-class DownloadRequest(BaseModel):
-    file_names: list[str]
 
 @app.get("/google_auth")
 async def google_auth():
