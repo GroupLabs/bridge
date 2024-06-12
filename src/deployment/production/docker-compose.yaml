@@ -122,6 +122,7 @@ services:
       - XPACK_SECURITY_ENCRYPTIONKEY=${ENCRYPTION_KEY}
       - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${ENCRYPTION_KEY}
       - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+      - NODE_OPTIONS=--max-old-space-size=4096
     mem_limit: ${KB_MEM_LIMIT}
     healthcheck:
       test:
@@ -172,8 +173,11 @@ services:
       - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - CLIENT_SECRET_FILE=/app/credentials/client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json
+      - OAUTHLIB_INSECURE_TRANSPORT=1
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
+      - ${LOCAL_GOOGLE_CREDENTIALS_PATH}:/app/credentials
     depends_on:
       es01:
         condition: service_healthy

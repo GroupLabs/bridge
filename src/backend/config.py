@@ -41,3 +41,6 @@ class config:
     MODEL_SOURCE_FOLDER = str(os.getenv('MODEL_SOURCE_FOLDER', "x"))
 
     MLFLOW_TRACKING_URI="http://mlflow:5000"
+
+    # googleconnector
+    REDIRECT_URI = "http://localhost:8000/oauth2callback"
