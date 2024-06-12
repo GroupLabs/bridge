@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import subprocess
 import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_office365
 from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
 from ollama import chat1, chat2, gen2, gen1, gen_for_query
@@ -31,7 +31,6 @@ from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_c
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 from uuid import uuid4
 from elasticsearch.exceptions import NotFoundError
-from connect.office365connector import list_emails, list_contacts, list_calendar_events
 import msal
 
 # elasticsearch
@@ -107,7 +106,7 @@ async def load_data_by_path(input: Load, response: Response):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
     
-@app.get("/auth")
+@app.get("/office_auth")
 async def auth():
     try:
         # Step 1: Get authorization URL
@@ -130,25 +129,9 @@ async def get_token(request: Request):
         return {"error": f"Could not acquire token: {result.get('error_description')}"}
     
     access_token = result['access_token']
+    task = download_office365.delay(access_token)
 
-    try:
-        # Step 3: List and download emails
-        emails = list_emails(access_token, folder='inbox', top=10)
-        
-        # List and save calendar events
-        events = list_calendar_events(access_token, top=10)
-        
-        # List and save contacts
-        contacts = list_contacts(access_token)
-        
-        return {
-            "emails": emails,
-            "events": events,
-            "contacts": contacts,
-            "status": "success"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "accepted", "task_id": task.id}
 
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
