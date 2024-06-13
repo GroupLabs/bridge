@@ -36,9 +36,7 @@ import asyncio
 from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
 from connect.googleconnector import download_and_load
 import json
-from ollama import gen2
-from fastapi.responses import StreamingResponse
-
+from ollama import gen_for_query_with_file
 #import mlflow
 #from mlflow.tracking import MlflowClient
 #from mlflow.exceptions import MlflowException
@@ -242,7 +240,7 @@ def load_data(filepath: str, read=True):
             # recursively call load_data
             pass
         elif pathtype == "json":
-            _json(filepath)
+            asyncio.run(_json(filepath))
 
         else:
             logger.warning("unsupported filetype encountered.")
@@ -1119,17 +1117,18 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
-def _json(filepath):
-
+async def _json(filepath):
     try:
         with open(filepath, 'r') as file:
-            data = json.load(file)
+            file_content = json.load(file)
     except Exception as e:
-        logger.error(f"Failed to read JSON: {e}")
-        return
+        logger.error(f"Failed to read file: {e}")
+        return f"Failed to read file: {e}"
     
-    chat_generator = gen2(data)
-    return StreamingResponse(chat_generator, media_type="text/plain")
+    prompt = "Describe the most important metadata in natural language and give it as a string"
+    response = await gen_for_query_with_file(prompt, file_content)
+    logger.info(response)
+    return response
 
 """
 def get_next_version(model_name: str) -> int:
@@ -1177,7 +1176,9 @@ if __name__ == "__main__":
     print(es)
     print(es.registered_indices)
 
+    filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
 
+    print(_json(filepath))
 
 
     
