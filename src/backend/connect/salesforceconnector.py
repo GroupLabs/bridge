@@ -79,6 +79,7 @@ def authenticate():
     webbrowser.open(authorization_url)
     httpd = socketserver.TCPServer(('localhost', 8000), OAuthHandler)
 
+
     def serve():
         httpd.handle_request()
     thread = threading.Thread(target=serve)
@@ -162,9 +163,8 @@ async def send_data_to_endpoint(data_type, data):
         else:
             logger.warning(f"{data_type} data was not accepted for loading. Status code: {response.status_code}")
 
-async def download_and_load():
+async def download_and_load(token):
     try:
-        token = authenticate()
         sf = get_salesforce_instance(token)
         if not sf:
             raise ValueError("Salesforce authentication failed")
