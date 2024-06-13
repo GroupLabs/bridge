@@ -212,12 +212,21 @@ async def gen_for_query_with_file(prompt: str, file_content: str):
             response = await client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
             response.raise_for_status()
             response_data = response.json()
-            return response_data['choices'][0]['message']['content']
+            full_response = response_data['choices'][0]['message']['content']
+            # Extract only the desired part of the response
+            start_marker = 'The project'
+            end_marker = "'."
+            if start_marker in full_response:
+                start_idx = full_response.find(start_marker)
+                end_idx = full_response.find(end_marker, start_idx) + len(end_marker) - 1
+                extracted_text = full_response[start_idx:end_idx].strip('".')
+                return extracted_text
+            return full_response.strip('".')
     except Exception as e:
         msg = f"Error with OpenAI: {str(e)}"
-        logger.info(msg)
+        logger.error(msg)
         return msg
-
+    
 async def main():
     # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
     prompt = "Describe the most important metadata in natural language and give it as a string"

@@ -1176,10 +1176,6 @@ if __name__ == "__main__":
     print(es)
     print(es.registered_indices)
 
-    filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
-
-    print(_json(filepath))
-
 
     
 
