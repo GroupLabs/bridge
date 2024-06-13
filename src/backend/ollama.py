@@ -2,13 +2,14 @@ import requests
 import json
 import httpx
 from config import config
+import openai
 from log import setup_logger
 import base64
 import os
 import asyncio
+
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
-import openai
 
 #To do: 
 #1. Get ES docs as context
