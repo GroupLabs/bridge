@@ -2,13 +2,13 @@ import requests
 import json
 import httpx
 from config import config
-from openai import OpenAI
 from log import setup_logger
 import base64
 import os
 import asyncio
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
+import openai
 
 #To do: 
 #1. Get ES docs as context
@@ -18,7 +18,7 @@ LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL #currently set to gpt-3.5 turbo, switch to gpt-4 in .env and docker-compose
 OPENAI_KEY = config.OPENAI_KEY
 
-client = OpenAI(
+client = openai.OpenAI(
     api_key=OPENAI_KEY
 )
 
@@ -195,37 +195,20 @@ def chat_with_model_to_get_description(image_path):
         else:
             raise Exception("Failed to generate text: " + response.text)
 
-async def gen_for_query_with_file(prompt: str, file_content: str):
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {OPENAI_KEY}'
-    }
-    data = {
-        "model": LLM_MODEL,
-        "messages": [{"role": "user", "content": f"Answer the following prompt: {prompt}. Base your answer on the following information: {file_content}"}],
-        "temperature": 0,
-    }
-    timeout = httpx.Timeout(300.0, read=300.0)
-
+def gen_for_query_with_file(prompt, file_content):
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
-            response.raise_for_status()
-            response_data = response.json()
-            full_response = response_data['choices'][0]['message']['content']
-            # Extract only the desired part of the response
-            start_marker = 'The project'
-            end_marker = "'."
-            if start_marker in full_response:
-                start_idx = full_response.find(start_marker)
-                end_idx = full_response.find(end_marker, start_idx) + len(end_marker) - 1
-                extracted_text = full_response[start_idx:end_idx].strip('".')
-                return extracted_text
-            return full_response.strip('".')
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an assistant that helps with extracting metadata from documents. Please give me descriptive metadata."},
+                {"role": "user", "content": f"{prompt}\n\n{file_content}"}
+            ],
+            max_tokens=500,
+            temperature=0.5
+        )
+        return response.choices[0].message.content
     except Exception as e:
-        msg = f"Error with OpenAI: {str(e)}"
-        logger.error(msg)
-        return msg
+        return f"OpenAI API error: {e}"
     
 async def main():
     # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
@@ -240,7 +223,7 @@ async def main():
         print(f"Failed to read file: {e}")
         return
 
-    response = await gen_for_query_with_file(prompt, file_content)
+    response = gen_for_query_with_file(prompt, file_content)
     print(response)
 
 if __name__ == "__main__":

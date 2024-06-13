@@ -240,7 +240,7 @@ def load_data(filepath: str, read=True):
             # recursively call load_data
             pass
         elif pathtype == "json":
-            asyncio.run(_json(filepath))
+            _json(filepath)
 
         else:
             logger.warning("unsupported filetype encountered.")
@@ -1117,7 +1117,7 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
-async def _json(filepath):
+def _json(filepath):
     try:
         with open(filepath, 'r') as file:
             file_content = json.load(file)
@@ -1126,8 +1126,35 @@ async def _json(filepath):
         return f"Failed to read file: {e}"
     
     prompt = "Describe the most important metadata in natural language and give it as a string"
-    response = await gen_for_query_with_file(prompt, file_content)
-    logger.info(response)
+    response =  gen_for_query_with_file(prompt, file_content)
+    
+    # Generate a unique document ID based on the file path
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    
+    # Get the file size in bytes and convert to megabytes
+    file_size_bytes = os.path.getsize(filepath)
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    size = f"{file_size_mb:.2f} MB"
+    
+    # Get the basename with extension
+    basename_with_ext = os.path.basename(filepath)
+    
+    # Prepare the document for insertion
+    document = {
+        "document_id": doc_id,  # document id from path
+        "document_name": os.path.splitext(basename_with_ext)[0],  
+        "Size": size,
+        'Size_numeric': file_size_mb,
+        "Type": os.path.splitext(filepath)[-1],
+        "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+        "metadata": response  # Use the response as metadata
+    }
+
+    # Insert the document into Elasticsearch
+    logger.info(f"Attempting to insert document: {document}")
+    es.insert_document(document, index="universal_data_index")
+    logger.info(f"Inserted document {document['document_id']} into Elasticsearch")
+
     return response
 
 """
