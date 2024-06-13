@@ -6,6 +6,7 @@ from openai import OpenAI
 from log import setup_logger
 import base64
 import os
+import asyncio
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
 
@@ -194,6 +195,52 @@ def chat_with_model_to_get_description(image_path):
         else:
             raise Exception("Failed to generate text: " + response.text)
 
+async def gen_for_query_with_file(prompt: str, filepath: str):
+    try:
+        with open(filepath, 'r') as file:
+            file_content = json.load(file)
+    except Exception as e:
+        logger.error(f"Failed to read file: {e}")
+        yield f"Failed to read file: {e}"
+        return
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {OPENAI_KEY}'
+    }
+    data = {
+        "model": LLM_MODEL,
+        "messages": [{"role": "user", "content": f"Answer the following prompt: {prompt}. Base your answer on the following information: {json.dumps(file_content)}"}],
+        "stream": True,
+        "temperature": 0,
+    }
+    timeout = httpx.Timeout(300.0, read=300.0)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", LLM_URL + "/chat/completions", headers=headers, json=data) as response:
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line or line == '[DONE]':
+                        continue
+                    try:
+                        event = json.loads(line[len("data: "):])
+                        if 'delta' in event['choices'][0] and 'content' in event['choices'][0]['delta']:
+                            yield event['choices'][0]['delta']['content']
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        msg = f"Streaming error with OpenAI: {str(e)}"
+        logger.info(msg)
+        yield msg
+
+async def main():
+    # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
+    prompt = "Describe the most important metadata in natural language and give it as a string"
+    filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
+    
+    async for r in gen_for_query_with_file(prompt, filepath):
+        print(r)
+
 if __name__ == "__main__":
-    # Example usage
-    print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
+    asyncio.run(main())

@@ -35,6 +35,9 @@ import torch
 import asyncio
 from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
 from connect.googleconnector import download_and_load
+import json
+from ollama import gen2
+from fastapi.responses import StreamingResponse
 
 #import mlflow
 #from mlflow.tracking import MlflowClient
@@ -238,6 +241,8 @@ def load_data(filepath: str, read=True):
         elif pathtype == "dir":
             # recursively call load_data
             pass
+        elif pathtype == "json":
+            _json(filepath)
 
         else:
             logger.warning("unsupported filetype encountered.")
@@ -1113,6 +1118,18 @@ def _db(db_type, host, user, password):
                 es.insert_document(fields, index="table_meta")
                 
                 print("stored: " + file.split(".")[0])
+
+def _json(filepath):
+
+    try:
+        with open(filepath, 'r') as file:
+            data = json.load(file)
+    except Exception as e:
+        logger.error(f"Failed to read JSON: {e}")
+        return
+    
+    chat_generator = gen2(data)
+    return StreamingResponse(chat_generator, media_type="text/plain")
 
 """
 def get_next_version(model_name: str) -> int:
