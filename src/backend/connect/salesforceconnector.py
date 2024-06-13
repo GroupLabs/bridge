@@ -1,12 +1,12 @@
-import os, httpx, io
+import os
+import httpx
+import io
 import json
 import http.server
 import socketserver
 import threading
 import webbrowser
-import requests
 from requests_oauthlib import OAuth2Session
-from oauthlib.oauth2 import BackendApplicationClient, LegacyApplicationClient
 from dotenv import load_dotenv
 from pathlib import Path
 from simple_salesforce import Salesforce
@@ -14,6 +14,7 @@ import sys
 import base64
 import hashlib
 import urllib.parse
+import asyncio
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -31,11 +32,14 @@ SALESFORCE_REDIRECT_URI = 'http://localhost:8000/callback'
 AUTHORIZATION_BASE_URL = 'https://login.salesforce.com/services/oauth2/authorize'
 TOKEN_URL = 'https://login.salesforce.com/services/oauth2/token'
 
+state = None  # Global variable to store state
+
 class OAuthHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/callback'):
             query_components = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             self.server.auth_code = query_components.get('code', [None])[0]
+            self.server.received_state = query_components.get('state', [None])[0]
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
@@ -54,6 +58,7 @@ def generate_code_challenge(code_verifier):
     return code_challenge
 
 def authenticate():
+    global state
     # Generate PKCE code verifier and challenge
     code_verifier = generate_code_verifier()
     code_challenge = generate_code_challenge(code_verifier)
@@ -79,7 +84,6 @@ def authenticate():
     webbrowser.open(authorization_url)
     httpd = socketserver.TCPServer(('localhost', 8000), OAuthHandler)
 
-
     def serve():
         httpd.handle_request()
     thread = threading.Thread(target=serve)
@@ -87,9 +91,11 @@ def authenticate():
     thread.join()
 
     auth_code = httpd.auth_code
+    received_state = httpd.received_state
     logger.info(f"Auth Code: {auth_code}")
+    logger.info(f"Received State: {received_state}")
 
-    if auth_code:
+    if auth_code and received_state == state:
         try:
             # URL decode the authorization code
             auth_code = urllib.parse.unquote(auth_code)
@@ -108,8 +114,8 @@ def authenticate():
             logger.error(f"Error fetching token: {str(e)}")
             raise
     else:
-        logger.error("No authorization code received.")
-        raise ValueError("No authorization code received.")
+        logger.error("No authorization code received or invalid state.")
+        raise ValueError("No authorization code received or invalid state.")
 
 def get_salesforce_instance(token):
     sf = Salesforce(instance_url=token['instance_url'], session_id=token['access_token'])
@@ -184,5 +190,8 @@ async def download_and_load(token):
 
 # Example usage
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(download_and_load())
+    try:
+        token = authenticate()
+        asyncio.run(download_and_load(token))
+    except Exception as e:
+        logger.error(f"Failed to run the main process: {str(e)}")
