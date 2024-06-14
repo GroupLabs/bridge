@@ -89,7 +89,7 @@ def download_email(access_token, email_id, email_subject):
         raise Exception(f"Error: {response.status_code} - {response.json()}")
     
     safe_subject = ''.join(c for c in email_subject if c.isalnum() or c in (' ', '_')).rstrip()
-    file_name = f"{safe_subject}.eml"
+    file_name = f"{safe_subject}.mht"
     
     # Define the directory path
     directory_path = os.path.join(os.getcwd(), 'office365', 'email')
@@ -102,7 +102,7 @@ def download_email(access_token, email_id, email_subject):
     if os.path.exists(file_path):
         # If the file already exists, add a timestamp to the file name
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        file_name = f"{safe_subject}_{timestamp}.eml"
+        file_name = f"{safe_subject}_{timestamp}.mht"
         file_path = os.path.join(directory_path, file_name)
     
     print(file_path)
@@ -324,11 +324,11 @@ if __name__ == '__main__':
     # print("Listing the next 10 calendar events:")
     # list_calendar_events(access_token)
     
-    # print("Listing contacts in Outlook:")   
-    # list_contacts(access_token)
+    print("Listing contacts in Outlook:")   
+    list_contacts(access_token)
     
-    print("Listing tasks in Microsoft To-Do:")
-    print(download_files(access_token))
+    # print("Listing tasks in Microsoft To-Do:")
+    # print(download_files(access_token))
     
     # Commented out because not all ms accounts have the sharepoint app
     #print("Listing SharePoint sites:")
