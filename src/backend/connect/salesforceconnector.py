@@ -199,7 +199,7 @@ def retrieve_attachments(sf, account_id):
 
 def retrieve_leads(sf, user_id):
     try:
-        leads_query = f"SELECT Id, FirstName, LastName, Company FROM Lead WHERE OwnerId = '{user_id}'"
+        leads_query = f"SELECT Id, FirstName, LastName, Company, Status, Email, Phone, Title, CreatedDate FROM Lead WHERE OwnerId = '{user_id}'"
         leads = sf.query(leads_query)['records']
         logger.info(f"Number of leads retrieved for owner {user_id}: {len(leads)}")
         return leads
