@@ -292,12 +292,12 @@ async def download_and_load(token):
             notes = retrieve_notes(sf, account_id)
             attachments = retrieve_attachments(sf, account_id)
 
-            if tasks:
-                await send_data_to_endpoint(f"Tasks_{account_name}.json", json.dumps(tasks).encode('utf-8'))
-            if notes:
-                await send_data_to_endpoint(f"Notes_{account_name}.json", json.dumps(notes).encode('utf-8'))
-            if attachments:
-                await send_data_to_endpoint(f"Attachments_{account_name}.json", json.dumps(attachments).encode('utf-8'))
+            for task in tasks:
+                await send_data_to_endpoint(f"Task_{task['Id']}.json", json.dumps(task).encode('utf-8'))
+            for note in notes:
+                await send_data_to_endpoint(f"Note_{note['Id']}.json", json.dumps(note).encode('utf-8'))
+            for attachment in attachments:
+                await send_data_to_endpoint(f"Attachment_{attachment['Id']}.json", json.dumps(attachment).encode('utf-8'))
         
         # Retrieve files owned by the user or shared with the user
         files = retrieve_files(sf, user_id)
