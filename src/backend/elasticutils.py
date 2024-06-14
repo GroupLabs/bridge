@@ -271,7 +271,7 @@ class Search:
                         'document_name': {'type': 'text'},
                         'Size': {'type': 'text'},
                         'Type': {'type': 'keyword'},
-                        'Last_modified': {'type': 'text'},
+                        'Last_modified': {'type': 'date'},
                         'Created': {'type': 'date'},
                         'e5': {
                             'type': 'dense_vector',
@@ -294,7 +294,8 @@ class Search:
             "file_meta",
             "chat_history",
             "picture_meta",
-            "parent_doc"
+            "parent_doc",
+            "universal_data_index"
         ]
 
         logger.info("Indices Registered.")

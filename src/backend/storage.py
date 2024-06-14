@@ -1125,7 +1125,7 @@ def _json(filepath):
         logger.error(f"Failed to read file: {e}")
         return f"Failed to read file: {e}"
     
-    response =  gen_for_query_with_file(file_content)
+    response = gen_for_query_with_file(file_content)
     
     # Generate a unique document ID based on the file path
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
@@ -1138,21 +1138,42 @@ def _json(filepath):
     # Get the basename with extension
     basename_with_ext = os.path.basename(filepath)
     
-    # Prepare the document for insertion
+    # Prepare the document for insertion or update
     document = {
-        "document_id": doc_id,  # document id from path
-        "document_name": os.path.splitext(basename_with_ext)[0],  
+        "document_id": doc_id,
+        "document_name": os.path.splitext(basename_with_ext)[0],
         "Size": size,
         'Size_numeric': file_size_mb,
         "Type": os.path.splitext(filepath)[-1],
         "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
-        "metadata": response  # Use the response as metadata
+        "metadata": response
     }
 
-    # Insert the document into Elasticsearch
-    logger.info(f"Attempting to insert document: {document}")
-    es.insert_document(document, index="universal_data_index")
-    logger.info(f"Inserted document {document['document_id']} into Elasticsearch")
+    try:
+        # Search for the document in Elasticsearch
+        res = es.es.search(index='universal_data_index', query={
+            'bool': {
+                'must': [
+                    {'match': {'document_id': doc_id}}
+                ]
+            }
+        })
+
+        # Check if there are any hits
+        if res['hits']['total']['value'] > 0:
+            # Document exists, update it
+            existing_doc_id = res['hits']['hits'][0]['_id']
+            es.es.update(index='universal_data_index', id=existing_doc_id, body={"doc": {
+                "Last_modified": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+                "metadata": response
+            }})
+            logger.info(f"Updated document {existing_doc_id} in Elasticsearch")
+        else:
+            # Document does not exist, insert it
+            es.es.index(index='universal_data_index', id=doc_id, body=document)
+            logger.info(f"Inserted document {doc_id} into Elasticsearch")
+    except Exception as e:
+        logger.error(f"Error indexing document: {str(e)}")
 
     return response
 
