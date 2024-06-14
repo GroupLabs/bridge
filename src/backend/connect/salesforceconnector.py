@@ -254,6 +254,16 @@ def retrieve_files(sf, user_id):
     except Exception as e:
         logger.error(f"Error retrieving files: {str(e)}")
         return []
+    
+def retrieve_all_contacts(sf):
+    try:
+        contacts_query = "SELECT Id, FirstName, LastName, Email, Phone, Title, AccountId FROM Contact"
+        contacts = sf.query(contacts_query)['records']
+        logger.info(f"Number of contacts retrieved: {len(contacts)}")
+        return contacts
+    except Exception as e:
+        logger.error(f"Error retrieving contacts: {str(e)}")
+        return []
 
 def download_file(sf, file_id, latest_published_version_id):
     try:
@@ -309,11 +319,17 @@ async def download_and_load(token):
             for attachment in attachments:
                 await send_data_to_endpoint(f"Attachment_{attachment['Id']}.json", json.dumps(attachment).encode('utf-8'))
         
-        # Retrieve leads with criteria
+        # Retrieve all leads with additional fields
         leads = retrieve_leads(sf, user_id)
         if leads:
             for lead in leads:
                 await send_data_to_endpoint(f"Lead_{lead['Id']}.json", json.dumps(lead).encode('utf-8'))
+        
+        # Retrieve all contacts
+        all_contacts = retrieve_all_contacts(sf)
+        if all_contacts:
+            for contact in all_contacts:
+                await send_data_to_endpoint(f"Contact_{contact['Id']}.json", json.dumps(contact).encode('utf-8'))
         
         # Retrieve files owned by the user or shared with the user
         files = retrieve_files(sf, user_id)
