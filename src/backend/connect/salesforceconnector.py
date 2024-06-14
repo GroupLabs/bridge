@@ -176,42 +176,6 @@ def retrieve_attachments(sf, account_id):
         logger.error(f"Error retrieving attachments for account {account_id}: {str(e)}")
         return []
 
-def retrieve_events(sf, account_id):
-    try:
-        # Query direct events linked to the account
-        events_query = f"""
-            SELECT Id, Subject, StartDateTime, EndDateTime, OwnerId, WhoId 
-            FROM Event 
-            WHERE WhatId = '{account_id}' AND IsArchived = false
-        """
-        direct_events = sf.query(events_query)['records']
-        logger.info(f"Direct events for account {account_id}: {direct_events}")
-
-        # Query events linked to contacts associated with the account
-        contacts_query = f"SELECT Id FROM Contact WHERE AccountId = '{account_id}'"
-        contacts = sf.query(contacts_query)['records']
-        contact_ids = [contact['Id'] for contact in contacts]
-        if contact_ids:
-            contact_ids_str = ','.join([f"'{id}'" for id in contact_ids])
-            events_for_contacts_query = f"""
-                SELECT Id, Subject, StartDateTime, EndDateTime 
-                FROM Event 
-                WHERE WhoId IN ({contact_ids_str}) AND IsArchived = false
-            """
-            events_for_contacts = sf.query(events_for_contacts_query)['records']
-            logger.info(f"Events for contacts for account {account_id}: {events_for_contacts}")
-        else:
-            events_for_contacts = []
-
-        # Combine all events
-        total_events = direct_events + events_for_contacts
-        logger.info(f"Total events for account {account_id}: {total_events}")
-        logger.info(f"Number of events retrieved for account {account_id}: {len(total_events)}")
-        return total_events
-    except Exception as e:
-        logger.error(f"Error retrieving events for account {account_id}: {str(e)}")
-        return []
-
 async def send_data_to_endpoint(data_type, data):
     async with httpx.AsyncClient() as client:
         file_content = json.dumps(data)
@@ -246,7 +210,6 @@ async def download_and_load(token):
             tasks = retrieve_tasks(sf, account_id)
             notes = retrieve_notes(sf, account_id)
             attachments = retrieve_attachments(sf, account_id)
-            events = retrieve_events(sf, account_id)
 
             if tasks:
                 await send_data_to_endpoint(f"Tasks_{account_name}", tasks)
@@ -254,8 +217,6 @@ async def download_and_load(token):
                 await send_data_to_endpoint(f"Notes_{account_name}", notes)
             if attachments:
                 await send_data_to_endpoint(f"Attachments_{account_name}", attachments)
-            if events:
-                await send_data_to_endpoint(f"Events_{account_name}", events)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
