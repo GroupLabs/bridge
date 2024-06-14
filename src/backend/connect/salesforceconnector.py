@@ -306,7 +306,7 @@ async def download_and_load(token):
                 file_id = file.get('Id')
                 file_title = file.get('Title')
                 latest_published_version_id = file.get('LatestPublishedVersionId')
-                if file_id and file_title and latest_published_version_id:
+                if file_id and file_title != 'N/A' and latest_published_version_id:
                     file_content = download_file(sf, file_id, latest_published_version_id)
                     if file_content:
                         await send_data_to_endpoint(file_title, file_content)
