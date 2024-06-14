@@ -120,8 +120,29 @@ def authenticate():
         raise ValueError("No authorization code received or invalid state.")
 
 def get_salesforce_instance(token):
-    sf = Salesforce(instance_url=token['instance_url'], session_id=token['access_token'])
-    return sf
+    try:
+        sf = Salesforce(instance_url=token['instance_url'], session_id=token['access_token'])
+        logger.info("Salesforce instance created successfully.")
+        return sf
+    except Exception as e:
+        logger.error(f"Error creating Salesforce instance: {str(e)}")
+        return None
+
+def get_user_info(token):
+    try:
+        headers = {
+            'Authorization': f'Bearer {token["access_token"]}'
+        }
+        user_info_url = 'https://login.salesforce.com/services/oauth2/userinfo'
+        response = httpx.get(user_info_url, headers=headers)
+        response.raise_for_status()
+        user_info = response.json()
+        user_id = user_info['user_id']
+        logger.info(f"User ID: {user_id}")
+        return user_id
+    except Exception as e:
+        logger.error(f"Error retrieving user info: {str(e)}")
+        return None
 
 def get_field_names(sf, object_name):
     try:
@@ -176,24 +197,84 @@ def retrieve_attachments(sf, account_id):
         logger.error(f"Error retrieving attachments for account {account_id}: {str(e)}")
         return []
 
-async def send_data_to_endpoint(data_type, data):
+def retrieve_files(sf, user_id):
+    try:
+        # Query to retrieve files owned by the user
+        owned_files_query = f"""
+            SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId
+            FROM ContentDocumentLink 
+            WHERE LinkedEntityId = '{user_id}'
+        """
+        logger.info(f"Running owned files query: {owned_files_query}")
+        owned_files = sf.query(owned_files_query)['records']
+
+        # Get ContentDocumentIds for files linked to the user
+        linked_files_query = f"""
+            SELECT ContentDocumentId
+            FROM ContentDocumentLink 
+            WHERE LinkedEntityId = '{user_id}'
+        """
+        logger.info(f"Running linked files query: {linked_files_query}")
+        linked_files = sf.query(linked_files_query)['records']
+        content_document_ids = [file['ContentDocumentId'] for file in linked_files]
+
+        if not content_document_ids:
+            logger.info("No linked files found.")
+            return owned_files
+
+        # Query to retrieve files shared with the user based on ContentDocumentIds
+        shared_files_query = f"""
+            SELECT Id, Title, LatestPublishedVersionId
+            FROM ContentDocument
+            WHERE Id IN ({",".join(["'" + doc_id + "'" for doc_id in content_document_ids])})
+        """
+        logger.info(f"Running shared files query: {shared_files_query}")
+        shared_files = sf.query(shared_files_query)['records']
+
+        # Combine the results
+        all_files = owned_files + shared_files
+        logger.info(f"Number of files retrieved: {len(all_files)}")
+
+        for file in all_files:
+            file_id = file.get('Id', 'N/A')
+            file_title = file.get('Title', 'N/A')
+            logger.info(f"File Title: {file_title}, File Id: {file_id}")
+
+        return all_files
+    except Exception as e:
+        logger.error(f"Error retrieving files: {str(e)}")
+        return []
+
+def download_file(sf, file_id, latest_published_version_id):
+    try:
+        url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
+        response = httpx.get(url, headers=sf.headers, timeout=None)
+        response.raise_for_status()
+        return response.content
+    except Exception as e:
+        logger.error(f"Error downloading file {file_id}: {str(e)}")
+        return None
+
+async def send_data_to_endpoint(file_title, file_content):
     async with httpx.AsyncClient() as client:
-        file_content = json.dumps(data)
-        file_name = f"{data_type}.json"
-        file_stream = io.BytesIO(file_content.encode('utf-8'))
-        files = {'file': (file_name, file_stream, 'application/json')}
+        file_stream = io.BytesIO(file_content)
+        files = {'file': (file_title, file_stream, 'application/octet-stream')}
         response = await client.post("http://localhost:8000/load_query", files=files)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
-            logger.info(f"{data_type} data accepted for loading")
+            logger.info(f"{file_title} data accepted for loading")
         else:
-            logger.warning(f"{data_type} data was not accepted for loading. Status code: {response.status_code}")
+            logger.warning(f"{file_title} data was not accepted for loading. Status code: {response.status_code}")
 
 async def download_and_load(token):
     try:
         sf = get_salesforce_instance(token)
         if not sf:
             raise ValueError("Salesforce authentication failed")
+
+        user_id = get_user_info(token)
+        if not user_id:
+            raise ValueError("Failed to retrieve user ID")
 
         # Retrieve all accounts
         accounts = list_records(sf, "Account")
@@ -212,11 +293,23 @@ async def download_and_load(token):
             attachments = retrieve_attachments(sf, account_id)
 
             if tasks:
-                await send_data_to_endpoint(f"Tasks_{account_name}", tasks)
+                await send_data_to_endpoint(f"Tasks_{account_name}.json", json.dumps(tasks).encode('utf-8'))
             if notes:
-                await send_data_to_endpoint(f"Notes_{account_name}", notes)
+                await send_data_to_endpoint(f"Notes_{account_name}.json", json.dumps(notes).encode('utf-8'))
             if attachments:
-                await send_data_to_endpoint(f"Attachments_{account_name}", attachments)
+                await send_data_to_endpoint(f"Attachments_{account_name}.json", json.dumps(attachments).encode('utf-8'))
+        
+        # Retrieve files owned by the user or shared with the user
+        files = retrieve_files(sf, user_id)
+        if files:
+            for file in files:
+                file_id = file.get('Id')
+                file_title = file.get('Title')
+                latest_published_version_id = file.get('LatestPublishedVersionId')
+                if file_id and file_title and latest_published_version_id:
+                    file_content = download_file(sf, file_id, latest_published_version_id)
+                    if file_content:
+                        await send_data_to_endpoint(file_title, file_content)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
