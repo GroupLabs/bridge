@@ -17,14 +17,10 @@ import urllib.parse
 import asyncio
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from log import setup_logger
 
 logger = setup_logger("salesforceconnector")
 logger.info("LOGGER READY")
-
-env_path = Path('..') / '.env'
-load_dotenv(dotenv_path=env_path)
 
 SALESFORCE_CLIENT_ID = '3MVG9JJwBBbcN47K7BLbHoSSgaQFAKI9aEawWgpUL2.8m1b2Gc4TbWny4QBHaRP4VSK2ILt5PVPUVOw4vNicF'
 SALESFORCE_CLIENT_SECRET = 'B84C52384E4ED13F0215B7565E3D33BBD6E0BDD6B852411B239D6898515D36C5'
@@ -32,7 +28,7 @@ SALESFORCE_REDIRECT_URI = 'http://localhost:8000/callback'
 AUTHORIZATION_BASE_URL = 'https://login.salesforce.com/services/oauth2/authorize'
 TOKEN_URL = 'https://login.salesforce.com/services/oauth2/token'
 
-state = None  # Global variable to store state
+oauth_state = {}
 
 class OAuthHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -58,7 +54,8 @@ def generate_code_challenge(code_verifier):
     return code_challenge
 
 def authenticate():
-    global state
+    global oauth_state
+
     # Generate PKCE code verifier and challenge
     code_verifier = generate_code_verifier()
     code_challenge = generate_code_challenge(code_verifier)
@@ -78,6 +75,11 @@ def authenticate():
         code_challenge_method='S256'
     )
     
+    oauth_state = {
+        'state': state,
+        'code_verifier': code_verifier
+    }
+
     logger.info(f"Authorization URL: {authorization_url}")
     
     # Open the browser for user authentication
@@ -95,7 +97,7 @@ def authenticate():
     logger.info(f"Auth Code: {auth_code}")
     logger.info(f"Received State: {received_state}")
 
-    if auth_code and received_state == state:
+    if auth_code and received_state == oauth_state['state']:
         try:
             # URL decode the authorization code
             auth_code = urllib.parse.unquote(auth_code)
@@ -106,7 +108,7 @@ def authenticate():
                 TOKEN_URL,
                 client_secret=SALESFORCE_CLIENT_SECRET,
                 code=auth_code,
-                code_verifier=code_verifier
+                code_verifier=oauth_state['code_verifier']
             )
             logger.info(f"Token: {token}")
             return token
@@ -130,30 +132,84 @@ def get_field_names(sf, object_name):
         logger.error(f"Error getting field names for {object_name}: {str(e)}")
         return []
 
-def list_objects(sf):
-    try:
-        sobjects = sf.describe()["sobjects"]
-        logger.info("Salesforce Objects:")
-        for obj in sobjects:
-            logger.info(f"{obj['name']}: {obj['label']}")
-        return sobjects
-    except Exception as e:
-        logger.error(f"Error listing Salesforce objects: {str(e)}")
-        return []
-
 def list_records(sf, object_name):
     try:
+        logger.info(f"Attempting to list records for {object_name}")
         fields = get_field_names(sf, object_name)
         if not fields:
             raise ValueError(f"No fields found for {object_name}")
         query = f"SELECT {', '.join(fields)} FROM {object_name} LIMIT 1000"
         records = sf.query(query)
-        logger.info(f"Records from {object_name}:")
-        for record in records["records"]:
-            logger.info(record)
+        logger.info(f"Number of records retrieved from {object_name}: {len(records['records'])}")
         return records["records"]
     except Exception as e:
         logger.error(f"Error listing records for {object_name}: {str(e)}")
+        return []
+
+def retrieve_tasks(sf, account_id):
+    try:
+        tasks_query = f"SELECT Id, Subject, ActivityDate, WhoId FROM Task WHERE WhatId = '{account_id}'"
+        tasks = sf.query(tasks_query)['records']
+        logger.info(f"Number of tasks retrieved for account {account_id}: {len(tasks)}")
+        return tasks
+    except Exception as e:
+        logger.error(f"Error retrieving tasks for account {account_id}: {str(e)}")
+        return []
+
+def retrieve_notes(sf, account_id):
+    try:
+        notes_query = f"SELECT Id, Title, Body FROM Note WHERE ParentId = '{account_id}'"
+        notes = sf.query(notes_query)['records']
+        logger.info(f"Number of notes retrieved for account {account_id}: {len(notes)}")
+        return notes
+    except Exception as e:
+        logger.error(f"Error retrieving notes for account {account_id}: {str(e)}")
+        return []
+
+def retrieve_attachments(sf, account_id):
+    try:
+        attachments_query = f"SELECT Id, Name FROM Attachment WHERE ParentId = '{account_id}'"
+        attachments = sf.query(attachments_query)['records']
+        logger.info(f"Number of attachments retrieved for account {account_id}: {len(attachments)}")
+        return attachments
+    except Exception as e:
+        logger.error(f"Error retrieving attachments for account {account_id}: {str(e)}")
+        return []
+
+def retrieve_events(sf, account_id):
+    try:
+        # Query direct events linked to the account
+        events_query = f"""
+            SELECT Id, Subject, StartDateTime, EndDateTime, OwnerId, WhoId 
+            FROM Event 
+            WHERE WhatId = '{account_id}' AND IsArchived = false
+        """
+        direct_events = sf.query(events_query)['records']
+        logger.info(f"Direct events for account {account_id}: {direct_events}")
+
+        # Query events linked to contacts associated with the account
+        contacts_query = f"SELECT Id FROM Contact WHERE AccountId = '{account_id}'"
+        contacts = sf.query(contacts_query)['records']
+        contact_ids = [contact['Id'] for contact in contacts]
+        if contact_ids:
+            contact_ids_str = ','.join([f"'{id}'" for id in contact_ids])
+            events_for_contacts_query = f"""
+                SELECT Id, Subject, StartDateTime, EndDateTime 
+                FROM Event 
+                WHERE WhoId IN ({contact_ids_str}) AND IsArchived = false
+            """
+            events_for_contacts = sf.query(events_for_contacts_query)['records']
+            logger.info(f"Events for contacts for account {account_id}: {events_for_contacts}")
+        else:
+            events_for_contacts = []
+
+        # Combine all events
+        total_events = direct_events + events_for_contacts
+        logger.info(f"Total events for account {account_id}: {total_events}")
+        logger.info(f"Number of events retrieved for account {account_id}: {len(total_events)}")
+        return total_events
+    except Exception as e:
+        logger.error(f"Error retrieving events for account {account_id}: {str(e)}")
         return []
 
 async def send_data_to_endpoint(data_type, data):
@@ -175,14 +231,31 @@ async def download_and_load(token):
         if not sf:
             raise ValueError("Salesforce authentication failed")
 
-        # List all objects
-        objects = list_objects(sf)
+        # Retrieve all accounts
+        accounts = list_records(sf, "Account")
+        if not accounts:
+            logger.warning("No accounts found.")
+            return
         
-        # For each object, list records and send to endpoint
-        for obj in objects:
-            records = list_records(sf, obj['name'])
-            if records:
-                await send_data_to_endpoint(obj['name'], records)
+        # For each account, retrieve related tasks, notes, attachments, and events
+        for account in accounts:
+            account_id = account['Id']
+            account_name = account['Name']
+            logger.info(f"Retrieving data for Account: {account_name}")
+
+            tasks = retrieve_tasks(sf, account_id)
+            notes = retrieve_notes(sf, account_id)
+            attachments = retrieve_attachments(sf, account_id)
+            events = retrieve_events(sf, account_id)
+
+            if tasks:
+                await send_data_to_endpoint(f"Tasks_{account_name}", tasks)
+            if notes:
+                await send_data_to_endpoint(f"Notes_{account_name}", notes)
+            if attachments:
+                await send_data_to_endpoint(f"Attachments_{account_name}", attachments)
+            if events:
+                await send_data_to_endpoint(f"Events_{account_name}", events)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
