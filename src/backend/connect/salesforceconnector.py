@@ -197,6 +197,16 @@ def retrieve_attachments(sf, account_id):
         logger.error(f"Error retrieving attachments for account {account_id}: {str(e)}")
         return []
 
+def retrieve_leads(sf, user_id):
+    try:
+        leads_query = f"SELECT Id, FirstName, LastName, Company FROM Lead WHERE OwnerId = '{user_id}'"
+        leads = sf.query(leads_query)['records']
+        logger.info(f"Number of leads retrieved for owner {user_id}: {len(leads)}")
+        return leads
+    except Exception as e:
+        logger.error(f"Error retrieving leads for owner {user_id}: {str(e)}")
+        return []
+
 def retrieve_files(sf, user_id):
     try:
         # Query to retrieve files owned by the user
@@ -282,7 +292,7 @@ async def download_and_load(token):
             logger.warning("No accounts found.")
             return
         
-        # For each account, retrieve related tasks, notes, attachments, and events
+        # For each account, retrieve related tasks, notes, attachments, and leads
         for account in accounts:
             account_id = account['Id']
             account_name = account['Name']
@@ -298,6 +308,12 @@ async def download_and_load(token):
                 await send_data_to_endpoint(f"Note_{note['Id']}.json", json.dumps(note).encode('utf-8'))
             for attachment in attachments:
                 await send_data_to_endpoint(f"Attachment_{attachment['Id']}.json", json.dumps(attachment).encode('utf-8'))
+        
+        # Retrieve leads with criteria
+        leads = retrieve_leads(sf, user_id)
+        if leads:
+            for lead in leads:
+                await send_data_to_endpoint(f"Lead_{lead['Id']}.json", json.dumps(lead).encode('utf-8'))
         
         # Retrieve files owned by the user or shared with the user
         files = retrieve_files(sf, user_id)
@@ -322,3 +338,4 @@ if __name__ == '__main__':
         asyncio.run(download_and_load(token))
     except Exception as e:
         logger.error(f"Failed to run the main process: {str(e)}")
+
