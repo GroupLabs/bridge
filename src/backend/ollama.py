@@ -2,10 +2,12 @@ import requests
 import json
 import httpx
 from config import config
-from openai import OpenAI
+import openai
 from log import setup_logger
 import base64
 import os
+import asyncio
+
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
 
@@ -17,7 +19,7 @@ LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL #currently set to gpt-3.5 turbo, switch to gpt-4 in .env and docker-compose
 OPENAI_KEY = config.OPENAI_KEY
 
-client = OpenAI(
+client = openai.OpenAI(
     api_key=OPENAI_KEY
 )
 
@@ -194,6 +196,31 @@ def chat_with_model_to_get_description(image_path):
         else:
             raise Exception("Failed to generate text: " + response.text)
 
+def gen_for_query_with_file(file_content):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an assistant that helps with extracting metadata from documents. If it is a key value pair document, give me a description."},
+                {"role": "user", "content": f"{file_content}"}
+            ],
+            max_tokens=500,
+            temperature=0.5
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"OpenAI API error: {e}"
+    
 if __name__ == "__main__":
-    # Example usage
-    print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
+     # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
+    filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
+    
+    try:
+        with open(filepath, 'r') as file:
+            file_content = json.load(file)
+    except Exception as e:
+        logger.error(f"Failed to read file: {e}")
+        print(f"Failed to read file: {e}")
+
+    response = gen_for_query_with_file(file_content)
+    print(response)

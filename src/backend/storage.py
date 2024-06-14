@@ -35,7 +35,8 @@ import torch
 import asyncio
 from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
 from connect.googleconnector import download_and_load
-
+import json
+from ollama import gen_for_query_with_file
 #import mlflow
 #from mlflow.tracking import MlflowClient
 #from mlflow.exceptions import MlflowException
@@ -238,6 +239,8 @@ def load_data(filepath: str, read=True):
         elif pathtype == "dir":
             # recursively call load_data
             pass
+        elif pathtype == "json":
+            _json(filepath)
 
         else:
             logger.warning("unsupported filetype encountered.")
@@ -1114,6 +1117,66 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
+def _json(filepath):
+    try:
+        with open(filepath, 'r') as file:
+            file_content = json.load(file)
+    except Exception as e:
+        logger.error(f"Failed to read file: {e}")
+        return f"Failed to read file: {e}"
+    
+    response = gen_for_query_with_file(file_content)
+    
+    # Generate a unique document ID based on the file path
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    
+    # Get the file size in bytes and convert to megabytes
+    file_size_bytes = os.path.getsize(filepath)
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    size = f"{file_size_mb:.2f} MB"
+    
+    # Get the basename with extension
+    basename_with_ext = os.path.basename(filepath)
+    
+    # Prepare the document for insertion or update
+    document = {
+        "document_id": doc_id,
+        "document_name": os.path.splitext(basename_with_ext)[0],
+        "Size": size,
+        'Size_numeric': file_size_mb,
+        "Type": os.path.splitext(filepath)[-1],
+        "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+        "metadata": response
+    }
+
+    try:
+        # Search for the document in Elasticsearch
+        res = es.es.search(index='universal_data_index', query={
+            'bool': {
+                'must': [
+                    {'match': {'document_id': doc_id}}
+                ]
+            }
+        })
+
+        # Check if there are any hits
+        if res['hits']['total']['value'] > 0:
+            # Document exists, update it
+            existing_doc_id = res['hits']['hits'][0]['_id']
+            es.es.update(index='universal_data_index', id=existing_doc_id, body={"doc": {
+                "Last_modified": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+                "metadata": response
+            }})
+            logger.info(f"Updated document {existing_doc_id} in Elasticsearch")
+        else:
+            # Document does not exist, insert it
+            es.es.index(index='universal_data_index', id=doc_id, body=document)
+            logger.info(f"Inserted document {doc_id} into Elasticsearch")
+    except Exception as e:
+        logger.error(f"Error indexing document: {str(e)}")
+
+    return response
+
 """
 def get_next_version(model_name: str) -> int:
     client = MlflowClient()
@@ -1159,8 +1222,6 @@ if __name__ == "__main__":
  
     print(es)
     print(es.registered_indices)
-
-
 
 
     
