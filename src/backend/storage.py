@@ -1125,8 +1125,7 @@ def _json(filepath):
         logger.error(f"Failed to read file: {e}")
         return f"Failed to read file: {e}"
     
-    prompt = "Describe the most important metadata in natural language and give it as a string"
-    response =  gen_for_query_with_file(prompt, file_content)
+    response =  gen_for_query_with_file(file_content)
     
     # Generate a unique document ID based on the file path
     doc_id = str(uuid5(NAMESPACE_URL, filepath))

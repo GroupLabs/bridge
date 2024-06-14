@@ -196,13 +196,13 @@ def chat_with_model_to_get_description(image_path):
         else:
             raise Exception("Failed to generate text: " + response.text)
 
-def gen_for_query_with_file(prompt, file_content):
+def gen_for_query_with_file(file_content):
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are an assistant that helps with extracting metadata from documents. Please give me descriptive metadata."},
-                {"role": "user", "content": f"{prompt}\n\n{file_content}"}
+                {"role": "user", "content": f"{file_content}"}
             ],
             max_tokens=500,
             temperature=0.5
