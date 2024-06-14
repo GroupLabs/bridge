@@ -201,7 +201,7 @@ def gen_for_query_with_file(file_content):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an assistant that helps with extracting metadata from documents. Please give me descriptive metadata."},
+                {"role": "system", "content": "You are an assistant that helps with extracting metadata from documents. If it is a key value pair document, give me a description."},
                 {"role": "user", "content": f"{file_content}"}
             ],
             max_tokens=500,
@@ -211,9 +211,8 @@ def gen_for_query_with_file(file_content):
     except Exception as e:
         return f"OpenAI API error: {e}"
     
-async def main():
-    # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
-    prompt = "Describe the most important metadata in natural language and give it as a string"
+if __name__ == "__main__":
+     # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
     filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
     
     try:
@@ -222,10 +221,6 @@ async def main():
     except Exception as e:
         logger.error(f"Failed to read file: {e}")
         print(f"Failed to read file: {e}")
-        return
 
-    response = gen_for_query_with_file(prompt, file_content)
+    response = gen_for_query_with_file(file_content)
     print(response)
-
-if __name__ == "__main__":
-    asyncio.run(main())
