@@ -266,6 +266,16 @@ def retrieve_all_contacts(sf):
         logger.error(f"Error retrieving contacts: {str(e)}")
         return []
 
+def retrieve_all_opportunities(sf):
+    try:
+        opportunities_query = "SELECT Id, Name, CloseDate, StageName, Amount FROM Opportunity"
+        opportunities = sf.query(opportunities_query)['records']
+        logger.info(f"Number of opportunities retrieved: {len(opportunities)}")
+        return opportunities
+    except Exception as e:
+        logger.error(f"Error retrieving opportunities: {str(e)}")
+        return []
+
 def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
         url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
@@ -313,6 +323,11 @@ async def download_and_load(token):
         if accounts:
             await send_data_to_endpoint(accounts, 'accounts')
         
+        # Retrieve all opportunities
+        opportunities = retrieve_all_opportunities(sf)
+        if opportunities:
+            await send_data_to_endpoint(opportunities, 'opportunities')
+
         # For each account, retrieve related tasks, notes, attachments, and leads
         for account in accounts:
             account_id = account['Id']
