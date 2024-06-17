@@ -296,6 +296,16 @@ def retrieve_tasks_for_lead(sf, lead_id):
         logger.error(f"Error retrieving tasks for lead {lead_id}: {str(e)}")
         return []
 
+def retrieve_cases(sf):
+    try:
+        cases_query = "SELECT Id, CaseNumber, Subject, Status, Priority, AccountId, ContactId FROM Case"
+        cases = sf.query(cases_query)['records']
+        logger.info(f"Number of cases retrieved: {len(cases)}")
+        return cases
+    except Exception as e:
+        logger.error(f"Error retrieving cases: {str(e)}")
+        return []
+
 def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
         url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
@@ -404,6 +414,12 @@ async def download_and_load(token):
                     file_content, file_extension = download_file(sf, file_id, latest_published_version_id, file_extension)
                     if file_content:
                         await send_file_to_endpoint(file_content, file_title, file_extension)
+
+        # Retrieve all cases and send them one by one
+        cases = retrieve_cases(sf)
+        if cases:
+            for case in cases:
+                await send_data_to_endpoint(case, f"Case_{case['Id']}")
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
