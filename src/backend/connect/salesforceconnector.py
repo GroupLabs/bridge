@@ -276,6 +276,16 @@ def retrieve_all_opportunities(sf):
         logger.error(f"Error retrieving opportunities: {str(e)}")
         return []
 
+def retrieve_tasks_for_opportunity(sf, opportunity_id):
+    try:
+        tasks_query = f"SELECT Id, Subject, ActivityDate, WhoId FROM Task WHERE WhatId = '{opportunity_id}'"
+        tasks = sf.query(tasks_query)['records']
+        logger.info(f"Number of tasks retrieved for opportunity {opportunity_id}: {len(tasks)}")
+        return tasks
+    except Exception as e:
+        logger.error(f"Error retrieving tasks for opportunity {opportunity_id}: {str(e)}")
+        return []
+
 def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
         url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
@@ -328,6 +338,17 @@ async def download_and_load(token):
         if opportunities:
             await send_data_to_endpoint(opportunities, 'opportunities')
 
+        # For each opportunity, retrieve related tasks
+        for opportunity in opportunities:
+            opportunity_id = opportunity['Id']
+            opportunity_name = opportunity['Name']
+            logger.info(f"Retrieving tasks for Opportunity: {opportunity_name}")
+            
+            tasks_for_opportunity = retrieve_tasks_for_opportunity(sf, opportunity_id)
+            if tasks_for_opportunity:
+                for task in tasks_for_opportunity:
+                    await send_data_to_endpoint(task, f"task_opportunity_{task['Id']}")
+
         # For each account, retrieve related tasks, notes, attachments, and leads
         for account in accounts:
             account_id = account['Id']
@@ -339,11 +360,11 @@ async def download_and_load(token):
             attachments = retrieve_attachments(sf, account_id)
 
             for task in tasks:
-                await send_data_to_endpoint(task, f"Task_{task['Id']}")
+                await send_data_to_endpoint(task, f"Task_account_{task['Id']}")
             for note in notes:
-                await send_data_to_endpoint(note, f"Note_{note['Id']}")
+                await send_data_to_endpoint(note, f"Note_account_{note['Id']}")
             for attachment in attachments:
-                await send_data_to_endpoint(attachment, f"Attachment_{attachment['Id']}")
+                await send_data_to_endpoint(attachment, f"Attachment_account_{attachment['Id']}")
         
         # Retrieve all leads with additional fields
         leads = retrieve_leads(sf, user_id)
