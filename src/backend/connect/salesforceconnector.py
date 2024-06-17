@@ -275,16 +275,16 @@ def download_file(sf, file_id, latest_published_version_id):
         logger.error(f"Error downloading file {file_id}: {str(e)}")
         return None
 
-async def send_data_to_endpoint(file_title, file_content):
+async def send_data_to_endpoint(data, data_type):
     async with httpx.AsyncClient() as client:
-        file_stream = io.BytesIO(file_content)
-        files = {'file': (file_title, file_stream, 'application/octet-stream')}
+        data_json = json.dumps(data).encode('utf-8')
+        files = {'file': (f'{data_type}.json', io.BytesIO(data_json), 'application/json')}
         response = await client.post("http://localhost:8000/load_query", files=files)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
-            logger.info(f"{file_title} data accepted for loading")
+            logger.info(f"{data_type.capitalize()} data accepted for loading")
         else:
-            logger.warning(f"{file_title} data was not accepted for loading. Status code: {response.status_code}")
+            logger.warning(f"{data_type.capitalize()} data was not accepted for loading. Status code: {response.status_code}")
 
 async def download_and_load(token):
     try:
@@ -298,9 +298,8 @@ async def download_and_load(token):
 
         # Retrieve all accounts
         accounts = list_records(sf, "Account")
-        if not accounts:
-            logger.warning("No accounts found.")
-            return
+        if accounts:
+            await send_data_to_endpoint(accounts, 'accounts')
         
         # For each account, retrieve related tasks, notes, attachments, and leads
         for account in accounts:
@@ -313,23 +312,22 @@ async def download_and_load(token):
             attachments = retrieve_attachments(sf, account_id)
 
             for task in tasks:
-                await send_data_to_endpoint(f"Task_{task['Id']}.json", json.dumps(task).encode('utf-8'))
+                await send_data_to_endpoint(task, f"Task_{task['Id']}")
             for note in notes:
-                await send_data_to_endpoint(f"Note_{note['Id']}.json", json.dumps(note).encode('utf-8'))
+                await send_data_to_endpoint(note, f"Note_{note['Id']}")
             for attachment in attachments:
-                await send_data_to_endpoint(f"Attachment_{attachment['Id']}.json", json.dumps(attachment).encode('utf-8'))
+                await send_data_to_endpoint(attachment, f"Attachment_{attachment['Id']}")
         
         # Retrieve all leads with additional fields
         leads = retrieve_leads(sf, user_id)
         if leads:
             for lead in leads:
-                await send_data_to_endpoint(f"Lead_{lead['Id']}.json", json.dumps(lead).encode('utf-8'))
+                await send_data_to_endpoint(lead, f"Lead_{lead['Id']}")
         
         # Retrieve all contacts
         all_contacts = retrieve_all_contacts(sf)
         if all_contacts:
-            for contact in all_contacts:
-                await send_data_to_endpoint(f"Contact_{contact['Id']}.json", json.dumps(contact).encode('utf-8'))
+            await send_data_to_endpoint(all_contacts, 'contacts')
         
         # Retrieve files owned by the user or shared with the user
         files = retrieve_files(sf, user_id)
@@ -341,7 +339,7 @@ async def download_and_load(token):
                 if file_id and file_title != 'N/A' and latest_published_version_id:
                     file_content = download_file(sf, file_id, latest_published_version_id)
                     if file_content:
-                        await send_data_to_endpoint(file_title, file_content)
+                        await send_data_to_endpoint(file_content, file_title)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
@@ -354,4 +352,3 @@ if __name__ == '__main__':
         asyncio.run(download_and_load(token))
     except Exception as e:
         logger.error(f"Failed to run the main process: {str(e)}")
-
