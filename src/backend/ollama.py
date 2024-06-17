@@ -201,7 +201,7 @@ def gen_for_query_with_file(file_content):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an assistant that helps with extracting metadata from documents. If it is a key value pair document, give me a description."},
+                {"role": "system", "content": "You are an assistant that helps with extracting data from documents. Generate a concise summary that captures the most important information in natural language."},
                 {"role": "user", "content": f"{file_content}"}
             ],
             max_tokens=500,
