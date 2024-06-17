@@ -211,7 +211,7 @@ def retrieve_files(sf, user_id):
     try:
         # Query to retrieve files owned by the user
         owned_files_query = f"""
-            SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId
+            SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId, ContentDocument.FileExtension
             FROM ContentDocumentLink 
             WHERE LinkedEntityId = '{user_id}'
         """
@@ -234,7 +234,7 @@ def retrieve_files(sf, user_id):
 
         # Query to retrieve files shared with the user based on ContentDocumentIds
         shared_files_query = f"""
-            SELECT Id, Title, LatestPublishedVersionId
+            SELECT Id, Title, LatestPublishedVersionId, FileExtension
             FROM ContentDocument
             WHERE Id IN ({",".join(["'" + doc_id + "'" for doc_id in content_document_ids])})
         """
@@ -248,13 +248,14 @@ def retrieve_files(sf, user_id):
         for file in all_files:
             file_id = file.get('Id', 'N/A')
             file_title = file.get('Title', 'N/A')
-            logger.info(f"File Title: {file_title}, File Id: {file_id}")
+            file_extension = file.get('FileExtension', 'N/A')
+            logger.info(f"File Title: {file_title}, File Id: {file_id}, File Extension: {file_extension}")
 
         return all_files
     except Exception as e:
         logger.error(f"Error retrieving files: {str(e)}")
         return []
-    
+
 def retrieve_all_contacts(sf):
     try:
         contacts_query = "SELECT Id, FirstName, LastName, Email, Phone, Title, AccountId FROM Contact"
@@ -265,15 +266,15 @@ def retrieve_all_contacts(sf):
         logger.error(f"Error retrieving contacts: {str(e)}")
         return []
 
-def download_file(sf, file_id, latest_published_version_id):
+def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
         url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
         response = httpx.get(url, headers=sf.headers, timeout=None)
         response.raise_for_status()
-        return response.content
+        return response.content, file_extension
     except Exception as e:
         logger.error(f"Error downloading file {file_id}: {str(e)}")
-        return None
+        return None, None
 
 async def send_data_to_endpoint(data, data_type):
     async with httpx.AsyncClient() as client:
@@ -285,6 +286,17 @@ async def send_data_to_endpoint(data, data_type):
             logger.info(f"{data_type.capitalize()} data accepted for loading")
         else:
             logger.warning(f"{data_type.capitalize()} data was not accepted for loading. Status code: {response.status_code}")
+
+async def send_file_to_endpoint(file_content, file_title, file_extension):
+    async with httpx.AsyncClient() as client:
+        file_stream = io.BytesIO(file_content)
+        files = {'file': (f'{file_title}.{file_extension}', file_stream, 'application/octet-stream')}
+        response = await client.post("http://localhost:8000/load_query", files=files)
+        logger.debug(f"Response from server: {response.text}")
+        if response.status_code == 202:
+            logger.info(f"{file_title} data accepted for loading")
+        else:
+            logger.warning(f"{file_title} data was not accepted for loading. Status code: {response.status_code}")
 
 async def download_and_load(token):
     try:
@@ -336,10 +348,11 @@ async def download_and_load(token):
                 file_id = file.get('Id')
                 file_title = file.get('Title')
                 latest_published_version_id = file.get('LatestPublishedVersionId')
-                if file_id and file_title != 'N/A' and latest_published_version_id:
-                    file_content = download_file(sf, file_id, latest_published_version_id)
+                file_extension = file.get('FileExtension')
+                if file_id and file_title != 'N/A' and latest_published_version_id and file_extension:
+                    file_content, file_extension = download_file(sf, file_id, latest_published_version_id, file_extension)
                     if file_content:
-                        await send_data_to_endpoint(file_content, file_title)
+                        await send_file_to_endpoint(file_content, file_title, file_extension)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
