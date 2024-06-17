@@ -167,14 +167,14 @@ def list_records(sf, object_name):
         logger.error(f"Error listing records for {object_name}: {str(e)}")
         return []
 
-def retrieve_tasks(sf, account_id):
+def retrieve_tasks(sf, parent_id):
     try:
-        tasks_query = f"SELECT Id, Subject, ActivityDate, WhoId FROM Task WHERE WhatId = '{account_id}'"
+        tasks_query = f"SELECT Id, Subject, ActivityDate, WhoId FROM Task WHERE WhatId = '{parent_id}'"
         tasks = sf.query(tasks_query)['records']
-        logger.info(f"Number of tasks retrieved for account {account_id}: {len(tasks)}")
+        logger.info(f"Number of tasks retrieved for parent {parent_id}: {len(tasks)}")
         return tasks
     except Exception as e:
-        logger.error(f"Error retrieving tasks for account {account_id}: {str(e)}")
+        logger.error(f"Error retrieving tasks for parent {parent_id}: {str(e)}")
         return []
 
 def retrieve_notes(sf, account_id):
@@ -286,6 +286,16 @@ def retrieve_tasks_for_opportunity(sf, opportunity_id):
         logger.error(f"Error retrieving tasks for opportunity {opportunity_id}: {str(e)}")
         return []
 
+def retrieve_tasks_for_lead(sf, lead_id):
+    try:
+        tasks_query = f"SELECT Id, Subject, ActivityDate, WhoId FROM Task WHERE WhoId = '{lead_id}'"
+        tasks = sf.query(tasks_query)['records']
+        logger.info(f"Number of tasks retrieved for lead {lead_id}: {len(tasks)}")
+        return tasks
+    except Exception as e:
+        logger.error(f"Error retrieving tasks for lead {lead_id}: {str(e)}")
+        return []
+
 def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
         url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
@@ -371,6 +381,11 @@ async def download_and_load(token):
         if leads:
             for lead in leads:
                 await send_data_to_endpoint(lead, f"Lead_{lead['Id']}")
+                # Retrieve related tasks for each lead
+                tasks_for_lead = retrieve_tasks_for_lead(sf, lead['Id'])
+                if tasks_for_lead:
+                    for task in tasks_for_lead:
+                        await send_data_to_endpoint(task, f"task_lead_{task['Id']}")
         
         # Retrieve all contacts
         all_contacts = retrieve_all_contacts(sf)
