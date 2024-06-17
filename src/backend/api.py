@@ -679,8 +679,8 @@ async def oauth_callback(request: Request):
     
 oauth_state = None
 
-@app.get("/auth_url")
-def get_auth_url():
+@app.get("/salesforce_auth")
+def get_salesforce_auth():
     global oauth_state
     # Generate PKCE code verifier and challenge
     code_verifier = salesforceconnector.generate_code_verifier()

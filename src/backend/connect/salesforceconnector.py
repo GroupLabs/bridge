@@ -358,6 +358,102 @@ async def send_file_to_endpoint(file_content, file_title, file_extension):
         else:
             logger.warning(f"{file_title} data was not accepted for loading. Status code: {response.status_code}")
 
+# Process Accounts
+async def process_accounts(sf):
+    accounts = list_records(sf, "Account")
+    if accounts:
+        await send_data_to_endpoint(accounts, 'accounts')
+    for account in accounts:
+        account_id = account['Id']
+        await process_account_related_data(sf, account_id)
+
+async def process_account_related_data(sf, account_id):
+    tasks = retrieve_tasks(sf, account_id)
+    notes = retrieve_notes(sf, account_id)
+    attachments = retrieve_attachments(sf, account_id)
+    events = retrieve_events(sf, account_id)
+
+    for task in tasks:
+        await send_data_to_endpoint(task, f"Task_account_{task['Id']}")
+    for note in notes:
+        await send_data_to_endpoint(note, f"Note_account_{note['Id']}")
+    for attachment in attachments:
+        await send_data_to_endpoint(attachment, f"Attachment_account_{attachment['Id']}")
+    for event in events:
+        await send_data_to_endpoint(event, f"Event_account_{event['Id']}")
+    
+# Process Opportunities
+async def process_opportunities(sf):
+    opportunities = retrieve_all_opportunities(sf)
+    if opportunities:
+        await send_data_to_endpoint(opportunities, 'opportunities')
+    for opportunity in opportunities:
+        opportunity_id = opportunity['Id']
+        await process_opportunity_tasks(sf, opportunity_id)
+
+async def process_opportunity_tasks(sf, opportunity_id):
+    tasks_for_opportunity = retrieve_tasks_for_opportunity(sf, opportunity_id)
+    for task in tasks_for_opportunity:
+        await send_data_to_endpoint(task, f"task_opportunity_{task['Id']}")
+
+# Process Leads
+async def process_leads(sf, user_id):
+    leads = retrieve_leads(sf, user_id)
+    if leads:
+        for lead in leads:
+            await send_data_to_endpoint(lead, f"Lead_{lead['Id']}")
+            await process_lead_tasks(sf, lead['Id'])
+
+async def process_lead_tasks(sf, lead_id):
+    tasks_for_lead = retrieve_tasks_for_lead(sf, lead_id)
+    for task in tasks_for_lead:
+        await send_data_to_endpoint(task, f"task_lead_{task['Id']}")
+
+# Process Contacts
+async def process_contacts(sf):
+    all_contacts = retrieve_all_contacts(sf)
+    if all_contacts:
+        await send_data_to_endpoint(all_contacts, 'contacts')
+
+
+# Process Files
+async def process_files(sf, user_id):
+    files = retrieve_files(sf, user_id)
+    if files:
+        for file in files:
+            file_id = file.get('Id')
+            file_title = file.get('Title')
+            latest_published_version_id = file.get('LatestPublishedVersionId')
+            file_extension = file.get('FileExtension')
+            if file_id and file_title != 'N/A' and latest_published_version_id and file_extension:
+                file_content, file_extension = download_file(sf, file_id, latest_published_version_id, file_extension)
+                if file_content:
+                    await send_file_to_endpoint(file_content, file_title, file_extension)
+
+# Process Cases
+async def process_cases(sf):
+    cases = retrieve_cases(sf)
+    if cases:
+        for case in cases:
+            await send_data_to_endpoint(case, f"Case_{case['Id']}")
+
+# Process Campaigns
+async def process_campaigns(sf):
+    campaigns = retrieve_campaigns(sf)
+    if campaigns:
+        for campaign in campaigns:
+            await send_data_to_endpoint(campaign, f"Campaign_{campaign['Id']}")
+            await process_campaign_related_data(sf, campaign['Id'])
+
+async def process_campaign_related_data(sf, campaign_id):
+    tasks_for_campaign = retrieve_tasks(sf, campaign_id)
+    attachments_for_campaign = retrieve_attachments(sf, campaign_id)
+
+    for task in tasks_for_campaign:
+        await send_data_to_endpoint(task, f"task_campaign_{task['Id']}")
+    for attachment in attachments_for_campaign:
+        await send_data_to_endpoint(attachment, f"attachment_campaign_{attachment['Id']}")
+
 async def download_and_load(token):
     try:
         sf = get_salesforce_instance(token)
@@ -368,97 +464,13 @@ async def download_and_load(token):
         if not user_id:
             raise ValueError("Failed to retrieve user ID")
 
-        # Retrieve all accounts
-        accounts = list_records(sf, "Account")
-        if accounts:
-            await send_data_to_endpoint(accounts, 'accounts')
-        
-        # Retrieve all opportunities
-        opportunities = retrieve_all_opportunities(sf)
-        if opportunities:
-            await send_data_to_endpoint(opportunities, 'opportunities')
-
-        # For each opportunity, retrieve related tasks
-        for opportunity in opportunities:
-            opportunity_id = opportunity['Id']
-            opportunity_name = opportunity['Name']
-            logger.info(f"Retrieving tasks for Opportunity: {opportunity_name}")
-            
-            tasks_for_opportunity = retrieve_tasks_for_opportunity(sf, opportunity_id)
-            if tasks_for_opportunity:
-                for task in tasks_for_opportunity:
-                    await send_data_to_endpoint(task, f"task_opportunity_{task['Id']}")
-
-        # For each account, retrieve related tasks, notes, attachments, leads, and events
-        for account in accounts:
-            account_id = account['Id']
-            account_name = account['Name']
-            logger.info(f"Retrieving data for Account: {account_name}")
-
-            tasks = retrieve_tasks(sf, account_id)
-            notes = retrieve_notes(sf, account_id)
-            attachments = retrieve_attachments(sf, account_id)
-            events = retrieve_events(sf, account_id)
-
-            for task in tasks:
-                await send_data_to_endpoint(task, f"Task_account_{task['Id']}")
-            for note in notes:
-                await send_data_to_endpoint(note, f"Note_account_{note['Id']}")
-            for attachment in attachments:
-                await send_data_to_endpoint(attachment, f"Attachment_account_{attachment['Id']}")
-            for event in events:
-                await send_data_to_endpoint(event, f"Event_account_{event['Id']}")
-        
-        # Retrieve all leads with additional fields
-        leads = retrieve_leads(sf, user_id)
-        if leads:
-            for lead in leads:
-                await send_data_to_endpoint(lead, f"Lead_{lead['Id']}")
-                # Retrieve related tasks for each lead
-                tasks_for_lead = retrieve_tasks_for_lead(sf, lead['Id'])
-                if tasks_for_lead:
-                    for task in tasks_for_lead:
-                        await send_data_to_endpoint(task, f"task_lead_{task['Id']}")
-        
-        # Retrieve all contacts
-        all_contacts = retrieve_all_contacts(sf)
-        if all_contacts:
-            await send_data_to_endpoint(all_contacts, 'contacts')
-        
-        # Retrieve files owned by the user or shared with the user
-        files = retrieve_files(sf, user_id)
-        if files:
-            for file in files:
-                file_id = file.get('Id')
-                file_title = file.get('Title')
-                latest_published_version_id = file.get('LatestPublishedVersionId')
-                file_extension = file.get('FileExtension')
-                if file_id and file_title != 'N/A' and latest_published_version_id and file_extension:
-                    file_content, file_extension = download_file(sf, file_id, latest_published_version_id, file_extension)
-                    if file_content:
-                        await send_file_to_endpoint(file_content, file_title, file_extension)
-
-        # Retrieve all cases and send them one by one
-        cases = retrieve_cases(sf)
-        if cases:
-            for case in cases:
-                await send_data_to_endpoint(case, f"Case_{case['Id']}")
-
-        # Retrieve all campaigns and send them one by one
-        campaigns = retrieve_campaigns(sf)
-        if campaigns:
-            for campaign in campaigns:
-                await send_data_to_endpoint(campaign, f"Campaign_{campaign['Id']}")
-                # Retrieve related tasks for each campaign
-                tasks_for_campaign = retrieve_tasks(sf, campaign['Id'])
-                if tasks_for_campaign:
-                    for task in tasks_for_campaign:
-                        await send_data_to_endpoint(task, f"task_campaign_{task['Id']}")
-                # Retrieve related attachments for each campaign
-                attachments_for_campaign = retrieve_attachments(sf, campaign['Id'])
-                if attachments_for_campaign:
-                    for attachment in attachments_for_campaign:
-                        await send_data_to_endpoint(attachment, f"attachment_campaign_{attachment['Id']}")
+        await process_accounts(sf)
+        await process_opportunities(sf)
+        await process_leads(sf, user_id)
+        await process_contacts(sf)
+        await process_files(sf, user_id)
+        await process_cases(sf)
+        await process_campaigns(sf)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
