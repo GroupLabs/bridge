@@ -7,14 +7,13 @@ import socketserver
 import threading
 import webbrowser
 from requests_oauthlib import OAuth2Session
-from dotenv import load_dotenv
-from pathlib import Path
 from simple_salesforce import Salesforce
 import sys
 import base64
 import hashlib
 import urllib.parse
 import asyncio
+from config import config
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from log import setup_logger
@@ -22,8 +21,8 @@ from log import setup_logger
 logger = setup_logger("salesforceconnector")
 logger.info("LOGGER READY")
 
-SALESFORCE_CLIENT_ID = '3MVG9JJwBBbcN47K7BLbHoSSgaQFAKI9aEawWgpUL2.8m1b2Gc4TbWny4QBHaRP4VSK2ILt5PVPUVOw4vNicF'
-SALESFORCE_CLIENT_SECRET = 'B84C52384E4ED13F0215B7565E3D33BBD6E0BDD6B852411B239D6898515D36C5'
+SALESFORCE_CLIENT_ID = config.SALESFORCE_CLIENT_ID
+SALESFORCE_CLIENT_SECRET = config.SALESFORCE_CLIENT_SECRET
 SALESFORCE_REDIRECT_URI = 'http://localhost:8000/callback'
 AUTHORIZATION_BASE_URL = 'https://login.salesforce.com/services/oauth2/authorize'
 TOKEN_URL = 'https://login.salesforce.com/services/oauth2/token'
