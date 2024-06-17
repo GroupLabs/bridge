@@ -62,7 +62,8 @@ RUN pip install --no-cache-dir \
     psutil==5.9.8 \
     pyarrow==15.0.2 \
     pymongo \
-    msal
+    msal \
+    simple_salesforce
 
 COPY . ./
 

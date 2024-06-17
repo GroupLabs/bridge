@@ -34,6 +34,7 @@ from elasticsearch.exceptions import NotFoundError
 from connect.googleconnector import download_and_load, get_flow
 from config import config
 import msal
+import connect.salesforceconnector as salesforceconnector
 
 # elasticsearch
 es = Search()
@@ -675,6 +676,74 @@ async def oauth_callback(request: Request):
     except Exception as e:
         logger.error(f"Error during OAuth2 callback: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Authentication callback failed: {e}")
+    
+oauth_state = None
+
+@app.get("/salesforce_auth")
+def get_salesforce_auth():
+    global oauth_state
+    # Generate PKCE code verifier and challenge
+    code_verifier = salesforceconnector.generate_code_verifier()
+    code_challenge = salesforceconnector.generate_code_challenge(code_verifier)
+
+    logger.info(f"Code Verifier: {code_verifier}")
+    logger.info(f"Code Challenge: {code_challenge}")
+
+    # Create an OAuth2 session with PKCE
+    oauth = salesforceconnector.OAuth2Session(
+        salesforceconnector.SALESFORCE_CLIENT_ID, 
+        redirect_uri=salesforceconnector.SALESFORCE_REDIRECT_URI, 
+        scope=["api", "refresh_token", "offline_access", "id", "profile", "email", "address", "phone", "full"]
+    )
+    authorization_url, state = oauth.authorization_url(
+        salesforceconnector.AUTHORIZATION_BASE_URL, 
+        code_challenge=code_challenge, 
+        code_challenge_method='S256'
+    )
+
+    oauth_state = {
+        'state': state,
+        'code_verifier': code_verifier
+    }
+
+    logger.info(f"Authorization URL: {authorization_url}")
+
+    return JSONResponse(content={"authorization_url": authorization_url})
+
+@app.get("/callback")
+async def callback(request: Request):
+    global oauth_state
+    code = request.query_params.get('code')
+    state = request.query_params.get('state')
+
+    if not code or state != oauth_state['state']:
+        raise HTTPException(status_code=400, detail="Invalid state or missing code")
+
+    try:
+        # Create an OAuth2 session with PKCE
+        oauth = salesforceconnector.OAuth2Session(
+            salesforceconnector.SALESFORCE_CLIENT_ID, 
+            redirect_uri=salesforceconnector.SALESFORCE_REDIRECT_URI, 
+            state=oauth_state['state']
+        )
+
+        # Exchange the authorization code for a token
+        token = oauth.fetch_token(
+            salesforceconnector.TOKEN_URL,
+            client_secret=salesforceconnector.SALESFORCE_CLIENT_SECRET,
+            code=code,
+            code_verifier=oauth_state['code_verifier']
+        )
+
+        logger.info(f"Token: {token}")
+
+        # Trigger the download and load process
+        await salesforceconnector.download_and_load(token)
+        
+        return JSONResponse(content={"status": "success", "message": "Salesforce data download and load triggered"})
+    except Exception as e:
+        logger.error(f"Error in callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
     import uvicorn
