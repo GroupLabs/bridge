@@ -32,7 +32,7 @@ export function SearchResults({ results = [] }: SearchResultsProps) {
                   {result.text}
                 </p>
                 <div className="mt-2 flex items-center space-x-2">
-                  <Avatar className="h-4 w-4">
+                  {/* <Avatar className="h-4 w-4">
                     <AvatarImage
                       src={`https://www.google.com/s2/favicons?domain=${new URL("https://www.google.com").hostname}`}
                       alt={new URL("https://www.google.com").hostname}
@@ -40,7 +40,7 @@ export function SearchResults({ results = [] }: SearchResultsProps) {
                     <AvatarFallback>
                       {new URL("https://www.google.com").hostname[0]}
                     </AvatarFallback>
-                  </Avatar>
+                  </Avatar> */}
                   <div className="text-xs opacity-60 truncate">
                     {result.score}
                   </div>
