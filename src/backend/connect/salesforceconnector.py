@@ -305,6 +305,16 @@ def retrieve_cases(sf):
     except Exception as e:
         logger.error(f"Error retrieving cases: {str(e)}")
         return []
+    
+def retrieve_campaigns(sf):
+    try:
+        campaigns_query = "SELECT Id, Name, Status, StartDate, EndDate FROM Campaign"
+        campaigns = sf.query(campaigns_query)['records']
+        logger.info(f"Number of campaigns retrieved: {len(campaigns)}")
+        return campaigns
+    except Exception as e:
+        logger.error(f"Error retrieving campaigns: {str(e)}")
+        return []
 
 def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
@@ -421,9 +431,26 @@ async def download_and_load(token):
             for case in cases:
                 await send_data_to_endpoint(case, f"Case_{case['Id']}")
 
+        # Retrieve all campaigns and send them one by one
+        campaigns = retrieve_campaigns(sf)
+        if campaigns:
+            for campaign in campaigns:
+                await send_data_to_endpoint(campaign, f"Campaign_{campaign['Id']}")
+                # Retrieve related tasks for each campaign
+                tasks_for_campaign = retrieve_tasks(sf, campaign['Id'])
+                if tasks_for_campaign:
+                    for task in tasks_for_campaign:
+                        await send_data_to_endpoint(task, f"task_campaign_{task['Id']}")
+                # Retrieve related attachments for each campaign
+                attachments_for_campaign = retrieve_attachments(sf, campaign['Id'])
+                if attachments_for_campaign:
+                    for attachment in attachments_for_campaign:
+                        await send_data_to_endpoint(attachment, f"attachment_campaign_{attachment['Id']}")
+
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
         logger.error(f"Error in downloading and loading Salesforce data: {str(e)}")
+
 
 # Example usage
 if __name__ == '__main__':
