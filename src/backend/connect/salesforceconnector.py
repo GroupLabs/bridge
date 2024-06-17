@@ -316,6 +316,16 @@ def retrieve_campaigns(sf):
         logger.error(f"Error retrieving campaigns: {str(e)}")
         return []
 
+def retrieve_events(sf, account_id):
+    try:
+        events_query = f"SELECT Id, Subject, StartDateTime, EndDateTime, WhoId, WhatId FROM Event WHERE WhatId = '{account_id}'"
+        events = sf.query(events_query)['records']
+        logger.info(f"Number of events retrieved for account {account_id}: {len(events)}")
+        return events
+    except Exception as e:
+        logger.error(f"Error retrieving events for account {account_id}: {str(e)}")
+        return []
+
 def download_file(sf, file_id, latest_published_version_id, file_extension):
     try:
         url = f"{sf.base_url}sobjects/ContentVersion/{latest_published_version_id}/VersionData"
@@ -379,7 +389,7 @@ async def download_and_load(token):
                 for task in tasks_for_opportunity:
                     await send_data_to_endpoint(task, f"task_opportunity_{task['Id']}")
 
-        # For each account, retrieve related tasks, notes, attachments, and leads
+        # For each account, retrieve related tasks, notes, attachments, leads, and events
         for account in accounts:
             account_id = account['Id']
             account_name = account['Name']
@@ -388,6 +398,7 @@ async def download_and_load(token):
             tasks = retrieve_tasks(sf, account_id)
             notes = retrieve_notes(sf, account_id)
             attachments = retrieve_attachments(sf, account_id)
+            events = retrieve_events(sf, account_id)
 
             for task in tasks:
                 await send_data_to_endpoint(task, f"Task_account_{task['Id']}")
@@ -395,6 +406,8 @@ async def download_and_load(token):
                 await send_data_to_endpoint(note, f"Note_account_{note['Id']}")
             for attachment in attachments:
                 await send_data_to_endpoint(attachment, f"Attachment_account_{attachment['Id']}")
+            for event in events:
+                await send_data_to_endpoint(event, f"Event_account_{event['Id']}")
         
         # Retrieve all leads with additional fields
         leads = retrieve_leads(sf, user_id)
