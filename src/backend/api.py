@@ -36,6 +36,7 @@ from config import config
 import msal
 import connect.salesforceconnector as salesforceconnector
 import connect.slackconnector as slackconnector
+from flask_cors import CORS
 
 # elasticsearch
 es = Search()
@@ -76,6 +77,7 @@ last_sort_order = "asc"
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
+    "https://nids22.github.io"
 ]
 
 app.add_middleware(
@@ -747,25 +749,43 @@ async def callback(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/slack_auth")
-def slack_auth():
-    authorization_url = slackconnector.get_slack_authorization_url()
-    return JSONResponse(content={"authorization_url": authorization_url})
+def slack_auth(request: Request):
+    authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
+    request.session['oauth_state'] = state
+    request.session['code_verifier'] = code_verifier
+    logger.info(f"OAuth state set: {state}")
+    logger.info(f"Session data after setting state: {dict(request.session)}")
+    response = JSONResponse(content={"authorization_url": authorization_url})
+    response.set_cookie(key="session", value="session_data", httponly=True, samesite='Lax')
+    return response
 
 @app.get("/slack_callback")
 async def slack_callback(request: Request):
-    global oauth_state
+    logger.info(f"Session data at start of callback: {dict(request.session)}")
     code = request.query_params.get('code')
     state = request.query_params.get('state')
 
-    if not code or state != oauth_state['state']:
-        raise HTTPException(status_code=400, detail="Invalid state or missing code")
+    logger.info(f"Received state: {state}, code: {code}")
+    logger.info(f"Session data before checking state: {dict(request.session)}")
+    logger.info(f"Cookies in request: {request.cookies}")
+
+    if not code:    
+        logger.error("Missing code in the callback request")
+        raise HTTPException(status_code=400, detail="Missing code")
+
+    stored_state = request.session.get('oauth_state')
+    if state != stored_state:
+        logger.error(f"State mismatch: expected {stored_state}, got {state}")
+        raise HTTPException(status_code=400, detail="Invalid state")
 
     try:
-        token = slackconnector.fetch_slack_token(code)
-        logger.info(f"Slack Token: {token}")
+        code_verifier = request.session.get('code_verifier')
+        if not code_verifier:
+            logger.error("Code verifier not found in session")
+            raise HTTPException(status_code=400, detail="Code verifier not found")
 
-        # You can add code here to interact with Slack API using the obtained token
-        # For example, list channels, send messages, etc.
+        token = slackconnector.fetch_slack_token(code, state, code_verifier)
+        logger.info(f"Slack Token: {token}")
 
         return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
     except Exception as e:
