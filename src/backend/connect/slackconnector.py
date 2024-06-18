@@ -36,7 +36,7 @@ def get_slack_authorization_url():
     oauth = OAuth2Session(
         SLACK_CLIENT_ID,
         redirect_uri=SLACK_REDIRECT_URI,
-        scope=["files:read"]
+        scope=["files:read", "channels:history", "groups:history", "im:history", "mpim:history"]
     )
     authorization_url, state = oauth.authorization_url(
         SLACK_AUTHORIZATION_BASE_URL,
@@ -68,35 +68,44 @@ async def get_files(token):
     }
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers)
+        logger.debug(f"Files list response: {response.text}")
         response.raise_for_status()
         files = response.json().get('files', [])
         logger.info(f"Number of files retrieved: {len(files)}")
-        for file in files:
-            logger.info(f"File info: {file}")
         return files
 
 async def download_file(token, file):
-    file_id = file['id']
-    url = f'https://slack.com/api/files.info?file={file_id}'
-    headers = {
-        'Authorization': f'Bearer {token["access_token"]}'
-    }
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
-        response.raise_for_status()
-        file_info = response.json().get('file')
-        if file_info:
-            file_url = file_info['url_private_download']
-            file_content = await client.get(file_url, headers=headers)
-            file_content.raise_for_status()
-            return file_content.content, file_info['name']
+    try:
+        file_id = file['id']
+        url = f'https://slack.com/api/files.info?file={file_id}'
+        headers = {
+            'Authorization': f'Bearer {token["access_token"]}'
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            logger.debug(f"File info response for file {file_id}: {response.text}")
+            response.raise_for_status()
+            file_info = response.json().get('file')
+            if file_info:
+                file_url = file_info.get('url_private_download')
+                if not file_url:
+                    logger.error(f"No url_private_download found for file {file_id}")
+                    return None, None
+                file_content = await client.get(file_url, headers=headers)
+                file_content.raise_for_status()
+                return file_content.content, file_info['name']
+            else:
+                logger.error(f"No file info found for file {file_id}")
+                return None, None
+    except Exception as e:
+        logger.error(f"Error downloading file {file['id']}: {str(e)}")
         return None, None
 
 async def send_file_to_endpoint(file_content, file_name):
     logger.info(f"Sending file {file_name} to endpoint")
     async with httpx.AsyncClient() as client:
         file_stream = io.BytesIO(file_content)
-        files = {'file': (file_name, file_stream, 'application/octet-stream')}
+        files = {'file': (file_name, file_stream, 'application/json')}
         response = await client.post("http://localhost:8000/load_query", files=files)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
@@ -105,10 +114,64 @@ async def send_file_to_endpoint(file_content, file_name):
             logger.warning(f"{file_name} data was not accepted for loading. Status code: {response.status_code}")
 
 async def process_files(token):
-    files = await get_files(token)
-    for file in files:
-        file_content, file_name = await download_file(token, file)
-        if file_content and file_name:
-            await send_file_to_endpoint(file_content, file_name)
-        else:
-            logger.warning(f"Failed to download file {file['name']} ({file['id']})")
+    try:
+        files = await get_files(token)
+        for file in files:
+            file_content, file_name = await download_file(token, file)
+            if file_content and file_name:
+                await send_file_to_endpoint(file_content, file_name)
+            else:
+                logger.warning(f"Failed to download file {file['name']} ({file['id']})")
+    except Exception as e:
+        logger.error(f"Error in process_files: {str(e)}")
+
+async def get_chat_history(token, channel):
+    url = f'https://slack.com/api/conversations.history?channel={channel}'
+    headers = {
+        'Authorization': f'Bearer {token["access_token"]}'
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        logger.debug(f"Chat history response for channel {channel}: {response.text}")
+        response.raise_for_status()
+        messages = response.json().get('messages', [])
+        logger.info(f"Number of messages retrieved from channel {channel}: {len(messages)}")
+        return messages
+
+async def process_chat_history(token):
+    try:
+        url = 'https://slack.com/api/conversations.list'
+        headers = {
+            'Authorization': f'Bearer {token["access_token"]}'
+        }
+        params = {
+            'types': 'public_channel,private_channel,mpim,im'
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, params=params)
+            logger.debug(f"Conversations list response: {response.text}")
+            response.raise_for_status()
+            channels = response.json().get('channels', [])
+            logger.info(f"Number of channels retrieved: {len(channels)}")
+            
+            for channel in channels:
+                logger.info(f"Processing channel: {channel['name']} ({channel['id']})")
+                messages = await get_chat_history(token, channel['id'])
+                if messages:
+                    # Create a file with chat history
+                    file_content = json.dumps(messages, indent=4)
+                    file_name = f"{channel['name']}_chat_history.json"
+                    await send_file_to_endpoint(file_content.encode('utf-8'), file_name)
+                else:
+                    logger.warning(f"No messages found for channel: {channel['name']} ({channel['id']})")
+    except httpx.HTTPStatusError as http_err:
+        logger.error(f"HTTP error occurred: {http_err.response.status_code} - {http_err.response.text}")
+    except Exception as err:
+        logger.error(f"An error occurred: {str(err)}")
+
+async def process_files_and_chats(token):
+    try:
+        await process_files(token)
+        await process_chat_history(token)
+    except Exception as e:
+        logger.error(f"Error in process_files_and_chats: {str(e)}")

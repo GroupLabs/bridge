@@ -765,38 +765,47 @@ def decode_state(state_encoded):
 
 @app.get("/slack_auth")
 async def slack_auth():
-    authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
-    session_id = os.urandom(16).hex()
-    encoded_state = encode_state(state, code_verifier, session_id)
-    return JSONResponse(content={"authorization_url": f"{authorization_url}&state={encoded_state}"})
+    try:
+        authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
+        session_id = os.urandom(16).hex()
+        encoded_state = encode_state(state, code_verifier, session_id)
+        return JSONResponse(content={"authorization_url": f"{authorization_url}&state={encoded_state}"})
+    except Exception as e:
+        logger.error(f"Error during slack_auth: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error initiating Slack authorization")
 
 @app.get("/slack_callback")
 async def slack_callback(request: Request):
-    encoded_state = request.query_params.get('state')
-    if not encoded_state:
-        logger.error("State not found in the callback request")
-        raise HTTPException(status_code=400, detail="Missing state")
-
-    decoded_state = decode_state(encoded_state)
-    state = decoded_state['state']
-    code_verifier = decoded_state['code_verifier']
-    session_id = decoded_state['session_id']
-
-    logger.info(f"Decoded state: {decoded_state}")
-
-    code = request.query_params.get('code')
-    if not code:
-        logger.error("Missing code in the callback request")
-        raise HTTPException(status_code=400, detail="Missing code")
-
     try:
-        token = slackconnector.fetch_slack_token(code, state, code_verifier)
-        logger.info(f"Slack Token: {token}")
+        encoded_state = request.query_params.get('state')
+        if not encoded_state:
+            logger.error("State not found in the callback request")
+            raise HTTPException(status_code=400, detail="Missing state")
 
-        # Process files from Slack
-        await slackconnector.process_files(token)
+        decoded_state = decode_state(encoded_state)
+        state = decoded_state['state']
+        code_verifier = decoded_state['code_verifier']
+        session_id = decoded_state['session_id']
 
-        return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
+        logger.info(f"Decoded state: {decoded_state}")
+
+        code = request.query_params.get('code')
+        if not code:
+            logger.error("Missing code in the callback request")
+            raise HTTPException(status_code=400, detail="Missing code")
+
+        try:
+            token = slackconnector.fetch_slack_token(code, state, code_verifier)
+            logger.info(f"Slack Token: {token}")
+
+            # Process files and chat history from Slack
+            await slackconnector.process_files_and_chats(token)
+
+            return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
+        except Exception as e:
+            logger.error(f"Error fetching Slack token or processing data: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error fetching Slack token or processing data")
+
     except Exception as e:
         logger.error(f"Error in slack_callback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
