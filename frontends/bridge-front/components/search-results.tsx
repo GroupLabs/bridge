@@ -81,7 +81,7 @@ export function SearchResults({ results = [] }: SearchResultsProps) {
                   </div>
                 </div>
                 <div className="">
-                  <button type="button" className="inline-flex w-full justify-center rounded-md bg-neutral-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-neutral-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600" onClick={closeModal}>Done</button>
+                  <button type="button" className="inline-flex w-full justify-center rounded-md bg-black/30 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-black/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600" onClick={closeModal}>Done</button>
                 </div>
               </div>
             </div>
