@@ -35,6 +35,7 @@ from connect.googleconnector import download_and_load, get_flow
 from config import config
 import msal
 import connect.salesforceconnector as salesforceconnector
+import connect.slackconnector as slackconnector
 
 # elasticsearch
 es = Search()
@@ -743,6 +744,32 @@ async def callback(request: Request):
         return JSONResponse(content={"status": "success", "message": "Salesforce data download and load triggered"})
     except Exception as e:
         logger.error(f"Error in callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/slack_auth")
+def slack_auth():
+    authorization_url = slackconnector.get_slack_authorization_url()
+    return JSONResponse(content={"authorization_url": authorization_url})
+
+@app.get("/slack_callback")
+async def slack_callback(request: Request):
+    global oauth_state
+    code = request.query_params.get('code')
+    state = request.query_params.get('state')
+
+    if not code or state != oauth_state['state']:
+        raise HTTPException(status_code=400, detail="Invalid state or missing code")
+
+    try:
+        token = slackconnector.fetch_slack_token(code)
+        logger.info(f"Slack Token: {token}")
+
+        # You can add code here to interact with Slack API using the obtained token
+        # For example, list channels, send messages, etc.
+
+        return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
+    except Exception as e:
+        logger.error(f"Error in slack_callback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
