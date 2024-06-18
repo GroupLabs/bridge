@@ -5,8 +5,8 @@ import base64
 import hashlib
 import urllib.parse
 from requests_oauthlib import OAuth2Session
-from config import config
 import sys
+import io
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from log import setup_logger
@@ -36,7 +36,7 @@ def get_slack_authorization_url():
     oauth = OAuth2Session(
         SLACK_CLIENT_ID,
         redirect_uri=SLACK_REDIRECT_URI,
-        scope=["channels:read", "channels:history", "users:read", "files:read"]
+        scope=["files:read"]
     )
     authorization_url, state = oauth.authorization_url(
         SLACK_AUTHORIZATION_BASE_URL,
@@ -60,3 +60,55 @@ def fetch_slack_token(code, state, code_verifier):
     )
     logger.info(f"Fetched Token: {token}")
     return token
+
+async def get_files(token):
+    url = 'https://slack.com/api/files.list'
+    headers = {
+        'Authorization': f'Bearer {token["access_token"]}'
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        files = response.json().get('files', [])
+        logger.info(f"Number of files retrieved: {len(files)}")
+        for file in files:
+            logger.info(f"File info: {file}")
+        return files
+
+async def download_file(token, file):
+    file_id = file['id']
+    url = f'https://slack.com/api/files.info?file={file_id}'
+    headers = {
+        'Authorization': f'Bearer {token["access_token"]}'
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        file_info = response.json().get('file')
+        if file_info:
+            file_url = file_info['url_private_download']
+            file_content = await client.get(file_url, headers=headers)
+            file_content.raise_for_status()
+            return file_content.content, file_info['name']
+        return None, None
+
+async def send_file_to_endpoint(file_content, file_name):
+    logger.info(f"Sending file {file_name} to endpoint")
+    async with httpx.AsyncClient() as client:
+        file_stream = io.BytesIO(file_content)
+        files = {'file': (file_name, file_stream, 'application/octet-stream')}
+        response = await client.post("http://localhost:8000/load_query", files=files)
+        logger.debug(f"Response from server: {response.text}")
+        if response.status_code == 202:
+            logger.info(f"{file_name} data accepted for loading")
+        else:
+            logger.warning(f"{file_name} data was not accepted for loading. Status code: {response.status_code}")
+
+async def process_files(token):
+    files = await get_files(token)
+    for file in files:
+        file_content, file_name = await download_file(token, file)
+        if file_content and file_name:
+            await send_file_to_endpoint(file_content, file_name)
+        else:
+            logger.warning(f"Failed to download file {file['name']} ({file['id']})")

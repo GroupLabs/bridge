@@ -37,6 +37,7 @@ import msal
 import connect.salesforceconnector as salesforceconnector
 import connect.slackconnector as slackconnector
 from flask_cors import CORS
+import base64
 
 # elasticsearch
 es = Search()
@@ -88,8 +89,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Add SessionMiddleware
-app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
+# Session middleware
+app.add_middleware(SessionMiddleware, secret_key="supersecretkey", session_cookie="session_data", max_age=3600)
 
 @app.get("/health-check")
 async def health_endpoint():
@@ -748,44 +749,52 @@ async def callback(request: Request):
         logger.error(f"Error in callback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
+def encode_state(state, code_verifier, session_id):
+    state_data = {
+        "state": state,
+        "code_verifier": code_verifier,
+        "session_id": session_id
+    }
+    state_json = json.dumps(state_data)
+    state_encoded = base64.urlsafe_b64encode(state_json.encode()).decode()
+    return state_encoded
+
+def decode_state(state_encoded):
+    state_json = base64.urlsafe_b64decode(state_encoded.encode()).decode()
+    return json.loads(state_json)
+
 @app.get("/slack_auth")
-def slack_auth(request: Request):
+async def slack_auth():
     authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
-    request.session['oauth_state'] = state
-    request.session['code_verifier'] = code_verifier
-    logger.info(f"OAuth state set: {state}")
-    logger.info(f"Session data after setting state: {dict(request.session)}")
-    response = JSONResponse(content={"authorization_url": authorization_url})
-    response.set_cookie(key="session", value="session_data", httponly=True, samesite='Lax')
-    return response
+    session_id = os.urandom(16).hex()
+    encoded_state = encode_state(state, code_verifier, session_id)
+    return JSONResponse(content={"authorization_url": f"{authorization_url}&state={encoded_state}"})
 
 @app.get("/slack_callback")
 async def slack_callback(request: Request):
-    logger.info(f"Session data at start of callback: {dict(request.session)}")
+    encoded_state = request.query_params.get('state')
+    if not encoded_state:
+        logger.error("State not found in the callback request")
+        raise HTTPException(status_code=400, detail="Missing state")
+
+    decoded_state = decode_state(encoded_state)
+    state = decoded_state['state']
+    code_verifier = decoded_state['code_verifier']
+    session_id = decoded_state['session_id']
+
+    logger.info(f"Decoded state: {decoded_state}")
+
     code = request.query_params.get('code')
-    state = request.query_params.get('state')
-
-    logger.info(f"Received state: {state}, code: {code}")
-    logger.info(f"Session data before checking state: {dict(request.session)}")
-    logger.info(f"Cookies in request: {request.cookies}")
-
-    if not code:    
+    if not code:
         logger.error("Missing code in the callback request")
         raise HTTPException(status_code=400, detail="Missing code")
 
-    stored_state = request.session.get('oauth_state')
-    if state != stored_state:
-        logger.error(f"State mismatch: expected {stored_state}, got {state}")
-        raise HTTPException(status_code=400, detail="Invalid state")
-
     try:
-        code_verifier = request.session.get('code_verifier')
-        if not code_verifier:
-            logger.error("Code verifier not found in session")
-            raise HTTPException(status_code=400, detail="Code verifier not found")
-
         token = slackconnector.fetch_slack_token(code, state, code_verifier)
         logger.info(f"Slack Token: {token}")
+
+        # Process files from Slack
+        await slackconnector.process_files(token)
 
         return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
     except Exception as e:

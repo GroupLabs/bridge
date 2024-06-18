@@ -64,7 +64,7 @@ RUN pip install --no-cache-dir \
     pymongo \
     msal \
     simple_salesforce \
-    flask_cors
+    flask_cors 
 
 COPY . ./
 
