@@ -73,7 +73,7 @@ export function SearchResults({ results = [] }: SearchResultsProps) {
                 <div>
                   <div className="mt-3 text-justify sm:mt-5">
                     <div className="flex justify-between">
-                      <span className="inline-flex items-center rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-500/20">chunk_text</span>
+                      <span className="inline-flex items-center rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-500/20">text chunk</span>
                     </div>
                     <div className="my-5 sm:my-5">
                       <p className="text-sm">{modalContent}</p>

@@ -64,7 +64,9 @@ export function ChatPanel({ messages, query }: ChatPanelProps) {
 
   // Clear messages
   const handleClear = () => {
-    router.push('/')
+    setMessages([])  // Clear the messages state
+    setInput('')     // Clear the input state
+    router.push('/') // Update the URL
   }
 
   useEffect(() => {
