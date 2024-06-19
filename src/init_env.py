@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     src, _init_py = os.path.split(file_path)
 
-    deployment = os.path.join(src, "deployment")
+    deployment = os.path.join(src, "deployment", "light")
 
     dot_env = os.path.join(deployment, ".env")
 
