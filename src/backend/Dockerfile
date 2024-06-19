@@ -63,7 +63,7 @@ RUN pip install --no-cache-dir \
     pyarrow==15.0.2 \
     pymongo \
     msal \
-    simple_salesforce 
+    simple_salesforce
 
 COPY . ./
 
