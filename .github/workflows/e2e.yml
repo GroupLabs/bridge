@@ -50,7 +50,7 @@ jobs:
               run: docker ps
             
             - name: Run e2e tests
-              run: python e2e_tests/e2e_tests.py
+              run: python src/deployment/light/e2e_tests/e2e_tests.py
               
             - name: Stop the containers
               run: cd src/deployment/light && docker compose down
