@@ -36,7 +36,7 @@ def get_slack_authorization_url():
     oauth = OAuth2Session(
         SLACK_CLIENT_ID,
         redirect_uri=SLACK_REDIRECT_URI,
-        scope=["files:read", "channels:history", "groups:history", "im:history", "mpim:history"]
+        scope="files:read channels:history groups:history im:history mpim:history im:read mpim:read groups:read channels:read"
     )
     authorization_url, state = oauth.authorization_url(
         SLACK_AUTHORIZATION_BASE_URL,
@@ -151,8 +151,13 @@ async def process_chat_history(token):
             response = await client.get(url, headers=headers, params=params)
             logger.debug(f"Conversations list response: {response.text}")
             response.raise_for_status()
-            channels = response.json().get('channels', [])
+            channels = response.json()
+            logger.info(f"Channels API Response: {json.dumps(channels, indent=4)}")  # Log the full response for debugging
+            channels = channels.get('channels', [])
             logger.info(f"Number of channels retrieved: {len(channels)}")
+            
+            if not channels:
+                logger.warning("No channels retrieved. Check your Slack token permissions and API endpoint.")
             
             for channel in channels:
                 logger.info(f"Processing channel: {channel['name']} ({channel['id']})")
@@ -171,7 +176,7 @@ async def process_chat_history(token):
 
 async def process_files_and_chats(token):
     try:
-        await process_files(token)
+        # await process_files(token)
         await process_chat_history(token)
     except Exception as e:
         logger.error(f"Error in process_files_and_chats: {str(e)}")
