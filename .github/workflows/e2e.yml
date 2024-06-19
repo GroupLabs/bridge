@@ -14,23 +14,40 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
+
             - name: Check if docker is installed
               run: docker --version
+
             - name: Check if docker-compose plugin is installed
               run: docker compose version
+
             - name: Check if Python is installed
               run: python --version
 
-            # TODO: consider using requirements.txt or using Poetry if more dependencies are added
             - name: Install dotenv
               run: pip install python-dotenv
 
-            # - name: Initialize the .env file
-            #   run: python src/init_env.py -- --skip-prompts
+            - name: Create .env file with secrets
+              run: |
+                echo ELASTIC_PASSWORD=${{ secrets.ELASTIC_PASSWORD }} >> src/deployment/light/.env
+                echo KIBANA_PASSWORD=${{ secrets.KIBANA_PASSWORD }} >> src/deployment/light/.env
+                echo STACK_VERSION=${{ secrets.STACK_VERSION }} >> src/deployment/light/.env
+                echo CLUSTER_NAME=${{ secrets.CLUSTER_NAME }} >> src/deployment/light/.env
+                echo LICENSE=${{ secrets.LICENSE }} >> src/deployment/light/.env
+                echo ES_PORT=${{ secrets.ES_PORT }} >> src/deployment/light/.env
+                echo KIBANA_PORT=${{ secrets.KIBANA_PORT }} >> src/deployment/light/.env
+                echo ES_MEM_LIMIT=${{ secrets.ES_MEM_LIMIT }} >> src/deployment/light/.env
+                echo KB_MEM_LIMIT=${{ secrets.KB_MEM_LIMIT }} >> src/deployment/light/.env
+                echo ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }} >> src/deployment/light/.env
+
+            - name: Build Docker image
+              run: docker build -t api src/backend
+
             - name: Navigate to the deployment directory and start the containers
               run: cd src/deployment/light && docker compose --profile ci up -d
+
             - name: Ensure successful test run
               run: docker wait deployment-e2e-tests-1
-            - name: Stop the containers
-              run: cd src/deployment && docker compose down
 
+            - name: Stop the containers
+              run: cd src/deployment/light && docker compose down
