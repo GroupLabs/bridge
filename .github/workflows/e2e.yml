@@ -25,8 +25,8 @@ jobs:
             - name: Install dotenv
               run: pip install python-dotenv
 
-            - name: Initialize the .env file
-              run: python src/init_env.py -- --skip-prompts
+            # - name: Initialize the .env file
+            #   run: python src/init_env.py -- --skip-prompts
             - name: Navigate to the deployment directory and start the containers
               run: cd src/deployment/light && docker compose --profile ci up -d
             - name: Ensure successful test run
