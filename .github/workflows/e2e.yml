@@ -43,20 +43,14 @@ jobs:
             - name: Build api image
               run: docker build -t api src/backend
 
-            - name: Build e2e test image
-              run: docker build -t e2e_test src/deployment/light/e2e_tests
-
             - name: Navigate to the deployment directory and start the containers
               run: cd src/deployment/light && docker compose --profile ci up -d
 
-            - name: Run e2e test container
-              run: docker run --name e2e_test e2e_test_cont
-
             - name: List running containers for debugging
               run: docker ps
-
-            - name: Ensure successful test run
-              run: docker wait e2e_test_cont
-
+            
+            - name: Run e2e tests
+              run: python e2e_tests/e2e_tests.py
+              
             - name: Stop the containers
               run: cd src/deployment/light && docker compose down
