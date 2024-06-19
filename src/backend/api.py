@@ -35,6 +35,8 @@ from connect.googleconnector import download_and_load, get_flow
 from config import config
 import msal
 import connect.salesforceconnector as salesforceconnector
+import connect.slackconnector as slackconnector
+import base64
 
 # elasticsearch
 es = Search()
@@ -75,6 +77,7 @@ last_sort_order = "asc"
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
+    "https://nids22.github.io"
 ]
 
 app.add_middleware(
@@ -743,6 +746,67 @@ async def callback(request: Request):
         return JSONResponse(content={"status": "success", "message": "Salesforce data download and load triggered"})
     except Exception as e:
         logger.error(f"Error in callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+def encode_state(state, code_verifier, session_id):
+    state_data = {
+        "state": state,
+        "code_verifier": code_verifier,
+        "session_id": session_id
+    }
+    state_json = json.dumps(state_data)
+    state_encoded = base64.urlsafe_b64encode(state_json.encode()).decode()
+    return state_encoded
+
+def decode_state(state_encoded):
+    state_json = base64.urlsafe_b64decode(state_encoded.encode()).decode()
+    return json.loads(state_json)
+
+@app.get("/slack_auth")
+async def slack_auth():
+    try:
+        authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
+        session_id = os.urandom(16).hex()
+        encoded_state = encode_state(state, code_verifier, session_id)
+        return JSONResponse(content={"authorization_url": f"{authorization_url}&state={encoded_state}"})
+    except Exception as e:
+        logger.error(f"Error during slack_auth: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error initiating Slack authorization")
+
+@app.get("/slack_callback")
+async def slack_callback(request: Request):
+    try:
+        encoded_state = request.query_params.get('state')
+        if not encoded_state:
+            logger.error("State not found in the callback request")
+            raise HTTPException(status_code=400, detail="Missing state")
+
+        decoded_state = decode_state(encoded_state)
+        state = decoded_state['state']
+        code_verifier = decoded_state['code_verifier']
+        session_id = decoded_state['session_id']
+
+        logger.info(f"Decoded state: {decoded_state}")
+
+        code = request.query_params.get('code')
+        if not code:
+            logger.error("Missing code in the callback request")
+            raise HTTPException(status_code=400, detail="Missing code")
+
+        try:
+            token = slackconnector.fetch_slack_token(code, state, code_verifier)
+            logger.info(f"Slack Token: {token}")
+
+            # Process files and chat history from Slack
+            await slackconnector.process_files_and_chats(token)
+
+            return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
+        except Exception as e:
+            logger.error(f"Error fetching Slack token or processing data: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error fetching Slack token or processing data")
+
+    except Exception as e:
+        logger.error(f"Error in slack_callback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
