@@ -10,6 +10,7 @@ on:
 jobs:
     run-e2e-tests:
         runs-on: ubuntu-20.04
+        environment: test
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
