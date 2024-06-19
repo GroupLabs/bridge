@@ -88,8 +88,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Session middleware
-app.add_middleware(SessionMiddleware, secret_key="supersecretkey", session_cookie="session_data", max_age=3600)
+# Add SessionMiddleware
+app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 
 @app.get("/health-check")
 async def health_endpoint():
