@@ -36,7 +36,6 @@ from config import config
 import msal
 import connect.salesforceconnector as salesforceconnector
 import connect.slackconnector as slackconnector
-from flask_cors import CORS
 import base64
 
 # elasticsearch
