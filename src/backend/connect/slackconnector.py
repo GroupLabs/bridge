@@ -36,7 +36,7 @@ def get_slack_authorization_url():
     oauth = OAuth2Session(
         SLACK_CLIENT_ID,
         redirect_uri=SLACK_REDIRECT_URI,
-        scope="files:read channels:history groups:history im:history mpim:history im:read mpim:read groups:read channels:read"
+        scope="files:read channels:history groups:history im:history mpim:history im:read mpim:read groups:read channels:read users.profile:read"
     )
     authorization_url, state = oauth.authorization_url(
         SLACK_AUTHORIZATION_BASE_URL,
@@ -101,11 +101,11 @@ async def download_file(token, file):
         logger.error(f"Error downloading file {file['id']}: {str(e)}")
         return None, None
 
-async def send_file_to_endpoint(file_content, file_name):
+async def send_file_to_endpoint(file_content, file_name, content_type='application/json'):
     logger.info(f"Sending file {file_name} to endpoint")
     async with httpx.AsyncClient() as client:
         file_stream = io.BytesIO(file_content)
-        files = {'file': (file_name, file_stream, 'application/json')}
+        files = {'file': (file_name, file_stream, content_type)}
         response = await client.post("http://localhost:8000/load_query", files=files)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
@@ -113,17 +113,18 @@ async def send_file_to_endpoint(file_content, file_name):
         else:
             logger.warning(f"{file_name} data was not accepted for loading. Status code: {response.status_code}")
 
-async def process_files(token):
-    try:
-        files = await get_files(token)
-        for file in files:
-            file_content, file_name = await download_file(token, file)
-            if file_content and file_name:
-                await send_file_to_endpoint(file_content, file_name)
-            else:
-                logger.warning(f"Failed to download file {file['name']} ({file['id']})")
-    except Exception as e:
-        logger.error(f"Error in process_files: {str(e)}")
+async def get_user_info(token, user_id):
+    url = f'https://slack.com/api/users.info?user={user_id}'
+    headers = {
+        'Authorization': f'Bearer {token["access_token"]}'
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        logger.debug(f"User info response for user {user_id}: {response.text}")
+        response.raise_for_status()
+        user_info = response.json()
+        user_name = user_info.get('user', {}).get('real_name', 'Unknown User')
+        return user_name
 
 async def get_chat_history(token, channel):
     url = f'https://slack.com/api/conversations.history?channel={channel}'
@@ -137,6 +138,29 @@ async def get_chat_history(token, channel):
         messages = response.json().get('messages', [])
         logger.info(f"Number of messages retrieved from channel {channel}: {len(messages)}")
         return messages
+
+async def save_chat_history_as_text(messages, channel_name, token):
+    file_content = io.StringIO()
+    for message in messages:
+        text = message.get('text', '')
+        user_id = message.get('user', 'Unknown User')
+        ts = message.get('ts', 'Unknown Timestamp')
+        user_name = await get_user_info(token, user_id) if user_id != 'Unknown User' else 'Unknown User'
+        file_content.write(f"Timestamp: {ts}\nUser: {user_name}\nMessage: {text}\n\n")
+    file_content.seek(0)
+    return file_content.read().encode('utf-8'), f"{channel_name}_chat_history.txt"
+
+async def process_files(token):
+    try:
+        files = await get_files(token)
+        for file in files:
+            file_content, file_name = await download_file(token, file)
+            if file_content and file_name:
+                await send_file_to_endpoint(file_content, file_name)
+            else:
+                logger.warning(f"Failed to download file {file['name']} ({file['id']})")
+    except Exception as e:
+        logger.error(f"Error in process_files: {str(e)}")
 
 async def process_chat_history(token):
     try:
@@ -152,7 +176,6 @@ async def process_chat_history(token):
             logger.debug(f"Conversations list response: {response.text}")
             response.raise_for_status()
             channels = response.json()
-            logger.info(f"Channels API Response: {json.dumps(channels, indent=4)}")  # Log the full response for debugging
             channels = channels.get('channels', [])
             logger.info(f"Number of channels retrieved: {len(channels)}")
             
@@ -163,10 +186,8 @@ async def process_chat_history(token):
                 logger.info(f"Processing channel: {channel['name']} ({channel['id']})")
                 messages = await get_chat_history(token, channel['id'])
                 if messages:
-                    # Create a file with chat history
-                    file_content = json.dumps(messages, indent=4)
-                    file_name = f"{channel['name']}_chat_history.json"
-                    await send_file_to_endpoint(file_content.encode('utf-8'), file_name)
+                    file_content, file_name = await save_chat_history_as_text(messages, channel['name'], token)
+                    await send_file_to_endpoint(file_content, file_name, content_type='text/plain')
                 else:
                     logger.warning(f"No messages found for channel: {channel['name']} ({channel['id']})")
     except httpx.HTTPStatusError as http_err:
@@ -176,7 +197,7 @@ async def process_chat_history(token):
 
 async def process_files_and_chats(token):
     try:
-        # await process_files(token)
+        await process_files(token)
         await process_chat_history(token)
     except Exception as e:
         logger.error(f"Error in process_files_and_chats: {str(e)}")
