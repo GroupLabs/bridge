@@ -40,14 +40,20 @@ jobs:
                 echo KB_MEM_LIMIT=${{ secrets.KB_MEM_LIMIT }} >> src/deployment/light/.env
                 echo ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }} >> src/deployment/light/.env
 
-            - name: Build Docker image
+            - name: Build api image
               run: docker build -t api src/backend
+
+            - name: Build e2e test image
+              run: docker build -t e2e_test_cont src/deployment/light/e2e_tests
 
             - name: Navigate to the deployment directory and start the containers
               run: cd src/deployment/light && docker compose --profile ci up -d
 
+            - name: List running containers for debugging
+              run: docker ps
+
             - name: Ensure successful test run
-              run: docker wait deployment-e2e-tests-1
+              run: docker wait e2e_test_cont
 
             - name: Stop the containers
               run: cd src/deployment/light && docker compose down
