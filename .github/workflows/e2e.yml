@@ -50,7 +50,7 @@ jobs:
               run: cd src/deployment/light && docker compose --profile ci up -d
 
             - name: Run e2e test container
-              run: docker run --name e2e_test --env-file .env e2e_test_cont
+              run: docker run --name e2e_test e2e_test_cont
 
             - name: List running containers for debugging
               run: docker ps
