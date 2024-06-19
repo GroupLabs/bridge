@@ -1,3 +1,9 @@
 [submodule "research"]
 	path = research
 	url = https://github.com/GroupLabs/bridge-research
+[submodule "bridge-archive"]
+	path = bridge-archive
+	url = https://github.com/GroupLabs/bridge-archive.git
+[submodule "archive"]
+	path = archive
+	url = https://github.com/GroupLabs/bridge-archive.git
