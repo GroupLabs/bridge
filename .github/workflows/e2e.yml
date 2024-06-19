@@ -48,6 +48,14 @@ jobs:
 
             - name: List running containers for debugging
               run: docker ps
+
+            - name: Wait for API to be healthy
+              run: |
+                echo "Waiting for API to be healthy..."
+                until [ "`docker inspect -f {{.State.Health.Status}} light-api-1`" == "healthy" ]; do
+                  docker ps;
+                  sleep 5;
+                done
             
             - name: Run e2e tests
               run: python src/deployment/light/e2e_tests/e2e_tests.py
