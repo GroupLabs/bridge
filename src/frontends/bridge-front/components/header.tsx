@@ -78,11 +78,11 @@ export const Header: React.FC = async () => {
               <MenubarItem>
                 Upload Files <MenubarShortcut>⌘U</MenubarShortcut>
               </MenubarItem>
-              <Link href="/connectors">
+              <a href="/connectors">
                 <MenubarItem>
                   Add connector <MenubarShortcut>⌘C</MenubarShortcut>
                 </MenubarItem>
-              </Link>
+              </a>
             </MenubarContent>
           </MenubarMenu>
           <MenubarMenu>
