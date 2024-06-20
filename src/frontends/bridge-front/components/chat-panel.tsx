@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, JSX, SVGProps } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AI, UIState } from '@/app/actions'
 import { useUIState, useActions } from 'ai/rsc'
@@ -9,7 +9,7 @@ import { UserMessage } from './user-message'
 import { Button } from './ui/button'
 import { ArrowRight, Plus } from 'lucide-react'
 import { EmptyScreen } from './empty-screen'
-import Textarea from 'react-textarea-autosize'
+import { Input } from '@/components/ui/input'
 import { nanoid } from 'ai'
 
 interface ChatPanelProps {
@@ -23,10 +23,10 @@ export function ChatPanel({ messages, query }: ChatPanelProps) {
   const [, setMessages] = useUIState<typeof AI>()
   const { submit } = useActions()
   const router = useRouter()
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-  const isFirstRender = useRef(true) // For development environment
+  const inputRef = useRef<HTMLInputElement>(null)
+  const isFirstRender = useRef(true)
 
-  async function handleQuerySubmit(query: string, formData?: FormData) {
+  async function handleQuerySubmit(query: string) {
     setInput(query)
 
     // Add user message to UI state
@@ -39,42 +39,35 @@ export function ChatPanel({ messages, query }: ChatPanelProps) {
     ])
 
     // Submit and get response message
-    const data = formData || new FormData()
-    if (!formData) {
-      data.append('input', query)
-    }
+    const data = new FormData()
+    data.append('input', query)
     const responseMessage = await submit(data)
     setMessages(currentMessages => [...currentMessages, responseMessage])
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    await handleQuerySubmit(input, formData)
+    await handleQuerySubmit(input)
+    setInput('') // Clear the input field after submission
   }
 
-  // if query is not empty, submit the query
   useEffect(() => {
     if (isFirstRender.current && query && query.trim().length > 0) {
       handleQuerySubmit(query)
       isFirstRender.current = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
-  // Clear messages
   const handleClear = () => {
-    setMessages([])  // Clear the messages state
-    setInput('')     // Clear the input state
+    setMessages([]) // Clear the messages state
+    setInput('') // Clear the input state
     router.push('/') // Update the URL
   }
 
   useEffect(() => {
-    // focus on input when the page loads
     inputRef.current?.focus()
   }, [])
 
-  // If there are messages and the new button has not been pressed, display the new Button
   if (messages.length > 0) {
     return (
       <div className="fixed bottom-2 md:bottom-8 left-0 right-0 flex justify-center items-center mx-auto pointer-events-none">
@@ -98,72 +91,39 @@ export function ChatPanel({ messages, query }: ChatPanelProps) {
   }
 
   return (
-    <div
-      className={
-        'fixed bottom-8 left-0 right-0 top-10 mx-auto h-screen flex flex-col items-center justify-center'
-      }
-    >
+    <div className={'flex flex-col items-center justify-center'}>
       <form onSubmit={handleSubmit} className="max-w-2xl w-full px-6">
-        <div className="relative flex items-center w-full">
-          <Textarea
+        <div className="relative mt-56 flex items-center justify-center w-full">
+          <Input
             ref={inputRef}
-            name="input"
-            rows={1}
-            maxRows={5}
-            tabIndex={0}
-            placeholder="Ask a question..."
-            spellCheck={false}
+            type="text"
+            placeholder="How can I help you?"
             value={input}
-            className="resize-none w-full min-h-12 rounded-fill bg-muted border border-input pl-4 pr-10 pt-3 pb-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'"
+            className="border-b-2 border-gray-900 shadow-2xl text-xl w-full h-12 p-6 text-lg rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-300"
             onChange={e => {
               setInput(e.target.value)
               setShowEmptyScreen(e.target.value.length === 0)
             }}
             onKeyDown={e => {
-              // Enter should submit the form
-              if (
-                e.key === 'Enter' &&
-                !e.shiftKey &&
-                !e.nativeEvent.isComposing
-              ) {
-                // Prevent the default action to avoid adding a new line
+              if (e.key === 'Enter' && !e.shiftKey) {
                 if (input.trim().length === 0) {
                   e.preventDefault()
                   return
                 }
                 e.preventDefault()
-                const textarea = e.target as HTMLTextAreaElement
-                textarea.form?.requestSubmit()
+                handleQuerySubmit(input) // Ensure input is submitted correctly
               }
-            }}
-            onHeightChange={height => {
-              // Ensure inputRef.current is defined
-              if (!inputRef.current) return
-
-              // The initial height and left padding is 70px and 2rem
-              const initialHeight = 70
-              // The initial border radius is 32px
-              const initialBorder = 32
-              // The height is incremented by multiples of 20px
-              const multiple = (height - initialHeight) / 20
-
-              // Decrease the border radius by 4px for each 20px height increase
-              const newBorder = initialBorder - 4 * multiple
-              // The lowest border radius will be 8px
-              inputRef.current.style.borderRadius =
-                Math.max(8, newBorder) + 'px'
             }}
             onFocus={() => setShowEmptyScreen(true)}
             onBlur={() => setShowEmptyScreen(false)}
           />
           <Button
             type="submit"
-            size={'icon'}
-            variant={'ghost'}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2"
+            size="icon"
+            className="absolute top-1/2 right-2 transform -translate-y-1/2"
             disabled={input.length === 0}
           >
-            <ArrowRight size={20} />
+            <ArrowRightIcon className="h-5 w-5" />
           </Button>
         </div>
         <EmptyScreen
@@ -174,5 +134,27 @@ export function ChatPanel({ messages, query }: ChatPanelProps) {
         />
       </form>
     </div>
+  )
+}
+
+function ArrowRightIcon(
+  props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>
+) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
   )
 }
