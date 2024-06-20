@@ -75,12 +75,19 @@ export const Header: React.FC = async () => {
               Data
             </MenubarTrigger>
             <MenubarContent>
-              <MenubarItem>
-                Upload Files <MenubarShortcut>⌘U</MenubarShortcut>
-              </MenubarItem>
+              <a href="/files">
+                <MenubarItem>
+                  Files <MenubarShortcut>⌘U</MenubarShortcut>
+                </MenubarItem>
+              </a>
               <a href="/connectors">
                 <MenubarItem>
-                  Add connector <MenubarShortcut>⌘C</MenubarShortcut>
+                  Connectors <MenubarShortcut>⌘C</MenubarShortcut>
+                </MenubarItem>
+              </a>
+              <a href="/databases">
+                <MenubarItem>
+                  Databases <MenubarShortcut>⌘D</MenubarShortcut>
                 </MenubarItem>
               </a>
             </MenubarContent>
