@@ -148,7 +148,7 @@ export function FilesPage() {
             className="text-muted-foreground hover:bg-muted"
             onClick={() => handleSort('name')}
           >
-            <ListOrderedIcon
+            <AArrowUpIcon
               className={`w-5 h-5 ${
                 sortBy === 'name'
                   ? sortOrder === 'asc'
@@ -165,7 +165,7 @@ export function FilesPage() {
             className="text-muted-foreground hover:bg-muted"
             onClick={() => handleSort('size')}
           >
-            <ListOrderedIcon
+            <DatabaseIcon
               className={`w-5 h-5 ${
                 sortBy === 'size'
                   ? sortOrder === 'asc'
@@ -182,7 +182,7 @@ export function FilesPage() {
             className="text-muted-foreground hover:bg-muted"
             onClick={() => handleSort('createdDate')}
           >
-            <ListOrderedIcon
+            <CalendarDaysIcon
               className={`w-5 h-5 ${
                 sortBy === 'createdDate'
                   ? sortOrder === 'asc'
@@ -252,7 +252,7 @@ function TableRow({ file }: { file: File }) {
   )
 }
 
-function ListOrderedIcon(
+function CalendarDaysIcon(
   props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>
 ) {
   return (
@@ -268,12 +268,39 @@ function ListOrderedIcon(
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <line x1="10" x2="21" y1="6" y2="6" />
-      <line x1="10" x2="21" y1="12" y2="12" />
-      <line x1="10" x2="21" y1="18" y2="18" />
-      <path d="M4 6h1v4" />
-      <path d="M4 10h2" />
-      <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M8 14h.01" />
+      <path d="M12 14h.01" />
+      <path d="M16 14h.01" />
+      <path d="M8 18h.01" />
+      <path d="M12 18h.01" />
+      <path d="M16 18h.01" />
+    </svg>
+  )
+}
+
+function DatabaseIcon(
+  props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>
+) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+      <path d="M3 12A9 3 0 0 0 21 12" />
     </svg>
   )
 }
@@ -295,6 +322,30 @@ function UploadIcon(props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" x2="12" y1="3" y2="15" />
+    </svg>
+  )
+}
+
+function AArrowUpIcon(
+  props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>
+) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 13h6" />
+      <path d="m2 16 4.5-9 4.5 9" />
+      <path d="M18 16V7" />
+      <path d="m14 11 4-4 4 4" />
     </svg>
   )
 }
