@@ -6,7 +6,7 @@ import githubimg from '@/public/images/github.svg'
 import slackimg from '@/public/images/slack.svg'
 import office365img from '@/public/images/office365.png'
 import googledriveimg from '@/public/images/googledrive.svg'
-import sapimg from '@/public/images/sap.png'
+import sapimg from '@/public/images/sap.svg'
 import workdayimg from '@/public/images/workday.svg'
 import salesforceimg from '@/public/images/salesforce.svg'
 
