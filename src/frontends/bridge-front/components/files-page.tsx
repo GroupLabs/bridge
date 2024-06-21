@@ -15,31 +15,13 @@ type File = {
 type SortOrder = 'asc' | 'desc'
 
 export function FilesPage() {
-  // const user = useUser()
   const [files, setFiles] = useState<File[]>([])
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
-  const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null)
   const [sortField, setSortField] = useState<string>('created')
 
-  const [isUploading, setIsUploading] = useState<boolean>(false)
+  const [isUploading, setIsUploading] = useState<boolean>(true)
   const [sortBy, setSortBy] = useState<keyof File>('name')
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
-  // const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-  //   setIsUploading(true)
-  //   setTimeout(() => {
-  //     if (e.target.files) {
-  //       const uploadedFile: File = {
-  //         name: e.target.files[0].name,
-  //         size: `${(e.target.files[0].size / 1024 / 1024).toFixed(2)} MB`,
-  //         type: e.target.files[0].type.split('/')[1].toUpperCase(),
-  //         createdAt: new Date().toISOString().slice(0, 10)
-  //       }
-  //       setFiles(prevFiles => [...prevFiles, uploadedFile])
-  //     }
-  //     setIsUploading(false)
-  //   }, 2000)
-  // }
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
     if (uploadedFile) {
@@ -48,27 +30,11 @@ export function FilesPage() {
         await uploadFile(uploadedFile)
         console.log('Here')
         console.log(uploadedFile)
-
-        // Create a new file object
-        // const file = {
-        //   name: uploadedFile.name,
-        //   size: uploadedFile.size,
-        //   type: uploadedFile.type,
-        //   createdDate: new Date().toLocaleDateString(undefined, {
-        //     day: "2-digit",
-        //     month: "2-digit",
-        //     year: "numeric",
-        //   }),
-        // };
-
-        // setFiles((prevFiles) => [...prevFiles, file]);
         setTimeout(fetchFiles, 1000)
         setIsUploading(false)
-        // fetchFiles(); // fetch files after upload is done
       } catch (error) {
         console.error('Error uploading file:', error)
         setIsUploading(false)
-        // Optionally set some error state here
       }
     }
   }
@@ -93,14 +59,17 @@ export function FilesPage() {
             )
           }))
           setFiles(mappedFiles)
+          setIsUploading(false)
         } else {
           console.error('Unexpected response:', response)
           // Optionally set some error state here
+          setIsUploading(false)
         }
       })
       .catch(error => {
         console.error('Error fetching files:', error)
         // Optionally set some error state here
+        setIsUploading(false)
       })
   }
 
@@ -108,25 +77,6 @@ export function FilesPage() {
   useEffect(() => {
     fetchFiles()
   }, [sortField])
-
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget)
-  }
-
-  const handleSortClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setSortAnchorEl(event.currentTarget)
-  }
-
-  const handleClose = (application: string) => {
-    setAnchorEl(null)
-    if (application === 'Google' || application === 'Office')
-      console.log('Import from ' + application)
-  }
-
-  const handleSortClose = (field: string) => {
-    setSortField(field)
-    setSortAnchorEl(null)
-  }
 
   useEffect(() => {
     getSortedFiles(sortField)
@@ -154,30 +104,6 @@ export function FilesPage() {
       })
   }, [sortField])
 
-  // const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-  //   e.preventDefault()
-  //   if (e.dataTransfer.items) {
-  //     for (let i = 0; i < e.dataTransfer.items.length; i++) {
-  //       if (e.dataTransfer.items[i].kind === 'file') {
-  //         const file = e.dataTransfer.items[i].getAsFile()
-  //         if (file) {
-  //           setIsUploading(true)
-  //           setTimeout(() => {
-  //             const uploadedFile: File = {
-  //               name: file.name,
-  //               size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-  //               type: file.type.split('/')[1].toUpperCase(),
-  //               createdAt: new Date().toISOString().slice(0, 10)
-  //             }
-  //             setFiles(prevFiles => [...prevFiles, uploadedFile])
-  //             setIsUploading(false)
-  //           }, 2000)
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-
   const handleSort = (key: keyof File) => {
     if (sortBy === key) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -198,7 +124,7 @@ export function FilesPage() {
   return (
     <div
       // onDrop={handleDrop}
-      onDragOver={e => e.preventDefault()}
+      // onDragOver={e => e.preventDefault()}
       className="p-6 md:p-8 lg:p-10"
     >
       <div className="flex items-center justify-between mb-6">
