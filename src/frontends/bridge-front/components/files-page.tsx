@@ -241,7 +241,13 @@ function TableRow({ file }: { file: File }) {
   return (
     <tr className="border-b border-muted/40 hover:bg-muted/20">
       <td className="px-4 py-3 text-sm font-medium text-foreground">
-        {file.name}
+        <a
+          href={`http://0.0.0.0:8000/downloads/${
+            file.name
+          }.${file.type.toLowerCase()}`}
+        >
+          {file.name}
+        </a>
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.size}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.type}</td>
