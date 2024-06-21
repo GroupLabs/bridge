@@ -12,12 +12,12 @@ const Home = () => {
     <div className="max-w-5xl mx-auto px-8">
       <h1 className="text-center text-5xl mt-12">Databases</h1>
       <Separator />
-      <ConnectorsPage items={connectors} />
+      <ConnectorsPage items={databases} />
     </div>
   )
 }
 
-export const connectors = [
+export const databases = [
   {
     title: 'PostgreSQL',
     img: postgresqlimg,
