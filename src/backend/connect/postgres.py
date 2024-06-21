@@ -5,6 +5,8 @@ import yaml
 import sys
 from pathlib import Path
 import json
+from urllib.parse import urlparse
+from elasticutils import Search
 
 # Get the absolute path of the parent directory
 parent_dir = Path(__file__).resolve().parent.parent
@@ -12,6 +14,8 @@ sys.path.append(str(parent_dir))
 
 from auto_description import describe_table
 from .correlation import correlation_embedding
+
+search = Search()
 
 # Function to fetch constraints data, adapted for PostgreSQL
 def get_constraints(db_name, table_name, conn):
@@ -148,7 +152,7 @@ def postgres_to_yamls(host, user, password):
                 column_data = pd.read_sql(query, conn)
 
                 # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
-                column["embedding"] = correlation_embedding(column_data[column_name].values)
+                #column["embedding"] = correlation_embedding(column_data[column_name].values)
 
                 if row["column_name"] in primary_keys:
                     column["primary_key"] = True
@@ -236,7 +240,7 @@ def postgres_to_dicts(host, user, password):
                 column_data = pd.read_sql(query, conn)
 
                 # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
-                column["embedding"] = correlation_embedding(column_data[column_name].values) # Assuming the output can be converted to a list
+                #column["embedding"] = correlation_embedding(column_data[column_name].values) # Assuming the output can be converted to a list
 
                 if row["column_name"] in primary_keys:
                     column["primary_key"] = True
@@ -269,7 +273,7 @@ def postgres_to_dicts(host, user, password):
 # TODO: finish this. current format is not croissant supported   
 def postgres_to_croissant(host, user, password, auto_describe=True):
     # Connect to PostgreSQL server
-    conn = psycopg2.connect(host=host, user=user, password=password)
+    conn = psycopg2.connect(host=host, user=user, password=password, dbname="postgres")
     cur = conn.cursor()
     cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
     all_dbs = cur.fetchall()
@@ -297,12 +301,12 @@ def postgres_to_croissant(host, user, password, auto_describe=True):
                 column_data = pd.read_sql(query, conn)
 
                 # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
-                embedding = correlation_embedding(column_data[column_name].values, 10)
+                #edding = correlation_embedding(column_data[column_name].values, 10)
 
                 column_data = {
                     "name": column_name,
                     "type": data_type,
-                    "emb": embedding
+                    #"emb": embedding
                     # "sql": column_name,  # SQL property seems unnecessary for Croissant format
                     # embedding logic should be defined here if needed
                 }
@@ -328,6 +332,83 @@ def postgres_to_croissant(host, user, password, auto_describe=True):
             croissant_metadata_list.append(croissant_table_metadata)
 
     conn.close()
+
+    # Convert the metadata list to JSON
+    return json.dumps(croissant_metadata_list, indent=2)
+
+def convert_uri_to_dsn(uri):
+    result = urlparse(uri)
+    port = f" port={result.port}" if result.port else ""
+    return f"user={result.username} password={result.password} host={result.hostname}{port}"
+
+def postgres_to_croissant_with_connection_string(connection_string, connection_id, auto_describe=True):
+    dsn = convert_uri_to_dsn(connection_string)
+    # Connect to PostgreSQL server
+    conn = psycopg2.connect(dsn=dsn, dbname="postgres")
+    cur = conn.cursor()
+    cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
+    all_dbs = cur.fetchall()
+    all_dbs = [db[0] for db in all_dbs if db[0] != "postgres"]
+
+    croissant_metadata_list = []
+
+    for db in all_dbs:
+        conn = psycopg2.connect(dsn=dsn, dbname=db)
+        cur = conn.cursor()
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+        tables = cur.fetchall()
+        tables = [table[0] for table in tables]
+
+        for table in tables:
+            cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name='{table}'")
+            columns = cur.fetchall()
+
+            dimensions = []
+            for column_name, data_type in columns:
+                quoted_column_name = f'"{column_name}"'  # Enclose the column name in double quotes
+
+                # Use the quoted column name in the SQL query
+                query = f"SELECT {quoted_column_name} FROM \"{table}\""
+                column_data = pd.read_sql(query, conn)
+
+                # Then use the original column name to access the data, assuming it's correctly cased in `row['column_name']`
+                # embedding = correlation_embedding(column_data[column_name].values, 10)
+
+                column_data = {
+                    "name": column_name,
+                    "type": data_type,
+                    # "emb": embedding
+                    # "sql": column_name,  # SQL property seems unnecessary for Croissant format
+                    # embedding logic should be defined here if needed
+                }
+                dimensions.append(column_data)
+
+            description = describe_table(str(columns)) if auto_describe else ""
+
+            croissant_table_metadata = {
+                "@type": "sc:Dataset",
+                "name": table,
+                "description": description,
+                "recordSet": [{
+                    "@type": "cr:RecordSet",
+                    "name": f"{table}_records",
+                    "field": dimensions
+                }]
+            }
+
+            with open('croissant_metadata.json', 'w') as file:
+                file.write(json.dumps(croissant_table_metadata, indent=2))
+
+
+            croissant_metadata_list.append(croissant_table_metadata)
+
+    conn.close()
+
+    user = urlparse(connection_string).username
+    password = urlparse(connection_string).password
+    host = urlparse(connection_string).hostname
+    port = urlparse(connection_string).port
+    search.add_connection(db_type="postgres", host=host, user=user, password=password, connection_id=connection_id, connection_string=connection_string)
 
     # Convert the metadata list to JSON
     return json.dumps(croissant_metadata_list, indent=2)

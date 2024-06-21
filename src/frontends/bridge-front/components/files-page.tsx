@@ -1,70 +1,182 @@
 'use client'
 
-import { useState, useMemo, ChangeEvent, JSX, SVGProps } from 'react'
+import { useState, useEffect, useMemo, ChangeEvent, JSX, SVGProps } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getSortedFiles, uploadFile } from '@/lib/actions/file'
 
 type File = {
-  name: string
-  size: string
-  type: string
-  createdAt: string
+  name: any
+  size: any
+  type: any
+  createdDate: string
 }
 
 type SortOrder = 'asc' | 'desc'
 
 export function FilesPage() {
-  const [files, setFiles] = useState<File[]>([
-    {
-      name: 'Document.pdf',
-      size: '2.3 MB',
-      type: 'PDF',
-      createdAt: '2023-04-15'
-    }
-  ])
+  // const user = useUser()
+  const [files, setFiles] = useState<File[]>([])
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null)
+  const [sortField, setSortField] = useState<string>('created')
+
   const [isUploading, setIsUploading] = useState<boolean>(false)
   const [sortBy, setSortBy] = useState<keyof File>('name')
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
-  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    setIsUploading(true)
-    setTimeout(() => {
-      if (e.target.files) {
-        const uploadedFile: File = {
-          name: e.target.files[0].name,
-          size: `${(e.target.files[0].size / 1024 / 1024).toFixed(2)} MB`,
-          type: e.target.files[0].type.split('/')[1].toUpperCase(),
-          createdAt: new Date().toISOString().slice(0, 10)
-        }
-        setFiles(prevFiles => [...prevFiles, uploadedFile])
-      }
-      setIsUploading(false)
-    }, 2000)
-  }
+  // const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  //   setIsUploading(true)
+  //   setTimeout(() => {
+  //     if (e.target.files) {
+  //       const uploadedFile: File = {
+  //         name: e.target.files[0].name,
+  //         size: `${(e.target.files[0].size / 1024 / 1024).toFixed(2)} MB`,
+  //         type: e.target.files[0].type.split('/')[1].toUpperCase(),
+  //         createdAt: new Date().toISOString().slice(0, 10)
+  //       }
+  //       setFiles(prevFiles => [...prevFiles, uploadedFile])
+  //     }
+  //     setIsUploading(false)
+  //   }, 2000)
+  // }
+  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = event.target.files?.[0]
+    if (uploadedFile) {
+      try {
+        setIsUploading(true)
+        await uploadFile(uploadedFile)
+        console.log('Here')
+        console.log(uploadedFile)
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    if (e.dataTransfer.items) {
-      for (let i = 0; i < e.dataTransfer.items.length; i++) {
-        if (e.dataTransfer.items[i].kind === 'file') {
-          const file = e.dataTransfer.items[i].getAsFile()
-          if (file) {
-            setIsUploading(true)
-            setTimeout(() => {
-              const uploadedFile: File = {
-                name: file.name,
-                size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-                type: file.type.split('/')[1].toUpperCase(),
-                createdAt: new Date().toISOString().slice(0, 10)
-              }
-              setFiles(prevFiles => [...prevFiles, uploadedFile])
-              setIsUploading(false)
-            }, 2000)
-          }
-        }
+        // Create a new file object
+        // const file = {
+        //   name: uploadedFile.name,
+        //   size: uploadedFile.size,
+        //   type: uploadedFile.type,
+        //   createdDate: new Date().toLocaleDateString(undefined, {
+        //     day: "2-digit",
+        //     month: "2-digit",
+        //     year: "numeric",
+        //   }),
+        // };
+
+        // setFiles((prevFiles) => [...prevFiles, file]);
+        setTimeout(fetchFiles, 1000)
+        setIsUploading(false)
+        // fetchFiles(); // fetch files after upload is done
+      } catch (error) {
+        console.error('Error uploading file:', error)
+        setIsUploading(false)
+        // Optionally set some error state here
       }
     }
   }
+
+  // Extract the file fetching logic into its own function so it can be reused
+  const fetchFiles = () => {
+    getSortedFiles(sortField)
+      .then(response => {
+        // Check if response is an array before calling map
+        if (Array.isArray(response) && response.length > 0) {
+          const mappedFiles = response.map((file: any) => ({
+            name: file._source.document_name,
+            size: file._source.Size,
+            type: file._source.Type.slice(1).toUpperCase(),
+            createdDate: new Date(file._source.Created).toLocaleDateString(
+              undefined,
+              {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              }
+            )
+          }))
+          setFiles(mappedFiles)
+        } else {
+          console.error('Unexpected response:', response)
+          // Optionally set some error state here
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching files:', error)
+        // Optionally set some error state here
+      })
+  }
+
+  // Call fetchFiles in the useEffect hook instead of duplicating the logic
+  useEffect(() => {
+    fetchFiles()
+  }, [sortField])
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+
+  const handleSortClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setSortAnchorEl(event.currentTarget)
+  }
+
+  const handleClose = (application: string) => {
+    setAnchorEl(null)
+    if (application === 'Google' || application === 'Office')
+      console.log('Import from ' + application)
+  }
+
+  const handleSortClose = (field: string) => {
+    setSortField(field)
+    setSortAnchorEl(null)
+  }
+
+  useEffect(() => {
+    getSortedFiles(sortField)
+      .then(response => {
+        if (response && response.length > 0) {
+          const mappedFiles = response.map((file: any) => ({
+            name: file._source.document_name,
+            size: file._source.Size,
+            type: file._source.Type.slice(1).toUpperCase(),
+            createdDate: new Date(file._source.Created).toLocaleDateString(
+              undefined,
+              {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              }
+            )
+          }))
+          setFiles(mappedFiles)
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching files:', error)
+        // Optionally set some error state here
+      })
+  }, [sortField])
+
+  // const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  //   e.preventDefault()
+  //   if (e.dataTransfer.items) {
+  //     for (let i = 0; i < e.dataTransfer.items.length; i++) {
+  //       if (e.dataTransfer.items[i].kind === 'file') {
+  //         const file = e.dataTransfer.items[i].getAsFile()
+  //         if (file) {
+  //           setIsUploading(true)
+  //           setTimeout(() => {
+  //             const uploadedFile: File = {
+  //               name: file.name,
+  //               size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+  //               type: file.type.split('/')[1].toUpperCase(),
+  //               createdAt: new Date().toISOString().slice(0, 10)
+  //             }
+  //             setFiles(prevFiles => [...prevFiles, uploadedFile])
+  //             setIsUploading(false)
+  //           }, 2000)
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
   const handleSort = (key: keyof File) => {
     if (sortBy === key) {
@@ -85,7 +197,7 @@ export function FilesPage() {
 
   return (
     <div
-      onDrop={handleDrop}
+      // onDrop={handleDrop}
       onDragOver={e => e.preventDefault()}
       className="p-6 md:p-8 lg:p-10"
     >
@@ -102,7 +214,7 @@ export function FilesPage() {
             id="file-upload"
             type="file"
             className="hidden"
-            onChange={handleFileUpload}
+            onChange={handleUpload}
           />
           <Button
             variant="outline"
@@ -142,11 +254,11 @@ export function FilesPage() {
             variant="outline"
             size="icon"
             className="text-muted-foreground hover:bg-muted"
-            onClick={() => handleSort('createdAt')}
+            onClick={() => handleSort('createdDate')}
           >
             <ListOrderedIcon
               className={`w-5 h-5 ${
-                sortBy === 'createdAt'
+                sortBy === 'createdDate'
                   ? sortOrder === 'asc'
                     ? 'rotate-180'
                     : ''
@@ -208,7 +320,7 @@ function TableRow({ file }: { file: File }) {
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.size}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.type}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
-        {file.createdAt}
+        {file.createdDate}
       </td>
     </tr>
   )

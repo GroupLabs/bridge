@@ -24,6 +24,27 @@ class Load(BaseModel):
     filepath: str
     typehint: Optional[str] = "unknown"
 
-#for chat with GPT-4:
 class ChatRequest(BaseModel):
+    id: int
     message: str
+
+class ChatHistory(BaseModel):
+    history_id: int
+    queries: List[str]
+    responses: List[str]
+    title: Optional[str] = None    
+
+class UserChatHistories(BaseModel):
+    user_id: str
+    chat_histories: List[ChatHistory]
+
+class Connection(BaseModel):
+    database: str
+    connectionString: Optional[str] = None
+    host: Optional[str] = None
+    user: Optional[str] = None
+    password: Optional[str] = None
+
+class QueryforAll(BaseModel):
+    query: str
+    use_llm: Optional[bool] = False
