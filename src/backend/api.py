@@ -35,6 +35,10 @@ import aiofiles
 import asyncio
 from celery.result import AsyncResult
 
+from pdf2image import convert_from_path
+from PIL import Image, ImageDraw, ImageFont
+import os
+
 # elasticsearch
 es = Search()
 
@@ -664,6 +668,40 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
+@app.get("/downloads/preview/{filename}")
+async def preview_file(filename: str):
+    file_path = f"{DOWNLOAD_DIR}/{filename}"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    preview_path = f"{DOWNLOAD_DIR}/previews/{filename}.png"
+    os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+
+    # Convert Office files to PDF first
+    if filename.endswith(('.docx', '.pptx', '.xlsx')):
+        pdf_path = file_path.rsplit('.', 1)[0] + '.pdf'
+        subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", os.path.dirname(file_path), file_path], check=True)
+        file_path = pdf_path  # Update file_path to the new PDF
+
+    # Convert PDF to PNG
+    if filename.endswith(('.pdf', '.docx', '.pptx', '.xlsx')):
+        images = convert_from_path(file_path, first_page=0, last_page=1)
+        images[0].save(preview_path, 'PNG')
+    elif filename.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+        return FileResponse(file_path)
+    elif filename.endswith('.txt'):
+        with open(file_path, 'r') as file:
+            text = file.read(500)
+        img = Image.new('RGB', (800, 600), color=(255, 255, 255))
+        d = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        d.text((10, 10), text, font=font, fill=(0, 0, 0))
+        img.save(preview_path, 'PNG')
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type.")
+
+    return FileResponse(preview_path)
+    
 if __name__ == '__main__':
     import uvicorn
     if not config.ENV:

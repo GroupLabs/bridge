@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, ChangeEvent, JSX, SVGProps } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getSortedFiles, uploadFile } from '@/lib/actions/file'
+import { LinkPreview } from '@/components/ui/link-preview'
 
 type File = {
   name: any
@@ -241,13 +242,17 @@ function TableRow({ file }: { file: File }) {
   return (
     <tr className="border-b border-muted/40 hover:bg-muted/20">
       <td className="px-4 py-3 text-sm font-medium text-foreground">
-        <a
-          href={`http://0.0.0.0:8000/downloads/${
+        <LinkPreview
+          url={`http://0.0.0.0:8000/downloads/${
             file.name
           }.${file.type.toLowerCase()}`}
+          imageSrc={`http://0.0.0.0:8000/downloads/preview/${
+            file.name
+          }.${file.type.toLowerCase()}`}
+          className="font-bold bg-clip-text text-transparent bg-gradient-to-br from-purple-500 to-pink-500"
         >
           {file.name}
-        </a>
+        </LinkPreview>
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.size}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.type}</td>
