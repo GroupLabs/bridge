@@ -1,0 +1,195 @@
+"use client";
+
+import Link from "next/link";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import nexinfo from "@/app/nexinfo.png";
+import Image from "next/image";
+import React, { useState } from "react";
+import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
+
+import { CountryDropdown, RegionDropdown } from "react-country-region-selector";
+
+export default function Home() {
+  const [country, setCountry] = useState("");
+  const [region, setRegion] = useState("");
+  const [selectedTime, setSelectedTime] = useState("all");
+
+  const handleCountryChange = (val) => {
+    setCountry(val);
+    if (val === "") {
+      setRegion("");
+    }
+  };
+
+  const cardData = [
+    {
+      title: "Software Engineer",
+      description: "Searched for software engineer roles.",
+      time: "1 month ago",
+      monthsAgo: 1,
+      country: "United States",
+      region: "California",
+    },
+    {
+      title: "Product Manager",
+      description: "Searched for product manager roles.",
+      time: "3 months ago",
+      monthsAgo: 3,
+      country: "United States",
+      region: "New York",
+    },
+    {
+      title: "UI/UX Designer",
+      description: "Searched for UI/UX designer roles.",
+      time: "6 months ago",
+      monthsAgo: 6,
+      country: "Canada",
+      region: "Ontario",
+    },
+    {
+      title: "Data Analyst",
+      description: "Searched for data analyst roles.",
+      time: "12 months ago",
+      monthsAgo: 12,
+      country: "United Kingdom",
+      region: "London",
+    },
+    {
+      title: "Cybersecurity Specialist",
+      description: "Searched for cybersecurity specialist roles.",
+      time: "1 month ago",
+      monthsAgo: 1,
+      country: "Canada",
+      region: "Quebec",
+    },
+    {
+      title: "Research Scientist",
+      description: "Searched for research scientist roles.",
+      time: "3 months ago",
+      monthsAgo: 3,
+      country: "Germany",
+      region: "Bavaria",
+    },
+  ];
+
+  const filteredCardData = cardData.filter((card) => {
+    const isTimeMatch =
+      selectedTime === "all" || card.monthsAgo <= parseInt(selectedTime);
+    const isCountryMatch = country === "" || card.country === country;
+    const isRegionMatch = region === "" || card.region === region;
+    return isTimeMatch && isCountryMatch && isRegionMatch;
+  });
+
+  return (
+    <div className="flex flex-col items-center w-full min-h-screen bg-background lg:pt-24">
+      <header className="flex flex-col lg:flex-row items-center justify-between w-full max-w-6xl px-4 py-6 lg:px-6">
+        <Link
+          href="#"
+          prefetch={false}
+          className="flex items-center mb-4 lg:mb-0"
+        >
+          <Image
+            src={nexinfo}
+            alt={`nextinfo logo`}
+            className="w-80"
+            priority={true}
+          />
+          <span className="sr-only">NEXINFO</span>
+        </Link>
+        <div className="flex flex-col items-center gap-4 w-full max-w-2xl">
+          <Input
+            placeholder="Search for company requirements..."
+            className="w-full"
+          />
+          <div className="w-full flex flex-col lg:flex-row items-center justify-between w-full gap-4 lg:gap-0">
+            <div className="w-full flex flex-col lg:flex-row items-center gap-2">
+              <Label htmlFor="location" className="text-sm">
+                Location
+              </Label>
+              <CountryDropdown
+                defaultOptionLabel="All countries"
+                blankOptionLabel="All countries"
+                className="pl-1 h-10 w-full lg:w-40 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"
+                value={country}
+                onChange={(val) => handleCountryChange(val)}
+              />
+              <RegionDropdown
+                defaultOptionLabel="All regions"
+                disableWhenEmpty={true}
+                className="pl-1 h-10 w-full lg:w-40 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"
+                country={country}
+                value={region}
+                onChange={(val) => setRegion(val)}
+              />
+            </div>
+            <div className="flex flex-col lg:flex-row items-center gap-2 w-full lg:pl-4">
+              <Label htmlFor="date" className="text-sm">
+                Date of listing
+              </Label>
+              <Select
+                id="date"
+                defaultValue="all"
+                className="w-full lg:w-40"
+                onValueChange={(val) => setSelectedTime(val)}
+              >
+                <SelectTrigger className="w-full lg:w-40 px-0 pl-2">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="1">1 month</SelectItem>
+                  <SelectItem value="3">3 months</SelectItem>
+                  <SelectItem value="6">6 months</SelectItem>
+                  <SelectItem value="12">12 months</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="grid gap-8 w-full max-w-6xl px-4 py-8 lg:px-6">
+        <h1 className="text-center text-4xl font-semibold">Previous search</h1>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredCardData.map((card, index) => (
+            <HoverBorderGradient>
+              <Card key={index} className="min-h-52 rounded-[22px] w-full">
+                <CardHeader>
+                  <CardTitle>{card.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>{card.description}</p>
+                </CardContent>
+                <CardFooter>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      <p className="font-semibold">
+                        {card.region}, {card.country}
+                      </p>
+                      <p>{card.time}</p>
+                    </div>
+                  </div>
+                </CardFooter>
+              </Card>
+            </HoverBorderGradient>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
