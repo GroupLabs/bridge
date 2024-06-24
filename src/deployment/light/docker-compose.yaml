@@ -133,6 +133,11 @@ services:
     command: >
       sh -c "celery -A storage worker --loglevel=info -P gevent &
         python api.py"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:8000/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   certs:

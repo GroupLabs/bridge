@@ -1,42 +1,14 @@
 import os
 import json
-import logging
-import httpx
-from google.auth.transport.requests import Request as GoogleRequest
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.oauth2.credentials import Credentials
 from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse, FileResponse
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
-import subprocess
-import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs, get_parent
-from serverutils import Health, Status, Load, Query, QueryforAll
-from serverutils import ChatRequest
-from ollama import chat1, chat2, gen2, gen1, gen_for_query
+from storage import load_data, load_model, query, get_inference
+from serverutils import Health, Status, Load, Query
+
 from config import config
-from integration_layer import parse_config_from_string
-from integration_layer import prepare_inputs_for_model
-from integration_layer import format_model_inputs
-from elasticutils import Search  # Import the Search class
-from starlette.middleware.sessions import SessionMiddleware
-from elasticutils import Search  # Import the Search class
-from serverutils import Connection
-from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
-from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
-from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
-from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
-from uuid import uuid4
-from elasticsearch.exceptions import NotFoundError
-
-# elasticsearch
-es = Search()
-
-# Load environment variables
-load_dotenv()
 
 TEMP_DIR = config.TEMP_DIR
 DOWNLOAD_DIR = "downloads"
@@ -48,13 +20,15 @@ logger.info("LOGGER READY")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     yield
+    # free_db(dbconn)
+    # free resources
+    # telemetry?
+
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
-
-last_sort_type = None
-last_sort_order = "asc"
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -67,9 +41,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
-# Add SessionMiddleware
-app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 
 @app.get("/health-check")
 async def health_endpoint():
@@ -136,7 +107,7 @@ async def nl_query(input: Query):
     resp = query(input.query, input.index)
     logger.info(f"QUERY success: {input.query}")
 
-    return {"health": health, "status": "success", "resp": resp}
+    return {"health": health, "status" : "success", "query" : input.query, "resp" : resp}
 
 @app.post("/load_query")
 async def load_data_ep(response: Response, file: UploadFile = File(...)):
@@ -158,176 +129,6 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
-@app.post("/sort")
-async def sort_docs_ep(type: str=Form(...)):
-    global last_sort_type, last_sort_order
-    type_of_sort = ["name", "size", "type", "created"]
-    if type not in type_of_sort:
-        return "invalid sort"
-
-    # Determine the sort order
-    if type == last_sort_type:
-        # Toggle the sort order
-        if last_sort_order == "asc":
-            sort_order = "desc"
-        else:
-            sort_order = "asc"
-    else:
-        sort_order = "asc"  # Default to ascending for a new sort type
-
-    # Update the last sort type and order
-    last_sort_type = type
-    last_sort_order = sort_order
-
-
-    return sort_docs(type, sort_order)
-
-# Google Drive Authentication and Picker
-@app.get("/google_drive_auth")
-async def google_drive_auth(request: Request):
-    creds = None
-    if os.path.exists('token.json'):
-        with open('token.json', 'r') as token_file:
-            creds = Credentials.from_authorized_user_info(json.load(token_file), SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(GoogleRequest())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-            with open('token.json', 'w') as token_file:
-                token_file.write(creds.to_json())
-
-    # Store credentials in session
-    request.session['credentials'] = creds.to_json()
-    return RedirectResponse(url="/picker")
-
-@app.get("/picker", response_class=HTMLResponse)
-async def picker(request: Request):
-    creds_json = request.session.get('credentials')
-    if not creds_json:
-        return RedirectResponse(url="/google_drive_auth")
-    creds = Credentials.from_authorized_user_info(json.loads(creds_json), SCOPES)
-
-    picker_html = '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Google Picker Example</title>
-        <script type="text/javascript">
-            function onApiLoad() {
-                gapi.load('picker', {'callback': onPickerApiLoad});
-            }
-
-            function onPickerApiLoad() {
-                var view = new google.picker.View(google.picker.ViewId.DOCS);
-                var picker = new google.picker.PickerBuilder()
-                    .setOAuthToken('%s')
-                    .addView(view)
-                    .setCallback(pickerCallback)
-                    .build();
-                picker.setVisible(true);
-            }
-
-            function pickerCallback(data) {
-                var url = 'nothing';
-                if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
-                    var doc = data[google.picker.Response.DOCUMENTS][0];
-                    var id = doc[google.picker.Document.ID];
-                    var name = doc[google.picker.Document.NAME];
-                    alert('You picked: ' + name);
-                    fetch('/selected_file', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({name: name}),
-                    }).then(response => {
-                        if (response.ok) {
-                            window.location = '/done';
-                        }
-                    });
-                }
-            }
-        </script>
-        <script type="text/javascript" src="https://apis.google.com/js/api.js?onload=onApiLoad"></script>
-    </head>
-    <body>
-        <h1>Google Picker</h1>
-    </body>
-    </html>
-    ''' % creds.token
-
-    return HTMLResponse(content=picker_html)
-
-@app.post("/selected_file")
-async def selected_file_ep(request: Request):
-    data = await request.json()
-    print("Selected file: ", data['name'])
-    return JSONResponse({'status': 'success'})
-
-@app.get("/done")
-async def done_ep():
-    return HTMLResponse("File selection complete.")
-
-# Create an instance of Search class
-search = Search()
-
-async def string_to_async_generator(response_string: str):
-    yield response_string
-
-@app.post("/chat/{user_id}")
-async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
-    try:
-        response_message = gen1(chat_request.message)  # Assume gen returns a string
-        async_generator = string_to_async_generator(response_message)
-
-        search.save_chat_to_history(chat_request.id, chat_request.message, response_message, user_id)
-        return StreamingResponse(async_generator, media_type="application/json")
-    except Exception as e:
-        logger.error(f"Error during chat: {str(e)}")
-        return {"error": str(e)}
-    
-@app.get("/chat_history/{user_id}/{history_id}")
-async def get_chat_history(user_id: str, history_id: int):
-    try:
-        response = search.es.search(
-            index='chat_history', 
-            query={
-                'bool': {
-                    'must': [
-                        {'match': {'user_id': user_id}},
-                        {'match': {'history_id': history_id}}
-                    ]
-                }
-            }
-        )
-        if response['hits']['total']['value'] > 0:
-            chat_histories = [hit['_source'] for hit in response['hits']['hits']]
-            return {"user_id": user_id, "history_id": history_id, "chat_histories": chat_histories}
-        else:
-            return {"error": "Chat history not found"}
-    except Exception as e:
-        logger.error(f"Error retrieving chat history: {str(e)}")
-        return {"error": str(e)}
-    
-@app.get("/get_user_chat_histories/{user_id}")
-async def get_user_chat_histories(user_id: str):
-    try:
-        # Query Elasticsearch for all chat histories for the given user_id
-        response = search.es.search(index='chat_history', query={'match': {'user_id': user_id}})
-        
-        # Extract the chat history IDs from the response
-        if response['hits']['total']['value'] > 0:
-            chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
-            return {"user_id": user_id, "chat_history_ids": chat_history_ids}
-        else:
-            return {"user_id": user_id, "chat_history_ids": [], "message": "No chat histories found"}
-    except Exception as e:
-        logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
-        return {"error": str(e)}
-    
 @app.post("/ping_database")
 async def ping_database(input: Connection):
     client = None
