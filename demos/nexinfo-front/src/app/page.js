@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import nexinfo from "@/app/nexinfo.png";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
 
 import { CountryDropdown, RegionDropdown } from "react-country-region-selector";
@@ -36,58 +36,19 @@ export default function Home() {
     }
   };
 
-  const cardData = [
-    {
-      title: "Software Engineer",
-      description: "Searched for software engineer roles.",
-      time: "1 month ago",
-      monthsAgo: 1,
-      country: "United States",
-      region: "California",
-    },
-    {
-      title: "Product Manager",
-      description: "Searched for product manager roles.",
-      time: "3 months ago",
-      monthsAgo: 3,
-      country: "United States",
-      region: "New York",
-    },
-    {
-      title: "UI/UX Designer",
-      description: "Searched for UI/UX designer roles.",
-      time: "6 months ago",
-      monthsAgo: 6,
-      country: "Canada",
-      region: "Ontario",
-    },
-    {
-      title: "Data Analyst",
-      description: "Searched for data analyst roles.",
-      time: "12 months ago",
-      monthsAgo: 12,
-      country: "United Kingdom",
-      region: "London",
-    },
-    {
-      title: "Cybersecurity Specialist",
-      description: "Searched for cybersecurity specialist roles.",
-      time: "1 month ago",
-      monthsAgo: 1,
-      country: "Canada",
-      region: "Quebec",
-    },
-    {
-      title: "Research Scientist",
-      description: "Searched for research scientist roles.",
-      time: "3 months ago",
-      monthsAgo: 3,
-      country: "Germany",
-      region: "Bavaria",
-    },
-  ];
+  const [cardsData, setCardsData] = useState([]);
 
-  const filteredCardData = cardData.filter((card) => {
+  useEffect(() => {
+    // Fetch data from /api/search
+    fetch("/api/search")
+      .then((response) => response.json())
+      .then((data) => {
+        setCardsData(data);
+      })
+      .catch((error) => console.error("Error fetching data:", error));
+  }, []);
+
+  const filteredCardData = cardsData.filter((card) => {
     const isTimeMatch =
       selectedTime === "all" || card.monthsAgo <= parseInt(selectedTime);
     const isCountryMatch = country === "" || card.country === country;
@@ -164,13 +125,15 @@ export default function Home() {
       </header>
 
       <main className="grid gap-8 w-full max-w-6xl px-4 py-8 lg:px-6">
-        <h1 className="text-center text-4xl font-semibold">Previous search</h1>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredCardData.map((card, index) => (
             <HoverBorderGradient>
               <Card key={index} className="min-h-52 rounded-[22px] w-full">
                 <CardHeader>
-                  <CardTitle>{card.title}</CardTitle>
+                  <CardTitle>
+                    <p>{card.name}</p>
+                    <p>{card.title}</p>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p>{card.description}</p>
@@ -179,9 +142,15 @@ export default function Home() {
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-muted-foreground">
                       <p className="font-semibold">
-                        {card.region}, {card.country}
+                        {card.region && card.country
+                          ? `${card.region}, ${card.country}`
+                          : card.region || card.country}
                       </p>
-                      <p>{card.time}</p>
+                      <p>
+                        {card.monthsAgo} month{card.monthsAgo > 1 ? "s" : ""}{" "}
+                        ago
+                      </p>
+                      <a href={card.url}>{card.url}</a>
                     </div>
                   </div>
                 </CardFooter>
