@@ -38,6 +38,8 @@ export default function Home() {
 
   const [cardsData, setCardsData] = useState([]);
 
+  const [searchInput, setSearchInput] = useState("");
+
   useEffect(() => {
     // Fetch data from /api/search
     fetch("/api/search")
@@ -53,7 +55,15 @@ export default function Home() {
       selectedTime === "all" || card.monthsAgo <= parseInt(selectedTime);
     const isCountryMatch = country === "" || card.country === country;
     const isRegionMatch = region === "" || card.region === region;
-    return isTimeMatch && isCountryMatch && isRegionMatch;
+    const searchText = searchInput.toLowerCase();
+    const doesTextMatch =
+      !searchText ||
+      card.name.toLowerCase().includes(searchText) ||
+      card.title.toLowerCase().includes(searchText) ||
+      card.description.toLowerCase().includes(searchText) ||
+      card.country.toLowerCase().includes(searchText) ||
+      card.region.toLowerCase().includes(searchText);
+    return isTimeMatch && isCountryMatch && isRegionMatch && doesTextMatch;
   });
 
   return (
@@ -76,6 +86,8 @@ export default function Home() {
           <Input
             placeholder="Search for company requirements..."
             className="w-full"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
           <div className="w-full flex flex-col lg:flex-row items-center justify-between w-full gap-4 lg:gap-0">
             <div className="w-full flex flex-col lg:flex-row items-center gap-2">
