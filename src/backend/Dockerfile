@@ -63,6 +63,7 @@ RUN pip install --no-cache-dir \
     pyarrow==15.0.2 \
     pymongo \
     msal \
+    semantic-router \
     simple_salesforce
 
 COPY . ./

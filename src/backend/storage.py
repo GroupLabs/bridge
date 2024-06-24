@@ -17,6 +17,12 @@ from unstructured.partition.odt import partition_odt
 from unstructured.partition.rtf import partition_rtf
 from unstructured.partition.ppt import partition_ppt
 from unstructured.partition.pptx import partition_pptx
+from unstructured.documents.elements import Element
+from typing import List, Dict
+from semantic_router.splitters import RollingWindowSplitter
+from semantic_router.encoders import OpenAIEncoder
+
+
 import pandas as pd
 from PIL import Image
 from datetime import datetime
@@ -74,6 +80,17 @@ celery_app.conf.update(
 
 # elasticsearch
 es = Search()
+
+#chunker. uses openAI embeddings
+encoder = OpenAIEncoder(openai_api_key="sk-proj-egdSI1R1uh4QrRbwjlgxT3BlbkFJWDayEfih1eqJri8ekq7R")
+
+splitter = RollingWindowSplitter(
+    encoder=encoder,
+    window_size=1,  # Compares each element with the previous one
+    min_split_tokens=1,
+    max_split_tokens=100,
+    plot_splits=False,
+)
 
 
 try:
@@ -410,6 +427,86 @@ def insert_parent(filepath):
     }
     es.insert_document(fields, index="parent_doc")
 
+def is_valid_title(title: str) -> bool:
+    if re.match(r"^[a-z]", title):
+        return False
+    if re.search(r"[^\w\s:\-\.&\)]", title):
+        return False
+    if title.endswith("."):
+        return False
+    return True
+
+def group_elements_by_title(elements: List[Element]) -> Dict:
+    grouped_elements = {}
+    current_title = "Untitled"  # Default title for initial text without a title
+    grouped_elements[current_title] = []
+    for element in elements:
+        element_dict = element.to_dict()
+
+        # Skip elements of type "Footer"
+        if element_dict.get("type") == "Footer":
+            continue
+
+        if element_dict.get("type") == "Title":
+            potential_title = element_dict.get("text", "Untitled")
+            if is_valid_title(potential_title):
+                current_title = potential_title
+                if current_title not in grouped_elements:
+                    grouped_elements[current_title] = []
+            else:
+                grouped_elements[current_title].append(element)
+                continue
+        else:
+            grouped_elements[current_title].append(element)
+    return grouped_elements
+
+def create_title_chunks(grouped_elements: Dict, splitter: RollingWindowSplitter) -> list:
+    title_with_chunks = []
+    for title, elements in grouped_elements.items():
+        combined_element_texts = []
+        chunks = []
+
+        if not elements:
+            title_with_chunks.append({"title": title, "chunks": chunks})
+            continue
+
+        for element in elements:
+            if not element.text:
+                continue
+            element_dict = element.to_dict()
+            if element_dict.get("type") == "Table":
+                # Process accumulated text before the table
+                if combined_element_texts:
+                    splits = splitter(combined_element_texts)
+                    print("-" * 80)
+                    chunks.extend([split.content for split in splits])
+                    combined_element_texts = []  # Reset combined texts after processing
+
+                # Add table as a separate chunk
+                table_text_html = element.metadata.text_as_html
+                chunks.append(table_text_html)
+            else:
+                combined_element_texts.append(element.text)
+
+        # Process any remaining accumulated text after the last table
+        # or if no table was encountered
+        if combined_element_texts:
+            splits = splitter(combined_element_texts)
+            print("-" * 80)
+            chunks.extend([split.content for split in splits])
+
+        title_with_chunks.append({"title": title, "chunks": chunks})
+
+    # Print title and chunks for debugging
+    for item in title_with_chunks:
+        print(f"Title: {item['title']}")
+        print("Chunks:")
+        for chunk in item['chunks']:
+            print(f"- {chunk}")
+        print()
+
+    return title_with_chunks
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -474,38 +571,41 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
 
     if read_txt:  # read txt
         try:
-            elements = partition_text(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_text(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
 
         if elements:
             context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
-
             
-            for i, e in enumerate(elements):
+            grouped_elements = group_elements_by_title(elements)
 
-                chunk = "".join(
-                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-                )  # remove control characters
 
-                # Get the current local time
-                local_time = datetime.now().astimezone()
+            chunks_by_title = create_title_chunks(grouped_elements, splitter)
+            
+            # Print the title and chunks
+            for i,item in enumerate(chunks_by_title):
+                for chunk in item['chunks']:
+                    
+                    chunk_with_title = f"Title: {item['title']} \n -Text: {chunk}"
 
-                # Format the local time in the desired format
-                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Get the current local time
+                    local_time = datetime.now().astimezone()
 
-                fields = {
-                    "Created": formatted_time,
-                    "document_id": doc_id,  # document id from path
-                    "chunk_text": context_chunk + chunk,
-                    "access_group": "",  # not yet implemented
-                    "chunking_strategy": chunking_strategy,
-                    "chunk_no": i,
-                    "page_number" : e.metadata.page_number
-                }
-                
-                es.insert_document(fields, index="text_chunk")
+                    # Format the local time in the desired format
+                    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                    fields = {
+                        "Created": formatted_time,
+                        "document_id": doc_id,  # document id from path
+                        "chunk_text": context_chunk + chunk_with_title,
+                        "access_group": "",  # not yet implemented
+                        "chunking_strategy": chunking_strategy,
+                        "chunk_no": i,
+                    }
+                    
+                    es.insert_document(fields, index="text_chunk")
 
     else:
         fields = {
@@ -578,41 +678,43 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    if read_doc:  # read txt
+    if read_doc:  
         try:
-            elements = partition_doc(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_doc(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
 
         if elements:
             context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
-
             
-            for i, e in enumerate(elements):
+            grouped_elements = group_elements_by_title(elements)
 
-                chunk = "".join(
-                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-                )  # remove control characters
 
-                # Get the current local time
-                local_time = datetime.now().astimezone()
+            chunks_by_title = create_title_chunks(grouped_elements, splitter)
+            
+            # Print the title and chunks
+            for i,item in enumerate(chunks_by_title):
+                for chunk in item['chunks']:
+                    
+                    chunk_with_title = f"Title: {item['title']} \n -Text: {chunk}"
 
-                # Format the local time in the desired format
-                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Get the current local time
+                    local_time = datetime.now().astimezone()
 
-                fields = {
-                    "Created": formatted_time,
-                    "document_id": doc_id,  # document id from path
-                    "chunk_text": context_chunk + chunk,
-                    "access_group": "",  # not yet implemented
-                    "chunking_strategy": chunking_strategy,
-                    "chunk_no": i,
-                    "page_number" : e.metadata.page_number
-                }
-                
-                es.insert_document(fields, index="text_chunk")
+                    # Format the local time in the desired format
+                    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
+                    fields = {
+                        "Created": formatted_time,
+                        "document_id": doc_id,  # document id from path
+                        "chunk_text": context_chunk + chunk_with_title,
+                        "access_group": "",  # not yet implemented
+                        "chunking_strategy": chunking_strategy,
+                        "chunk_no": i,
+                    }
+                    
+                    es.insert_document(fields, index="text_chunk")
     else:
         fields = {
             "access_group": "",  # not yet implemented
@@ -631,40 +733,43 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    if read_docx:  # read txt
+    if read_docx:  
         try:
-            elements = partition_docx(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_docx(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
 
         if elements:
             context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
-
             
-            for i, e in enumerate(elements):
+            grouped_elements = group_elements_by_title(elements)
 
-                chunk = "".join(
-                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-                )  # remove control characters
 
-                # Get the current local time
-                local_time = datetime.now().astimezone()
+            chunks_by_title = create_title_chunks(grouped_elements, splitter)
+            
+            # Print the title and chunks
+            for i,item in enumerate(chunks_by_title):
+                for chunk in item['chunks']:
+                    
+                    chunk_with_title = f"Title: {item['title']} \n -Text: {chunk}"
 
-                # Format the local time in the desired format
-                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Get the current local time
+                    local_time = datetime.now().astimezone()
 
-                fields = {
-                    "Created": formatted_time,
-                    "document_id": doc_id,  # document id from path
-                    "chunk_text": context_chunk + chunk,
-                    "access_group": "",  # not yet implemented
-                    "chunking_strategy": chunking_strategy,
-                    "chunk_no": i,
-                    "page_number" : e.metadata.page_number
-                }
-                
-                es.insert_document(fields, index="text_chunk")
+                    # Format the local time in the desired format
+                    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                    fields = {
+                        "Created": formatted_time,
+                        "document_id": doc_id,  # document id from path
+                        "chunk_text": context_chunk + chunk_with_title,
+                        "access_group": "",  # not yet implemented
+                        "chunking_strategy": chunking_strategy,
+                        "chunk_no": i,
+                    }
+                    
+                    es.insert_document(fields, index="text_chunk")
     else:
         fields = {
             "access_group": "",  # not yet implemented
