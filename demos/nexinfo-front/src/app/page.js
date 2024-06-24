@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import nexinfo from "@/app/nexinfo.png";
 import Image from "next/image";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
 
 import { CountryDropdown, RegionDropdown } from "react-country-region-selector";
@@ -40,6 +40,10 @@ export default function Home() {
 
   const [searchInput, setSearchInput] = useState("");
 
+  const [inputValue, setInputValue] = useState("");
+
+  const [renderedCards, setRenderedCards] = useState([]);
+
   useEffect(() => {
     // Fetch data from /api/search
     fetch("/api/search")
@@ -50,21 +54,54 @@ export default function Home() {
       .catch((error) => console.error("Error fetching data:", error));
   }, []);
 
-  const filteredCardData = cardsData.filter((card) => {
-    const isTimeMatch =
-      selectedTime === "all" || card.monthsAgo <= parseInt(selectedTime);
-    const isCountryMatch = country === "" || card.country === country;
-    const isRegionMatch = region === "" || card.region === region;
-    const searchText = searchInput.toLowerCase();
-    const doesTextMatch =
-      !searchText ||
-      card.name.toLowerCase().includes(searchText) ||
-      card.title.toLowerCase().includes(searchText) ||
-      card.description.toLowerCase().includes(searchText) ||
-      card.country.toLowerCase().includes(searchText) ||
-      card.region.toLowerCase().includes(searchText);
-    return isTimeMatch && isCountryMatch && isRegionMatch && doesTextMatch;
-  });
+  const filteredCardData = useMemo(() => {
+    return cardsData.filter((card) => {
+      const isTimeMatch =
+        selectedTime === "all" || card.monthsAgo <= parseInt(selectedTime);
+      const isCountryMatch = country === "" || card.country === country;
+      const isRegionMatch = region === "" || card.region === region;
+      const searchText = searchInput.toLowerCase();
+      const doesTextMatch =
+        !searchText ||
+        card.name.toLowerCase().includes(searchText) ||
+        card.title.toLowerCase().includes(searchText) ||
+        card.description.toLowerCase().includes(searchText) ||
+        card.country.toLowerCase().includes(searchText) ||
+        card.region.toLowerCase().includes(searchText);
+      return isTimeMatch && isCountryMatch && isRegionMatch && doesTextMatch;
+    });
+  }, [cardsData, selectedTime, country, region, searchInput]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const addCardsWithDelay = async () => {
+      setRenderedCards([]); // Clear renderedCards before starting the addition
+
+      for (let i = 0; i < filteredCardData.length; i++) {
+        if (!isMounted) break;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        setRenderedCards((prev) => {
+          // Check if the card is already added
+          const isCardAlreadyAdded = prev.some(
+            (card) =>
+              card.name === filteredCardData[i].name &&
+              card.title === filteredCardData[i].title
+          );
+          if (!isCardAlreadyAdded) {
+            return [...prev, filteredCardData[i]];
+          }
+          return prev;
+        });
+      }
+    };
+
+    addCardsWithDelay();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filteredCardData]);
 
   return (
     <div className="flex flex-col items-center w-full min-h-screen bg-background lg:pt-24">
@@ -86,8 +123,13 @@ export default function Home() {
           <Input
             placeholder="Search for company requirements..."
             className="w-full"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            value={inputValue} // Use the new state here
+            onChange={(e) => setInputValue(e.target.value)} // Update inputValue on every keystroke
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setSearchInput(inputValue); // Update searchInput only on Enter
+              }
+            }}
           />
           <div className="w-full flex flex-col lg:flex-row items-center justify-between w-full gap-4 lg:gap-0">
             <div className="w-full flex flex-col lg:flex-row items-center gap-2">
@@ -138,9 +180,9 @@ export default function Home() {
 
       <main className="grid gap-8 w-full max-w-6xl px-4 py-8 lg:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredCardData.map((card, index) => (
-            <HoverBorderGradient>
-              <Card key={index} className="min-h-52 rounded-[22px] w-full">
+          {renderedCards.map((card, index) => (
+            <HoverBorderGradient key={index}>
+              <Card className="min-h-52 rounded-[22px] w-full">
                 <CardHeader>
                   <CardTitle>
                     <p>{card.name}</p>
