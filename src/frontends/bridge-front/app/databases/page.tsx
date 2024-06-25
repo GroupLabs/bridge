@@ -2,10 +2,7 @@
 
 import { ConnectorsPage } from '@/components/connectors-page'
 import { Separator } from '@/components/ui/separator'
-import postgresqlimg from '@/public/images/postgresql.png'
-import azureimg from '@/public/images/azure.png'
-import mongodbimg from '@/public/images/mongodb.svg'
-import mysqlimg from '@/public/images/mysql.svg'
+import databases from './databasesData'
 
 const Home = () => {
   return (
@@ -16,28 +13,5 @@ const Home = () => {
     </div>
   )
 }
-
-export const databases = [
-  {
-    title: 'PostgreSQL',
-    img: postgresqlimg,
-    active: false
-  },
-  {
-    title: 'Azure',
-    img: azureimg,
-    active: true
-  },
-  {
-    title: 'MongoDB',
-    img: mongodbimg,
-    active: false
-  },
-  {
-    title: 'MySQL',
-    img: mysqlimg,
-    active: false
-  }
-]
 
 export default Home
