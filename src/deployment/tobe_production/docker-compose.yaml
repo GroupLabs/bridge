@@ -55,7 +55,6 @@ services:
       interval: 1s
       timeout: 5s
       retries: 120
-
   es01:
     depends_on:
       setup:
@@ -100,7 +99,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
-
   kibana:
     depends_on:
       es01:
@@ -134,7 +132,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
-
   rabbitmq:
     image: rabbitmq:3.13-management
     networks:
@@ -144,7 +141,6 @@ services:
       - "15672:15672"
     volumes:
       - rabbitdata:/var/lib/rabbitmq
-
   ollama:
     image: ollama/ollama
     networks:
@@ -155,13 +151,12 @@ services:
       - ${OLLAMA_PATH}:/root/.ollama
     healthcheck:
       test: [
-        "CMD-SHELL", 
+        "CMD-SHELL",
         "curl -X POST -H 'Content-Type: application/json' -d '{\"name\":\"llama2\"}' http://localhost:11434/api/pull | grep -q '{\"status\":\"success\"}'"
         ]
       interval: 10s
       timeout: 10s
       retries: 120
-
   api:
     image: api
     networks:
@@ -187,9 +182,8 @@ services:
     ports:
       - "8000:8000"
     command: >
-      sh -c "celery -A storage worker --loglevel=info -P prefork &
+      sh -c "celery -A storage worker --loglevel=info -P gevent &
         python api.py"
-
   triton:
     image: nvcr.io/nvidia/tritonserver:24.04-py3
     depends_on:
@@ -200,37 +194,47 @@ services:
     environment:
       - AZURE_STORAGE_KEY=${AZURE_STORAGE_KEY}
       - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT_NAME}
+      - MODEL_REPOSITORY_PATH=${MODEL_REPOSITORY_PATH}  # Pass the environment variable
     networks:
       - bridge-net
-    volumes:
-      - ${MODEL_REPOSITORY_PATH}:/root/.model_repository
     ports:
       - "9000:9000"
       - "9001:9001"
       - "9002:9002"
-    command: tritonserver --model-repository=/root/.model_repository --model-control-mode=explicit --http-port=9000 --grpc-port=9001
-
-  mlflow:
-    image: api  # Assuming your API image includes MLflow
+    command: tritonserver --model-repository=${MODEL_REPOSITORY_PATH} --model-control-mode=explicit --http-port=9000 --grpc-port=9001
+  mlflow-db:
+    image: nouchka/sqlite3:latest
     networks:
       - bridge-net
-    environment:
-      - BACKEND_STORE_URI=sqlite:///mlflow.db
-      - ARTIFACT_ROOT=./artifacts
     volumes:
-      - ./mlflow:/mlflow
+      - ./mlflow.db:/data/mlflow.db
+    command: tail -f /dev/null
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    depends_on:
+      - mlflow-db
+    networks:
+      - bridge-net
+    command: mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./artifacts --host 0.0.0.0 --port 5000
     ports:
-      - "5000:5000"
-    command: >
-      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./artifacts --host 0.0.0.0 --port 5000
-
+      - "5001:5000"
+    volumes:
+      - ./mlflow.db:/mlflow.db
+      - ./artifacts:/artifacts
+    environment:
+      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
 volumes:
   certs:
     driver: local
   esdata:
   kibanadata:
   rabbitdata:
-
 networks:
   bridge-net:
     driver: bridge

@@ -8,7 +8,21 @@ from pathlib import Path
 
 from celery import Celery
 
-from unstructured.partition.pdf import partition_pdf # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.pdf import partition_pdf  # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.text import partition_text
+from unstructured.partition.md import partition_md
+from unstructured.partition.doc import partition_doc
+from unstructured.partition.docx import partition_docx
+from unstructured.partition.odt import partition_odt
+from unstructured.partition.rtf import partition_rtf
+from unstructured.partition.ppt import partition_ppt
+from unstructured.partition.pptx import partition_pptx
+import pandas as pd
+from PIL import Image
+from datetime import datetime
+
+
+from auto_description import describe_table, describe_picture
 
 from connect.postgres import postgres_to_yamls
 from config import config
@@ -55,12 +69,6 @@ try:
 except Exception as e:
     print(f"Triton not available: {e}")
 
-try:
-    # triton server
-    tc = TritonClient()
-except Exception as e:
-    print(f"Triton not available: {e}")
-
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
 
@@ -82,10 +90,52 @@ def load_data(filepath: str, read=True):
 
         # unstructured
         if pathtype == "pdf":
+
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-            pass
+
+            _txt(filepath, read_txt=read)
+            
+        elif pathtype == "markdown":
+
+            _md(filepath, read_md=read)
+
+        elif pathtype == "doc":
+
+            _doc(filepath, read_doc=read)
+
+        elif pathtype == "docx":
+
+            _docx(filepath, read_docx=read)
+
+        elif pathtype == "odt":
+
+            _odt(filepath, read_odt=read)
+
+        elif pathtype == "rtf":
+
+            _rtf(filepath, read_odt=read)
+
+        elif pathtype == "csv":
+
+            _csv(filepath)
+
+        elif pathtype == "xlsx" or pathtype == "xls":
+
+            _excel(filepath)
+
+        elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
+
+            _picture(filepath)    
+
+        elif pathtype == "ppt":
+
+            _ppt(filepath)    
+
+        elif pathtype == "pptx":
+
+            _pptx(filepath)   
 
         # mix
         elif pathtype == "dir":
@@ -126,12 +176,7 @@ def get_inference(model, data):
     
     models_inputs = prepare_inputs_for_model(data, parsed_data)
 
-
-        
-
-
     return models_inputs
-
 
 
 @celery_app.task(name="load_model_task")
@@ -195,9 +240,68 @@ def extract_io_metadata(config, io_type):
 
 def query(q: str, index: str):
     return es.hybrid_search(q, index)
-#removes white spaces in text
-def remove_whitespace(text):
-    return re.sub(r'\s+', '', text)
+
+def get_parent(chunk):
+    response = es.search(
+        index='text_chunk',
+        body={
+            "query": {
+                "match_phrase": {
+                    "chunk_text": chunk  # Replace with the text you want to search for
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_id from the first hit
+        document_id = response['hits']['hits'][0]['_source']['document_id']
+        return get_document_name(document_id)
+    else:
+        return None
+    
+def get_document_name(document_id):
+    response = es.search(
+        index='parent_doc',
+        body={
+            "query": {
+                "term": {
+                    "document_id": document_id  # Exact match on document_id
+                }
+            },
+            "size": 1  # Retrieve only one document
+        }
+    )
+    
+    # Check if any hits are returned
+    if response['hits']['total']['value'] > 0:
+        # Extract the document_name from the first hit
+        document_name = response['hits']['hits'][0]['_source']['document_name']
+        return document_name
+    else:
+        return None
+
+
+def insert_parent(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    # Get the file size in bytes
+    file_size_bytes = os.path.getsize(filepath)
+    # Convert bytes to megabytes
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    size = f"{file_size_mb:.2f} MB"
+    basename_with_ext = os.path.basename(filepath)
+    fields = {
+        "document_id": doc_id,  # document id from path
+        "document_name": os.path.splitext(basename_with_ext)[0],  
+        "Size": size,
+        'Size_numeric': file_size_mb,  
+        "Type": os.path.splitext(filepath)[-1],
+        "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+    }
+    es.insert_document(fields, index="parent_doc")
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -212,21 +316,29 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
         if elements is not None:
             pdf_file = open(filepath, 'rb')
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
+
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
-                
-                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) #this will add a space character after every ". ? !"
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
                 fields = {
+                    "Created": formatted_time,
                     "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
                     "access_group": "",  # not yet implemented
-                    "chunk_text": formatted_chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
+                    "page_number" : e.metadata.page_number
                 }
 
                 # Insert the document into Elasticsearch
@@ -244,9 +356,615 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    
+    insert_parent(filepath)
     os.remove(filepath)
 
+
+def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_txt:  # read txt
+        try:
+            elements = partition_text(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _md(filepath, read_md=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_md:  # read txt
+        try:
+            elements = partition_md(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_doc:  # read txt
+        try:
+            elements = partition_doc(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_docx:  # read txt
+        try:
+            elements = partition_docx(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+
+def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_odt:  # read txt
+        try:
+            elements = partition_odt(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_rtf:  # read txt
+        try:
+            elements = partition_rtf(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+
+def get_detailed_dtypes(df):
+    detailed_dtypes = {}
+    for column in df.columns:
+        if pd.api.types.is_string_dtype(df[column]):
+            detailed_dtypes[column] = 'string'
+        elif pd.api.types.is_numeric_dtype(df[column]):
+            if pd.api.types.is_integer_dtype(df[column]):
+                detailed_dtypes[column] = 'integer'
+            elif pd.api.types.is_float_dtype(df[column]):
+                detailed_dtypes[column] = 'float'
+        elif pd.api.types.is_bool_dtype(df[column]):
+            detailed_dtypes[column] = 'boolean'
+        else:
+            detailed_dtypes[column] = 'object'
+    return detailed_dtypes
+
+
+def _csv(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    df = pd.read_csv(filepath)
+
+    # Get the number of rows and columns
+    rows, columns = df.shape
+
+    # Get detailed data types of each column
+    detailed_data_types = get_detailed_dtypes(df)
+    
+    # Convert columns to appropriate types if necessary
+    for column, dtype in detailed_data_types.items():
+        if dtype == 'string':
+            df[column] = df[column].astype(str)
+        elif dtype == 'integer':
+            df[column] = pd.to_numeric(df[column], errors='coerce', downcast='integer')
+        elif dtype == 'float':
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Generate YAML structure for the CSV file
+    dimensions = {
+        "rows": rows,
+        "columns": columns
+    }
+    
+    column_details = []
+    for column in df.columns:
+        column_info = {
+            "name": column,
+            "type": detailed_data_types[column]
+        }
+        column_details.append(column_info)
+    
+    table_name = os.path.basename(filepath)
+    metadata = {
+        "name": table_name,
+        "dimensions": dimensions,
+        "columns": column_details,
+    }
+
+    context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+    # Get the current local time
+    local_time = datetime.now().astimezone()
+
+    # Format the local time in the desired format
+    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+    fields = {
+        "Created": formatted_time,
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(context_chunk+str(metadata))}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "table_name": table_name,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+
+
+    }
+
+    es.insert_document(fields, index="table_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+
+def _excel(filepath):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    df = pd.read_excel(filepath)
+
+    # Get the number of rows and columns
+    rows, columns = df.shape
+
+    # Get detailed data types of each column
+    detailed_data_types = get_detailed_dtypes(df)
+    
+    # Convert columns to appropriate types if necessary
+    for column, dtype in detailed_data_types.items():
+        if dtype == 'string':
+            df[column] = df[column].astype(str)
+        elif dtype == 'integer':
+            df[column] = pd.to_numeric(df[column], errors='coerce', downcast='integer')
+        elif dtype == 'float':
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Generate YAML structure for the Excel file
+    dimensions = {
+        "rows": rows,
+        "columns": columns
+    }
+    
+    column_details = []
+    for column in df.columns:
+        column_info = {
+            "name": column,
+            "type": detailed_data_types[column]
+        }
+        column_details.append(column_info)
+    
+    table_name = os.path.basename(filepath)
+    metadata = {
+        "name": table_name,
+        "dimensions": dimensions,
+        "columns": column_details,
+    }
+    context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+    # Get the current local time
+    local_time = datetime.now().astimezone()
+
+    # Format the local time in the desired format
+    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+    fields = {
+        "Created": formatted_time,
+        "document_id": doc_id,  # document id from path
+        "description_text": f"{describe_table(context_chunk+str(metadata))}",
+        "metadata": metadata,
+        "file_path": filepath,
+        "table_name": table_name,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+    }
+
+    es.insert_document(fields, index="table_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _picture(filepath):
+
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    image = Image.open(filepath)
+
+    # Get basic metadata
+    metadata = {
+        'Format': image.format,
+        'Size': image.size,
+        'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+    description = describe_picture(filepath)
+    # Get the current local time
+    local_time = datetime.now().astimezone()
+
+    # Format the local time in the desired format
+    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+    fields = {
+        "Created": formatted_time,
+        "document_id": doc_id,  # document id from path
+        "description_text": description,
+        "metadata": metadata,
+        "file_path": filepath,
+        "embedding": [0],
+        "last_updated": int(time.time()),  # current time in long int
+        "data_hash": "not implemented"
+    }
+
+    es.insert_document(fields, index="picture_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_ppt:  # read txt
+        try:
+            elements = partition_ppt(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+
+def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    if read_pptx:  # read txt
+        try:
+            elements = partition_pptx(filepath, chunking_strategy=chunking_strategy)
+        except Exception as e:
+            logger.error(f"Failed to partition text: {e}")
+            return
+
+        if elements:
+            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+
+            
+            for i, e in enumerate(elements):
+
+                chunk = "".join(
+                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+                )  # remove control characters
+
+                # Get the current local time
+                local_time = datetime.now().astimezone()
+
+                # Format the local time in the desired format
+                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                fields = {
+                    "Created": formatted_time,
+                    "document_id": doc_id,  # document id from path
+                    "chunk_text": context_chunk + chunk,
+                    "access_group": "",  # not yet implemented
+                    "chunking_strategy": chunking_strategy,
+                    'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "chunk_no": i,
+                    "page_number" : e.metadata.page_number
+                }
+                
+                es.insert_document(fields, index="text_chunk")
+    else:
+        fields = {
+            "access_group": "",  # not yet implemented
+            "description_text": "",  # not yet implemented
+            "file_path": filepath,
+            "embedding": [0],
+            "last_updated": int(time.time()),  # current time in long int
+            "data_hash": "not implemented"
+        }
+
+        es.insert_document(fields, index="document_meta")
+    insert_parent(filepath)
+    os.remove(filepath)
+    
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use

@@ -23,13 +23,43 @@ class Search:
         logger.info("ES is available")
         logger.info(str(client_info))
 
+
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='file_meta', 
+                mappings={
+                    'properties': {
+                        'user_id': {'type': 'keyword'},
+                        'file_type': {'type': 'keyword'},
+                        'file_id': {'type': 'keyword'},
+                        'file_name': {'type': 'text'},
+                        'file_description': {'type': 'text'},
+                        'file_size': {'type': 'long'},
+                        'permissions': {
+                            'type': 'nested',
+                            'properties': {
+                                'person': {'type': 'keyword'},
+                                'permission': {'type': 'keyword'}
+                            }
+                        },
+                        'last_modified_time': {'type': 'date'},
+                        'created_time': {'type': 'date'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
         # configure text_chunk
         try:
             self.es.indices.create( # may fail if index exists
                 index='text_chunk', 
                 mappings={
                     'properties': {
-                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'user_id': {'type': 'keyword'},
+                        'main_doc_id': {'type': 'keyword'},
+                        'chunk_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'access_group': {'type': 'keyword'},
                         'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
@@ -49,13 +79,79 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
-        
+
+        # configure parent_doc
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='parent_doc', 
+                mappings={
+                    'properties': {
+                        'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
+                        'document_name': {
+                            'type': 'text',
+                            'fields': {
+                                'keyword': {
+                                    'type': 'keyword',
+                                    'ignore_above': 256
+                                }
+                            }
+                        },
+                        'Size': {'type': 'text'},
+                        'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
+                        'Type': {'type': 'keyword'},
+                        'Last_modified': {'type': 'text'},
+                        'Created': {'type': 'date'},
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
+                        
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+
+        # configure picture_meta
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='picture_meta', 
+                mappings={
+                    'properties': {
+                        'user_id': {'type': 'keyword'},
+                        'picture_name': {'type': 'keyword'},
+                        'access_group': {'type': 'keyword'},
+                        'description_text': {'type': 'text'},
+                        'time_added': {'type': 'text'},
+
+                        # embeddings
+                        'e5': {
+                            'type': 'dense_vector',
+                            # 'dim': 'not set',
+                            'similarity': 'cosine'
+                            },
+                        'colbert': {'type': 'object', 'enabled': False} # disable indexing for the 'colbert' field
+                        # meta
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+
+            
         # configure table_meta
         try:
             self.es.indices.create( # may fail if index exists
                 index='table_meta', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         'database_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'table_name': {'type': 'text'},
@@ -128,12 +224,33 @@ class Search:
                 logger.warn(e.error)
                 raise
 
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='db_meta', 
+                mappings={
+                    'properties': {
+                        "db_type": {'type': 'keyword'},
+                        'connection_id': {'type': 'keyword'},
+                        'host': {'type': 'keyword'},
+                        'password': {'type': 'keyword'},
+                        'user': {'type': 'keyword'},
+                        'connection_string': {'type': 'keyword'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+        
         logger.info("Configured.")
 
         self.registered_indices = [
             "text_chunk",
             "table_meta",
-            "model_meta"
+            "model_meta",
+            "file_meta",
+            "picture_meta",
+            "parent_doc"
         ]
 
         logger.info("Indices Registered.")
@@ -162,7 +279,17 @@ class Search:
         if index == "model_meta":
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
             document['colbert'] = {}
+
+
+        if index == "picture_meta":
+            document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            document['colbert'] = {}
+            # correlation embeddings are handled at storage
             
+        if index == "file_meta":
+            document['created_time'] = datetime.utcfromtimestamp(document['created_time']).isoformat()
+            document['last_modified_time'] = datetime.utcfromtimestamp(document['last_modified_time']).isoformat()
+        
         logger.info("Inserting document.")
 
         return self.es.index(index=index, body=document)
@@ -225,6 +352,8 @@ class Search:
         elif index == 'table_meta':
             _field = "description_text"
         elif index == 'model_meta':
+            _field = "description_text"
+        elif index == 'picture_meta':
             _field = "description_text"
         else:
             raise NotImplementedError
@@ -293,6 +422,34 @@ class Search:
         logger.info(f"Hybrid search returned {len(rrf_results)} elements.")
 
         return rrf_results
+        
+    def add_connection(self, db_type: str=None, host: str=None, user: str=None, password: str=None, connection_id: str=None, connection_string: str = None):
+        logger.info("received db_info")
+        document = {
+            'db_type': db_type,
+            'host': host,
+            'user': user,
+            'password': password,
+            "connection_id": connection_id,
+            'connection_string': connection_string
+        }
+        try:
+            res = self.es.search(index='db_meta', body={'query': {'bool': {'must': [
+                {'match': {'connection_id': connection_id}}
+            ]}}})
+            if res['hits']['total']['value'] > 0:
+                doc_id = res['hits']['hits'][0]['_id']
+                # Update existing connection
+                self.es.update(index='db_meta', id=doc_id, body={"doc": document})
+                logger.info("Connection updated successfully.")
+            else:
+                logger.info("No existing connection found, creating a new one.")
+                # Create new connection
+                self.es.index(index='db_meta', body=document)
+                logger.info("New connection added successfully.")
+        except Exception as e:
+            logger.error(f"Error adding/editing connection: {str(e)}")
+            raise
 
 
 if __name__ == "__main__":    
@@ -372,4 +529,3 @@ if __name__ == "__main__":
     print(es)
 
     # print(es.retrieve_document_by_id("iI78g44BIew1j5poztvp", "text_chunk"))
-
