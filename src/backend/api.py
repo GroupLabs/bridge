@@ -6,9 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from log import setup_logger
 from storage import load_data, load_model, query, get_inference
-from serverutils import Health, Status, Load, Query
+from serverutils import Health, Status, Load, Query, Connection
 
 from config import config
+
+from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
+from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
+from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
+from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
+from uuid import uuid4
 
 TEMP_DIR = config.TEMP_DIR
 DOWNLOAD_DIR = "downloads"
@@ -298,7 +304,7 @@ def find_document_by_id_rel_docs(document_id, parent_index="parent_doc"):
     return None
 
 @app.post("/rel_docs")
-async def relevant_docs_ep(input: QueryforAll):
+async def relevant_docs_ep(input: Query):
     docs = []
     indices = ["table_meta", "picture_meta","text_chunk"]
     all_responses = []
@@ -332,7 +338,7 @@ async def relevant_docs_ep(input: QueryforAll):
     return unique_documents
 
 @app.post("/query_all")
-async def get_query_parent_ep(input: QueryforAll):
+async def get_query_parent_ep(input: Query):
     names = set()
     indices = ["table_meta", "picture_meta","text_chunk"]
     all_responses = []
@@ -359,10 +365,10 @@ async def get_query_parent_ep(input: QueryforAll):
     chat_generator = gen_for_query(input.query, information, names)
     return StreamingResponse(chat_generator, media_type="text/plain")
 
-@app.post("/chat")
-async def chat_with_model_ep(chat_request: ChatRequest):
-    chat_generator = gen2(chat_request.message)
-    return StreamingResponse(chat_generator, media_type="text/plain")
+# @app.post("/chat")
+# async def chat_with_model_ep(chat_request: ChatRequest):
+#     chat_generator = gen2(chat_request.message)
+#     return StreamingResponse(chat_generator, media_type="text/plain")
 
 @app.post("/load/{user_id}")
 async def load_data_ep(response: Response, file: UploadFile = File(...), user_id: str = Path()):
