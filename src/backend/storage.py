@@ -42,7 +42,7 @@ import asyncio
 from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
 from connect.googleconnector import download_and_load
 import json
-from ollama import gen_for_query_with_file
+from llm import gen_for_query_with_file, _json
 #import mlflow
 #from mlflow.tracking import MlflowClient
 #from mlflow.exceptions import MlflowException

@@ -47,13 +47,7 @@ load_dotenv()
 TEMP_DIR = config.TEMP_DIR
 DOWNLOAD_DIR = "downloads"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
 
-# Azure AD configuration
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-AUTHORITY = os.getenv('AUTHORITY')
-REDIRECT_URI = os.getenv('REDIRECT_URI')
 SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
 
 logger = setup_logger("api")
@@ -61,8 +55,8 @@ logger.info("LOGGER READY")
 
 # Initialize the MSAL confidential client
 msal_app = msal.ConfidentialClientApplication(
-    CLIENT_ID, authority=AUTHORITY,
-    client_credential=CLIENT_SECRET,
+    config.CLIENT_ID, authority=config.AUTHORITY,
+    client_credential=config.CLIENT_SECRET,
 )
 
 @asynccontextmanager
@@ -116,7 +110,7 @@ async def load_data_by_path(input: Load, response: Response):
 async def auth():
     try:
         # Step 1: Get authorization URL
-        auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+        auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=config.REDIRECT_URI)
         
         # Print or return the authorization URL so user can authorize manually
         return JSONResponse(content={"auth_url": auth_url})
@@ -130,7 +124,7 @@ async def get_token(request: Request):
     if not code:
         return {"error": "Authorization code not found in the request."}
     
-    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
+    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=config.REDIRECT_URI)
     if 'access_token' not in result:
         return {"error": f"Could not acquire token: {result.get('error_description')}"}
     
@@ -241,7 +235,7 @@ async def google_drive_auth(request: Request):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(GoogleRequest())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(config.CLIENT_SECRET_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
             with open('token.json', 'w') as token_file:
                 token_file.write(creds.to_json())
