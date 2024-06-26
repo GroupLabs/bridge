@@ -1,15 +1,17 @@
 'use client'
 
-import { ConnectorsPage } from '@/components/connectors-page'
+import { DatabasesPage } from '@/components/databases-page'
 import { Separator } from '@/components/ui/separator'
-import databases from './databasesData'
+import useDatabasesWithData from './databasesData'
 
 const Home = () => {
+  const databases = useDatabasesWithData() // Invoke the hook to get the items
+
   return (
     <div className="max-w-5xl mx-auto px-8">
       <h1 className="text-center text-5xl mt-12">Databases</h1>
       <Separator />
-      <ConnectorsPage items={databases} />
+      <DatabasesPage items={databases} />
     </div>
   )
 }
