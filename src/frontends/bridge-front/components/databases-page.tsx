@@ -13,12 +13,22 @@ import { Database } from '@/app/databases/databasesData'
 
 export const DatabasesPage = ({
   items,
-  className
+  className,
+  isLoading
 }: {
   items: Database[]
   className?: string
+  isLoading: boolean
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <LoadingSpinner />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -27,6 +37,28 @@ export const DatabasesPage = ({
         className
       )}
     >
+      <div
+        key={999}
+        className="relative group block p-2 h-full w-full"
+        onMouseEnter={() => setHoveredIndex(999)}
+        onMouseLeave={() => setHoveredIndex(null)}
+      >
+        <AnimatePresence>
+          {hoveredIndex === 999 && (
+            <motion.span
+              className="absolute inset-0 h-full w-full bg-neutral-200 dark:bg-slate-800/[0.8] block rounded-3xl"
+              layoutId="hoverBackground"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: 0.15 } }}
+              exit={{
+                opacity: 0,
+                transition: { duration: 0.15, delay: 0.2 }
+              }}
+            />
+          )}
+        </AnimatePresence>
+        <AddDatabaseModal className="rounded-2xl h-full w-full overflow-hidden dark:bg-black border border-transparent dark:border-white/[0.2] group-hover:border-slate-700 relative z-20" />
+      </div>
       {items.map((item, idx) => (
         <div
           key={item.title}
@@ -76,5 +108,24 @@ export const DatabasesPage = ({
         </div>
       ))}
     </div>
+  )
+}
+
+function LoadingSpinner() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn('animate-spin')}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
   )
 }
