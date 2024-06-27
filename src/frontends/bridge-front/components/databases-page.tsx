@@ -39,7 +39,7 @@ export const DatabasesPage = ({
     >
       <div
         key={999}
-        className="relative group block p-2 h-64 w-full"
+        className="relative group block p-2 h-56 w-full"
         onMouseEnter={() => setHoveredIndex(999)}
         onMouseLeave={() => setHoveredIndex(null)}
       >
