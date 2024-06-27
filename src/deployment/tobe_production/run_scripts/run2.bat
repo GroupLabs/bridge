@@ -2,6 +2,6 @@
 docker-compose down
 cd ..\..\..\backend
 docker build -t api .
-cd ..\deployment\light
+cd ..\deployment\production\tobe_production
 docker-compose up -d
 pause

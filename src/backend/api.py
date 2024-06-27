@@ -1,13 +1,19 @@
 import os
 import json
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException
-from fastapi.responses import StreamingResponse
+import logging
+import httpx
+from google.auth.transport.requests import Request as GoogleRequest
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference
-from serverutils import Health, Status, Load, Query, Connection
 
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task, download_office365
+from serverutils import Health, Status, Load, Query, QueryforAll
+from serverutils import ChatRequest
+from ollama import chat1, chat2, gen2, gen1, gen_for_query
 from config import config
 
 from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
@@ -16,13 +22,35 @@ from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_c
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 from uuid import uuid4
 
+from elasticsearch.exceptions import NotFoundError
+from connect.googleconnector import download_and_load, get_flow
+from config import config
+import msal
+import connect.salesforceconnector as salesforceconnector
+import connect.slackconnector as slackconnector
+import base64
+
+# elasticsearch
+es = Search()
+
+# Load environment variables
+load_dotenv()
+
+
 TEMP_DIR = config.TEMP_DIR
 DOWNLOAD_DIR = "downloads"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
-CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
+
+SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
 
 logger = setup_logger("api")
 logger.info("LOGGER READY")
+
+# Initialize the MSAL confidential client
+msal_app = msal.ConfidentialClientApplication(
+    config.CLIENT_ID, authority=config.AUTHORITY,
+    client_credential=config.CLIENT_SECRET,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +66,7 @@ app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
+    "https://nids22.github.io"
 ]
 
 app.add_middleware(
@@ -68,6 +97,33 @@ async def load_data_by_path(input: Load, response: Response):
         logger.warn(f"LOAD incomplete: {input.filepath}")
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+    
+@app.get("/office_auth")
+async def auth():
+    try:
+        # Step 1: Get authorization URL
+        auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=config.REDIRECT_URI)
+        
+        # Print or return the authorization URL so user can authorize manually
+        return JSONResponse(content={"auth_url": auth_url})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/token")
+async def get_token(request: Request):
+    code = request.query_params.get('code')
+    if not code:
+        return {"error": "Authorization code not found in the request."}
+    
+    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=config.REDIRECT_URI)
+    if 'access_token' not in result:
+        return {"error": f"Could not acquire token: {result.get('error_description')}"}
+    
+    access_token = result['access_token']
+    task = download_office365.delay(access_token)
+
+    return {"status": "accepted", "task_id": task.id}
 
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
@@ -135,6 +191,176 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
+@app.post("/sort")
+async def sort_docs_ep(type: str=Form(...)):
+    global last_sort_type, last_sort_order
+    type_of_sort = ["name", "size", "type", "created"]
+    if type not in type_of_sort:
+        return "invalid sort"
+
+    # Determine the sort order
+    if type == last_sort_type:
+        # Toggle the sort order
+        if last_sort_order == "asc":
+            sort_order = "desc"
+        else:
+            sort_order = "asc"
+    else:
+        sort_order = "asc"  # Default to ascending for a new sort type
+
+    # Update the last sort type and order
+    last_sort_type = type
+    last_sort_order = sort_order
+
+
+    return sort_docs(type, sort_order)
+
+# Google Drive Authentication and Picker
+@app.get("/google_drive_auth")
+async def google_drive_auth(request: Request):
+    creds = None
+    if os.path.exists('token.json'):
+        with open('token.json', 'r') as token_file:
+            creds = Credentials.from_authorized_user_info(json.load(token_file), SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(GoogleRequest())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(config.CLIENT_SECRET_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+            with open('token.json', 'w') as token_file:
+                token_file.write(creds.to_json())
+
+    # Store credentials in session
+    request.session['credentials'] = creds.to_json()
+    return RedirectResponse(url="/picker")
+
+@app.get("/picker", response_class=HTMLResponse)
+async def picker(request: Request):
+    creds_json = request.session.get('credentials')
+    if not creds_json:
+        return RedirectResponse(url="/google_drive_auth")
+    creds = Credentials.from_authorized_user_info(json.loads(creds_json), SCOPES)
+
+    picker_html = '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Picker Example</title>
+        <script type="text/javascript">
+            function onApiLoad() {
+                gapi.load('picker', {'callback': onPickerApiLoad});
+            }
+
+            function onPickerApiLoad() {
+                var view = new google.picker.View(google.picker.ViewId.DOCS);
+                var picker = new google.picker.PickerBuilder()
+                    .setOAuthToken('%s')
+                    .addView(view)
+                    .setCallback(pickerCallback)
+                    .build();
+                picker.setVisible(true);
+            }
+
+            function pickerCallback(data) {
+                var url = 'nothing';
+                if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+                    var doc = data[google.picker.Response.DOCUMENTS][0];
+                    var id = doc[google.picker.Document.ID];
+                    var name = doc[google.picker.Document.NAME];
+                    alert('You picked: ' + name);
+                    fetch('/selected_file', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({name: name}),
+                    }).then(response => {
+                        if (response.ok) {
+                            window.location = '/done';
+                        }
+                    });
+                }
+            }
+        </script>
+        <script type="text/javascript" src="https://apis.google.com/js/api.js?onload=onApiLoad"></script>
+    </head>
+    <body>
+        <h1>Google Picker</h1>
+    </body>
+    </html>
+    ''' % creds.token
+
+    return HTMLResponse(content=picker_html)
+
+@app.post("/selected_file")
+async def selected_file_ep(request: Request):
+    data = await request.json()
+    print("Selected file: ", data['name'])
+    return JSONResponse({'status': 'success'})
+
+@app.get("/done")
+async def done_ep():
+    return HTMLResponse("File selection complete.")
+
+# Create an instance of Search class
+search = Search()
+
+async def string_to_async_generator(response_string: str):
+    yield response_string
+
+@app.post("/chat/{user_id}")
+async def chat_with_model(chat_request: ChatRequest, user_id: str = Path(...)):
+    try:
+        response_message = gen1(chat_request.message)  # Assume gen returns a string
+        async_generator = string_to_async_generator(response_message)
+
+        search.save_chat_to_history(chat_request.id, chat_request.message, response_message, user_id)
+        return StreamingResponse(async_generator, media_type="application/json")
+    except Exception as e:
+        logger.error(f"Error during chat: {str(e)}")
+        return {"error": str(e)}
+    
+@app.get("/chat_history/{user_id}/{history_id}")
+async def get_chat_history(user_id: str, history_id: int):
+    try:
+        response = search.es.search(
+            index='chat_history', 
+            query={
+                'bool': {
+                    'must': [
+                        {'match': {'user_id': user_id}},
+                        {'match': {'history_id': history_id}}
+                    ]
+                }
+            }
+        )
+        if response['hits']['total']['value'] > 0:
+            chat_histories = [hit['_source'] for hit in response['hits']['hits']]
+            return {"user_id": user_id, "history_id": history_id, "chat_histories": chat_histories}
+        else:
+            return {"error": "Chat history not found"}
+    except Exception as e:
+        logger.error(f"Error retrieving chat history: {str(e)}")
+        return {"error": str(e)}
+    
+@app.get("/get_user_chat_histories/{user_id}")
+async def get_user_chat_histories(user_id: str):
+    try:
+        # Query Elasticsearch for all chat histories for the given user_id
+        response = search.es.search(index='chat_history', query={'match': {'user_id': user_id}})
+        
+        # Extract the chat history IDs from the response
+        if response['hits']['total']['value'] > 0:
+            chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
+            return {"user_id": user_id, "chat_history_ids": chat_history_ids}
+        else:
+            return {"user_id": user_id, "chat_history_ids": [], "message": "No chat histories found"}
+    except Exception as e:
+        logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
+        return {"error": str(e)}
+    
 @app.post("/ping_database")
 async def ping_database(input: Connection):
     client = None
@@ -392,6 +618,182 @@ async def load_data_ep(response: Response, file: UploadFile = File(...), user_id
 @app.get("/downloads/{filename}")
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
+
+@app.get("/google_auth")
+async def google_auth():
+    try:
+        flow = get_flow()
+        auth_url, state = flow.authorization_url(
+            access_type='offline',  # Ensure offline access to get a refresh token
+            prompt='consent',  # Force consent screen to ensure refresh token is issued
+            include_granted_scopes='true'
+        )
+        logger.debug(f"Generated auth URL: {auth_url} with state: {state}")
+        return {"auth_url": auth_url}
+    except Exception as e:
+        logger.error(f"Error during authentication initiation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Authentication initiation failed: {e}")
+
+@app.get("/oauth2callback")
+async def oauth_callback(request: Request):
+    try:
+        state = request.query_params.get('state')
+        code = request.query_params.get('code')
+        if not state or not code:
+            raise HTTPException(status_code=400, detail="Missing state or code parameter")
+
+        logger.debug(f"Received state: {state} and code: {code}")
+
+        flow = get_flow()
+        authorization_response = str(request.url)
+        logger.debug(f"Received authorization response: {authorization_response}")
+
+        flow.fetch_token(authorization_response=authorization_response)
+        creds = flow.credentials
+        logger.debug(f"Fetched token with scopes: {creds.scopes}")
+
+        if creds.refresh_token:
+            logger.debug("Refresh token received")
+        else:
+            logger.error("Refresh token is missing")
+            raise ValueError("Refresh token is missing")
+
+        # Call the Celery task
+        download_and_load_task.delay(creds.to_json())
+        
+        return {"status": "success", "message": "Authentication successful, download started in background"}
+    except Exception as e:
+        logger.error(f"Error during OAuth2 callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Authentication callback failed: {e}")
+    
+oauth_state = None
+
+@app.get("/salesforce_auth")
+def get_salesforce_auth():
+    global oauth_state
+    # Generate PKCE code verifier and challenge
+    code_verifier = salesforceconnector.generate_code_verifier()
+    code_challenge = salesforceconnector.generate_code_challenge(code_verifier)
+
+    logger.info(f"Code Verifier: {code_verifier}")
+    logger.info(f"Code Challenge: {code_challenge}")
+
+    # Create an OAuth2 session with PKCE
+    oauth = salesforceconnector.OAuth2Session(
+        salesforceconnector.SALESFORCE_CLIENT_ID, 
+        redirect_uri=salesforceconnector.SALESFORCE_REDIRECT_URI, 
+        scope=["api", "refresh_token", "offline_access", "id", "profile", "email", "address", "phone", "full"]
+    )
+    authorization_url, state = oauth.authorization_url(
+        salesforceconnector.AUTHORIZATION_BASE_URL, 
+        code_challenge=code_challenge, 
+        code_challenge_method='S256'
+    )
+
+    oauth_state = {
+        'state': state,
+        'code_verifier': code_verifier
+    }
+
+    logger.info(f"Authorization URL: {authorization_url}")
+
+    return JSONResponse(content={"authorization_url": authorization_url})
+
+@app.get("/callback")
+async def callback(request: Request):
+    global oauth_state
+    code = request.query_params.get('code')
+    state = request.query_params.get('state')
+
+    if not code or state != oauth_state['state']:
+        raise HTTPException(status_code=400, detail="Invalid state or missing code")
+
+    try:
+        # Create an OAuth2 session with PKCE
+        oauth = salesforceconnector.OAuth2Session(
+            salesforceconnector.SALESFORCE_CLIENT_ID, 
+            redirect_uri=salesforceconnector.SALESFORCE_REDIRECT_URI, 
+            state=oauth_state['state']
+        )
+
+        # Exchange the authorization code for a token
+        token = oauth.fetch_token(
+            salesforceconnector.TOKEN_URL,
+            client_secret=salesforceconnector.SALESFORCE_CLIENT_SECRET,
+            code=code,
+            code_verifier=oauth_state['code_verifier']
+        )
+
+        logger.info(f"Token: {token}")
+
+        # Trigger the download and load process
+        await salesforceconnector.download_and_load(token)
+        
+        return JSONResponse(content={"status": "success", "message": "Salesforce data download and load triggered"})
+    except Exception as e:
+        logger.error(f"Error in callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+def encode_state(state, code_verifier, session_id):
+    state_data = {
+        "state": state,
+        "code_verifier": code_verifier,
+        "session_id": session_id
+    }
+    state_json = json.dumps(state_data)
+    state_encoded = base64.urlsafe_b64encode(state_json.encode()).decode()
+    return state_encoded
+
+def decode_state(state_encoded):
+    state_json = base64.urlsafe_b64decode(state_encoded.encode()).decode()
+    return json.loads(state_json)
+
+@app.get("/slack_auth")
+async def slack_auth():
+    try:
+        authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
+        session_id = os.urandom(16).hex()
+        encoded_state = encode_state(state, code_verifier, session_id)
+        return JSONResponse(content={"authorization_url": f"{authorization_url}&state={encoded_state}"})
+    except Exception as e:
+        logger.error(f"Error during slack_auth: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error initiating Slack authorization")
+
+@app.get("/slack_callback")
+async def slack_callback(request: Request):
+    try:
+        encoded_state = request.query_params.get('state')
+        if not encoded_state:
+            logger.error("State not found in the callback request")
+            raise HTTPException(status_code=400, detail="Missing state")
+
+        decoded_state = decode_state(encoded_state)
+        state = decoded_state['state']
+        code_verifier = decoded_state['code_verifier']
+        session_id = decoded_state['session_id']
+
+        logger.info(f"Decoded state: {decoded_state}")
+
+        code = request.query_params.get('code')
+        if not code:
+            logger.error("Missing code in the callback request")
+            raise HTTPException(status_code=400, detail="Missing code")
+
+        try:
+            token = slackconnector.fetch_slack_token(code, state, code_verifier)
+            logger.info(f"Slack Token: {token}")
+
+            # Process files and chat history from Slack
+            await slackconnector.process_files_and_chats(token)
+
+            return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
+        except Exception as e:
+            logger.error(f"Error fetching Slack token or processing data: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error fetching Slack token or processing data")
+
+    except Exception as e:
+        logger.error(f"Error in slack_callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
     import uvicorn

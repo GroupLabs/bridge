@@ -41,3 +41,14 @@ class config:
     MODEL_SOURCE_FOLDER = str(os.getenv('MODEL_SOURCE_FOLDER', "x"))
 
     MLFLOW_TRACKING_URI="http://mlflow:5000"
+
+    # googleconnector
+    REDIRECT_URI = "http://localhost:8000/oauth2callback"
+
+    SALESFORCE_CLIENT_ID = os.getenv('SALESFORCE_CLIENT_ID')
+    SALESFORCE_CLIENT_SECRET = os.getenv('SALESFORCE_CLIENT_SECRET')
+    CLIENT_ID = os.getenv('CLIENT_ID')
+    CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    AUTHORITY = os.getenv('AUTHORITY')
+    REDIRECT_URI = os.getenv('REDIRECT_URI')
+    CLIENT_SECRET_FILE = os.getenv('CLIENT_SECRET_FILE')
