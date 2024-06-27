@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y \
 # Install NLTK and download the 'punkt' tokenizer
 RUN pip install nltk && python -m nltk.downloader punkt
 
+RUN pip install asyncio pdf2image aiofiles
+
 # Install additional packages
 RUN pip install --no-cache-dir \
     magika \
@@ -65,6 +67,8 @@ RUN pip install --no-cache-dir \
     msal \
     semantic-router \
     simple_salesforce
+
+
 
 COPY . ./
 
