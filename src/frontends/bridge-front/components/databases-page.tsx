@@ -39,7 +39,7 @@ export const DatabasesPage = ({
     >
       <div
         key={999}
-        className="relative group block p-2 h-full w-full"
+        className="relative group block p-2 h-64 w-full"
         onMouseEnter={() => setHoveredIndex(999)}
         onMouseLeave={() => setHoveredIndex(null)}
       >
@@ -57,7 +57,12 @@ export const DatabasesPage = ({
             />
           )}
         </AnimatePresence>
-        <AddDatabaseModal className="rounded-2xl h-full w-full overflow-hidden dark:bg-black border border-transparent dark:border-white/[0.2] group-hover:border-slate-700 relative z-20" />
+        <AddDatabaseModal
+          connectionDetails={{
+            db_type: ''
+          }}
+          className="rounded-2xl h-full w-full overflow-hidden dark:bg-black border border-transparent dark:border-white/[0.2] group-hover:border-slate-700 relative z-20"
+        />
       </div>
       {items.map((item, idx) => (
         <div
@@ -101,7 +106,12 @@ export const DatabasesPage = ({
                   }}
                 />
               ) : (
-                <AddDatabaseModal />
+                <AddDatabaseModal
+                  connectionDetails={{
+                    ...item.connectionDetails,
+                    db_type: item.db_type
+                  }}
+                />
               )}
             </CardFooter>
           </Card>

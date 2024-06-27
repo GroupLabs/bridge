@@ -427,8 +427,6 @@ async def get_databases():
                 database_info = {key: value for key, value in hit['_source'].items()}
                 databases.append(database_info)
             return databases
-        else:
-            raise HTTPException(status_code=404, detail="No databases found")
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Index 'db_meta' not found")
     except Exception as e:
