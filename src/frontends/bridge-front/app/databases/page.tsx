@@ -6,14 +6,7 @@ import useDatabasesWithData from './databasesData'
 import { useState, useEffect } from 'react'
 
 const Home = () => {
-  const [isLoading, setIsLoading] = useState(true)
-  const databases = useDatabasesWithData()
-
-  useEffect(() => {
-    if (databases.length > 0) {
-      setIsLoading(false)
-    }
-  }, [databases])
+  const { databasesWithData: databases, isLoading } = useDatabasesWithData() // Destructure to get both values
 
   return (
     <div className="max-w-5xl mx-auto px-8">
