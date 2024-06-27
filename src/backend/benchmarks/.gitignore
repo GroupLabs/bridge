@@ -2,4 +2,4 @@
 *
 
 # But not .ipynb files
-!*.ipynb
+!**/*.ipynb

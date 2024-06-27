@@ -1,6 +1,0 @@
-INFO: 05/07/2024 11:42:03 AM       tritonutils.py  37 : Triton is available
-INFO: 05/07/2024 11:43:19 AM       tritonutils.py  37 : Triton is available
-INFO: 05/07/2024 11:45:05 AM       tritonutils.py  37 : Triton is available
-INFO: 05/08/2024 11:33:25 AM       tritonutils.py  40 : Triton is available
-INFO: 05/08/2024 11:33:25 AM       tritonutils.py  53 : Adding model 'text_recognition'.
-INFO: 05/08/2024 11:33:25 AM       tritonutils.py  71 : Successfully added model

@@ -1,8 +1,0 @@
-- sometimes the auth can get hung up. to resolve, try:
-    - clearing cookies (auth cookies stored here)
-    - restart npm process
-    - restart docker processes
-    - delete volumes and restart docker processes
-    - checking your .env.local against `supabase status`
-- Bridge only works if a model is selected
-- Skipping turning generated-text to object. In use-chat-handler I convert it to a string, then unconverted it later in message-markdown. Enables user to copy

@@ -47,6 +47,8 @@ from llm import gen_for_query_with_file, _json
 #from mlflow.tracking import MlflowClient
 #from mlflow.exceptions import MlflowException
 
+import PyPDF2
+
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="celery.platforms")
@@ -56,12 +58,6 @@ CELERY_BROKER_URL = config.CELERY_BROKER_URL
 # logger
 logger = setup_logger("storage")
 
-#mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
-"""
-with mlflow.start_run():
-    mlflow.log_param("test", "value")
-    print("Logged test parameter to MLflow.")
-"""
 # celery config
 celery_app = Celery(
     "worker",
@@ -197,6 +193,7 @@ def download_office365(access_token: str):
         load_data.delay(file_path)
 
 
+
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
     # check if input is a connection string
@@ -292,10 +289,6 @@ def get_inference(model, data):
     }   
     
     models_inputs = prepare_inputs_for_model(data, parsed_data)
-
-
-        
-
 
     return models_inputs
 
@@ -1313,6 +1306,7 @@ def add_model_to_mlflow(model_path):
     except Exception as e:
         logger.error(f"Failed to log to MLflow: {str(e)}")
 """
+
 
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)

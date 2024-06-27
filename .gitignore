@@ -26,6 +26,7 @@ __pycache__/
 *.yaml
 *.yml
 !k8sbridge.y*ml
+!.github/workflows/*.y*ml
 #testing
 
 # editor artifacts

@@ -7,29 +7,21 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse, FileResponse
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
-import subprocess
-import time
 from log import setup_logger
+
 from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task, download_office365
 from serverutils import Health, Status, Load, Query, QueryforAll
 from serverutils import ChatRequest
 from ollama import chat1, chat2, gen2, gen1, gen_for_query
 from config import config
-from integration_layer import parse_config_from_string
-from integration_layer import prepare_inputs_for_model
-from integration_layer import format_model_inputs
-from elasticutils import Search  # Import the Search class
-from starlette.middleware.sessions import SessionMiddleware
-from elasticutils import Search  # Import the Search class
-from serverutils import Connection
+
 from connect.mongodb import get_mongo_connection, get_mongo_connection_with_credentials
 from connect.mysql import mysql_to_yamls, mysql_to_yamls_with_connection_string
 from connect.postgres import postgres_to_croissant, postgres_to_croissant_with_connection_string
 from connect.azure import azure_to_yamls, azure_to_yamls_with_connection_string
 from uuid import uuid4
+
 from elasticsearch.exceptions import NotFoundError
 from connect.googleconnector import download_and_load, get_flow
 from config import config
@@ -43,6 +35,7 @@ es = Search()
 
 # Load environment variables
 load_dotenv()
+
 
 TEMP_DIR = config.TEMP_DIR
 DOWNLOAD_DIR = "downloads"
@@ -61,13 +54,15 @@ msal_app = msal.ConfidentialClientApplication(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     yield
+    # free_db(dbconn)
+    # free resources
+    # telemetry?
+
     print("Exit Process")
 
 app = FastAPI(lifespan=lifespan)
-
-last_sort_type = None
-last_sort_order = "asc"
 
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
@@ -81,9 +76,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
-# Add SessionMiddleware
-app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 
 @app.get("/health-check")
 async def health_endpoint():
@@ -177,7 +169,7 @@ async def nl_query(input: Query):
     resp = query(input.query, input.index)
     logger.info(f"QUERY success: {input.query}")
 
-    return {"health": health, "status": "success", "resp": resp}
+    return {"health": health, "status" : "success", "query" : input.query, "resp" : resp}
 
 @app.post("/load_query")
 async def load_data_ep(response: Response, file: UploadFile = File(...)):
@@ -538,7 +530,7 @@ def find_document_by_id_rel_docs(document_id, parent_index="parent_doc"):
     return None
 
 @app.post("/rel_docs")
-async def relevant_docs_ep(input: QueryforAll):
+async def relevant_docs_ep(input: Query):
     docs = []
     indices = ["table_meta", "picture_meta","text_chunk"]
     all_responses = []
@@ -572,7 +564,7 @@ async def relevant_docs_ep(input: QueryforAll):
     return unique_documents
 
 @app.post("/query_all")
-async def get_query_parent_ep(input: QueryforAll):
+async def get_query_parent_ep(input: Query):
     names = set()
     indices = ["table_meta", "picture_meta","text_chunk"]
     all_responses = []
@@ -599,10 +591,10 @@ async def get_query_parent_ep(input: QueryforAll):
     chat_generator = gen_for_query(input.query, information, names)
     return StreamingResponse(chat_generator, media_type="text/plain")
 
-@app.post("/chat")
-async def chat_with_model_ep(chat_request: ChatRequest):
-    chat_generator = gen2(chat_request.message)
-    return StreamingResponse(chat_generator, media_type="text/plain")
+# @app.post("/chat")
+# async def chat_with_model_ep(chat_request: ChatRequest):
+#     chat_generator = gen2(chat_request.message)
+#     return StreamingResponse(chat_generator, media_type="text/plain")
 
 @app.post("/load/{user_id}")
 async def load_data_ep(response: Response, file: UploadFile = File(...), user_id: str = Path()):
