@@ -54,17 +54,21 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
   }
 })
 
-const transformData = (respData: any): { query: string, results: SearchResult[] } => {
+const transformData = (
+  respData: any
+): { query: string; results: SearchResult[] } => {
   if (!Array.isArray(respData.resp)) {
     console.error('Expected array but received:', respData)
     return { query: '', results: [] }
   }
 
-  const results = respData.resp.map(([id, { score, text }]: [string, { score: number, text: string }]) => ({
-    id,
-    score,
-    text
-  }))
+  const results = respData.resp.map(
+    ([id, { score, text }]: [string, { score: number; text: string }]) => ({
+      id,
+      score,
+      text
+    })
+  )
 
   return {
     query: respData.query || '', // Assuming the `query` is included in the top level of the API response
@@ -79,8 +83,8 @@ async function bridgeQuery(query: string): Promise<any> {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      "query": query,
-      "index": "text_chunk"
+      query: query,
+      index: 'text_chunk'
     })
   })
 
@@ -90,6 +94,27 @@ async function bridgeQuery(query: string): Promise<any> {
 
   const data = await response.json()
   return transformData(data)
+}
+
+export async function bridgeQueryAll(query: string): Promise<any> {
+  const response = await fetch('http://0.0.0.0:8000/query_all', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: query
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  // const information = data.body
+
+  return data
 }
 
 async function tavilySearch(

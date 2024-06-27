@@ -4,6 +4,7 @@ import { Section } from '@/components/section'
 import { BotMessage } from '@/components/message'
 import { getTools } from './tools'
 import { getModel } from '../utils'
+import { bridgeQueryAll } from '@/lib/agents/tools/search'
 
 export async function researcher(
   uiStream: ReturnType<typeof createStreamableUI>,
@@ -19,6 +20,24 @@ export async function researcher(
     </Section>
   )
 
+  const latestUserContent =
+    messages
+      .filter(
+        message =>
+          message.role === 'user' && message.content !== '{"action": "skip"}'
+      )
+      .pop()?.content || '' // Fallback to an empty string if undefined
+
+  // Assuming latestUserContent could be of different types, ensure it's a string before calling bridgeQueryAll
+  const latestUserContentString =
+    typeof latestUserContent === 'string'
+      ? latestUserContent
+      : JSON.stringify(latestUserContent)
+
+  console.log(latestUserContentString)
+
+  const chunks = await bridgeQueryAll(latestUserContentString)
+
   const currentDate = new Date().toLocaleString()
   const result = await streamText({
     model: getModel(),
@@ -30,7 +49,11 @@ export async function researcher(
     Aim to directly address the user's question, augmenting your response with insights gleaned from the search results.
     Whenever quoting or referencing information from a specific URL, always cite the source URL explicitly.
     The retrieve tool can only be used with URLs provided by the user. URLs from search results cannot be used.
-    Please match the language of the response to the user's language. Current date and time: ${currentDate}`,
+    Please match the language of the response to the user's language. Current date and time: ${currentDate}.
+
+    ONLY IF NECESSARY:
+    Please base your answer on these text chunks which are related to this question ${chunks['information']}
+    Once you are done with your message ensure to add these file names at the end of your message: ${chunks['names']}`,
     messages,
     tools: getTools({
       uiStream,
