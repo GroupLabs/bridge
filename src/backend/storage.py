@@ -17,6 +17,12 @@ from unstructured.partition.odt import partition_odt
 from unstructured.partition.rtf import partition_rtf
 from unstructured.partition.ppt import partition_ppt
 from unstructured.partition.pptx import partition_pptx
+from unstructured.documents.elements import Element
+from typing import List, Dict
+from semantic_router.splitters import RollingWindowSplitter
+from semantic_router.encoders import OpenAIEncoder
+
+
 import pandas as pd
 from PIL import Image
 from datetime import datetime
@@ -32,9 +38,11 @@ from elasticutils import Search
 from tritonutils import TritonClient
 from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
 import torch
-
-import PyPDF2
-
+import asyncio
+from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
+from connect.googleconnector import download_and_load
+import json
+from ollama import gen_for_query_with_file
 #import mlflow
 #from mlflow.tracking import MlflowClient
 #from mlflow.exceptions import MlflowException
@@ -72,6 +80,17 @@ celery_app.conf.update(
 
 # elasticsearch
 es = Search()
+
+#chunker. uses openAI embeddings
+encoder = OpenAIEncoder(openai_api_key="sk-proj-egdSI1R1uh4QrRbwjlgxT3BlbkFJWDayEfih1eqJri8ekq7R")
+
+splitter = RollingWindowSplitter(
+    encoder=encoder,
+    window_size=1,  # Compares each element with the previous one
+    min_split_tokens=1,
+    max_split_tokens=100,
+    plot_splits=False,
+)
 
 
 try:
@@ -170,85 +189,82 @@ def sort_docs(type: str, order: str):
         ordered.append(hit)
     return ordered
 
+
+@celery_app.task(name="download_office365")
+def download_office365(access_token: str):
+    file_paths = download_files(access_token)
+    for file_path in file_paths:
+        load_data.delay(file_path)
+
+
 @celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
-
     # check if input is a connection string
     c_string = parse_connection_string(filepath)
 
     # structured
-    if c_string: # or other structured filetypes!
+    if c_string:  # or other structured filetypes!
         _db(
             db_type=c_string["database_type"],
             host=c_string["host"],
             user=c_string["user"],
             password=c_string["password"],
-            )
+        )
     else:
-        filepath = Path(filepath).absolute().as_posix() # standardize path
+        filepath = Path(filepath).absolute().as_posix()  # standardize path
 
-        pathtype = get_pathtype(filepath) # checks for illegal paths and returns type
+        pathtype = get_pathtype(filepath)  # checks for illegal paths and returns type
 
         # unstructured
         if pathtype == "pdf":
-
             _pdf(filepath, read_pdf=read)
 
         elif pathtype == "txt":
-
             _txt(filepath, read_txt=read)
-            
-        elif pathtype == "markdown":
 
+        elif pathtype == "markdown":
             _md(filepath, read_md=read)
 
         elif pathtype == "doc":
-
             _doc(filepath, read_doc=read)
 
         elif pathtype == "docx":
-
             _docx(filepath, read_docx=read)
 
         elif pathtype == "odt":
-
             _odt(filepath, read_odt=read)
 
         elif pathtype == "rtf":
-
             _rtf(filepath, read_odt=read)
 
         elif pathtype == "csv":
-
             _csv(filepath)
 
         elif pathtype == "xlsx" or pathtype == "xls":
-
             _excel(filepath)
 
         elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
-
-            _picture(filepath)    
+            _picture(filepath)
 
         elif pathtype == "ppt":
-
-            _ppt(filepath)    
+            _ppt(filepath)
 
         elif pathtype == "pptx":
-
-            _pptx(filepath)   
+            _pptx(filepath)
 
         # mix
         elif pathtype == "dir":
             # recursively call load_data
             pass
+        elif pathtype == "json":
+            _json(filepath)
 
         else:
             logger.warning("unsupported filetype encountered.")
             raise NotImplementedError(f"File ({pathtype}) type is not supported.")
-    
-    if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
-            os.remove(filepath)
+
+    if os.path.exists(filepath):  # remove tempfile, not needed if we don't create the temp file
+        os.remove(filepath)
 
 @celery_app.task(name="get_inference_task")
 def get_inference(model, data):
@@ -307,6 +323,10 @@ def load_model(model, config, description):
     tc.add_model(model,config) # TODO this function needs to leave the path of the original alone so that
     # we can do an os.remove at this level, or maybe we should pass file objects to each of these functions?
 
+
+@celery_app.task(name="download_and_load_task")
+def download_and_load_task(creds_json):
+    asyncio.run(download_and_load(creds_json))
 
 def extract_io_metadata(config, io_type):
     with open(config, 'r') as file:
@@ -407,6 +427,86 @@ def insert_parent(filepath):
     }
     es.insert_document(fields, index="parent_doc")
 
+def is_valid_title(title: str) -> bool:
+    if re.match(r"^[a-z]", title):
+        return False
+    if re.search(r"[^\w\s:\-\.&\)]", title):
+        return False
+    if title.endswith("."):
+        return False
+    return True
+
+def group_elements_by_title(elements: List[Element]) -> Dict:
+    grouped_elements = {}
+    current_title = "Untitled"  # Default title for initial text without a title
+    grouped_elements[current_title] = []
+    for element in elements:
+        element_dict = element.to_dict()
+
+        # Skip elements of type "Footer"
+        if element_dict.get("type") == "Footer":
+            continue
+
+        if element_dict.get("type") == "Title":
+            potential_title = element_dict.get("text", "Untitled")
+            if is_valid_title(potential_title):
+                current_title = potential_title
+                if current_title not in grouped_elements:
+                    grouped_elements[current_title] = []
+            else:
+                grouped_elements[current_title].append(element)
+                continue
+        else:
+            grouped_elements[current_title].append(element)
+    return grouped_elements
+
+def create_title_chunks(grouped_elements: Dict, splitter: RollingWindowSplitter) -> list:
+    title_with_chunks = []
+    for title, elements in grouped_elements.items():
+        combined_element_texts = []
+        chunks = []
+
+        if not elements:
+            title_with_chunks.append({"title": title, "chunks": chunks})
+            continue
+
+        for element in elements:
+            if not element.text:
+                continue
+            element_dict = element.to_dict()
+            if element_dict.get("type") == "Table":
+                # Process accumulated text before the table
+                if combined_element_texts:
+                    splits = splitter(combined_element_texts)
+                    print("-" * 80)
+                    chunks.extend([split.content for split in splits])
+                    combined_element_texts = []  # Reset combined texts after processing
+
+                # Add table as a separate chunk
+                table_text_html = element.metadata.text_as_html
+                chunks.append(table_text_html)
+            else:
+                combined_element_texts.append(element.text)
+
+        # Process any remaining accumulated text after the last table
+        # or if no table was encountered
+        if combined_element_texts:
+            splits = splitter(combined_element_texts)
+            print("-" * 80)
+            chunks.extend([split.content for split in splits])
+
+        title_with_chunks.append({"title": title, "chunks": chunks})
+
+    # Print title and chunks for debugging
+    for item in title_with_chunks:
+        print(f"Title: {item['title']}")
+        print("Chunks:")
+        for chunk in item['chunks']:
+            print(f"- {chunk}")
+        print()
+
+    return title_with_chunks
+
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -471,38 +571,41 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
 
     if read_txt:  # read txt
         try:
-            elements = partition_text(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_text(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
 
         if elements:
             context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
-
             
-            for i, e in enumerate(elements):
+            grouped_elements = group_elements_by_title(elements)
 
-                chunk = "".join(
-                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-                )  # remove control characters
 
-                # Get the current local time
-                local_time = datetime.now().astimezone()
+            chunks_by_title = create_title_chunks(grouped_elements, splitter)
+            
+            # Print the title and chunks
+            for i,item in enumerate(chunks_by_title):
+                for chunk in item['chunks']:
+                    
+                    chunk_with_title = f"Title: {item['title']} \n -Text: {chunk}"
 
-                # Format the local time in the desired format
-                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Get the current local time
+                    local_time = datetime.now().astimezone()
 
-                fields = {
-                    "Created": formatted_time,
-                    "document_id": doc_id,  # document id from path
-                    "chunk_text": context_chunk + chunk,
-                    "access_group": "",  # not yet implemented
-                    "chunking_strategy": chunking_strategy,
-                    "chunk_no": i,
-                    "page_number" : e.metadata.page_number
-                }
-                
-                es.insert_document(fields, index="text_chunk")
+                    # Format the local time in the desired format
+                    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                    fields = {
+                        "Created": formatted_time,
+                        "document_id": doc_id,  # document id from path
+                        "chunk_text": context_chunk + chunk_with_title,
+                        "access_group": "",  # not yet implemented
+                        "chunking_strategy": chunking_strategy,
+                        "chunk_no": i,
+                    }
+                    
+                    es.insert_document(fields, index="text_chunk")
 
     else:
         fields = {
@@ -575,41 +678,43 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    if read_doc:  # read txt
+    if read_doc:  
         try:
-            elements = partition_doc(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_doc(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
 
         if elements:
             context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
-
             
-            for i, e in enumerate(elements):
+            grouped_elements = group_elements_by_title(elements)
 
-                chunk = "".join(
-                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-                )  # remove control characters
 
-                # Get the current local time
-                local_time = datetime.now().astimezone()
+            chunks_by_title = create_title_chunks(grouped_elements, splitter)
+            
+            # Print the title and chunks
+            for i,item in enumerate(chunks_by_title):
+                for chunk in item['chunks']:
+                    
+                    chunk_with_title = f"Title: {item['title']} \n -Text: {chunk}"
 
-                # Format the local time in the desired format
-                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Get the current local time
+                    local_time = datetime.now().astimezone()
 
-                fields = {
-                    "Created": formatted_time,
-                    "document_id": doc_id,  # document id from path
-                    "chunk_text": context_chunk + chunk,
-                    "access_group": "",  # not yet implemented
-                    "chunking_strategy": chunking_strategy,
-                    "chunk_no": i,
-                    "page_number" : e.metadata.page_number
-                }
-                
-                es.insert_document(fields, index="text_chunk")
+                    # Format the local time in the desired format
+                    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
 
+                    fields = {
+                        "Created": formatted_time,
+                        "document_id": doc_id,  # document id from path
+                        "chunk_text": context_chunk + chunk_with_title,
+                        "access_group": "",  # not yet implemented
+                        "chunking_strategy": chunking_strategy,
+                        "chunk_no": i,
+                    }
+                    
+                    es.insert_document(fields, index="text_chunk")
     else:
         fields = {
             "access_group": "",  # not yet implemented
@@ -628,40 +733,43 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
-    if read_docx:  # read txt
+    if read_docx:  
         try:
-            elements = partition_docx(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_docx(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
 
         if elements:
             context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
-
             
-            for i, e in enumerate(elements):
+            grouped_elements = group_elements_by_title(elements)
 
-                chunk = "".join(
-                    ch for ch in e.text if unicodedata.category(ch)[0] != "C"
-                )  # remove control characters
 
-                # Get the current local time
-                local_time = datetime.now().astimezone()
+            chunks_by_title = create_title_chunks(grouped_elements, splitter)
+            
+            # Print the title and chunks
+            for i,item in enumerate(chunks_by_title):
+                for chunk in item['chunks']:
+                    
+                    chunk_with_title = f"Title: {item['title']} \n -Text: {chunk}"
 
-                # Format the local time in the desired format
-                formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+                    # Get the current local time
+                    local_time = datetime.now().astimezone()
 
-                fields = {
-                    "Created": formatted_time,
-                    "document_id": doc_id,  # document id from path
-                    "chunk_text": context_chunk + chunk,
-                    "access_group": "",  # not yet implemented
-                    "chunking_strategy": chunking_strategy,
-                    "chunk_no": i,
-                    "page_number" : e.metadata.page_number
-                }
-                
-                es.insert_document(fields, index="text_chunk")
+                    # Format the local time in the desired format
+                    formatted_time = local_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+                    fields = {
+                        "Created": formatted_time,
+                        "document_id": doc_id,  # document id from path
+                        "chunk_text": context_chunk + chunk_with_title,
+                        "access_group": "",  # not yet implemented
+                        "chunking_strategy": chunking_strategy,
+                        "chunk_no": i,
+                    }
+                    
+                    es.insert_document(fields, index="text_chunk")
     else:
         fields = {
             "access_group": "",  # not yet implemented
@@ -1023,7 +1131,7 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
 
     if read_pptx:  # read txt
         try:
-            elements = partition_pptx(filepath, chunking_strategy=chunking_strategy)
+            elements = partition_pptx(filepath)
         except Exception as e:
             logger.error(f"Failed to partition text: {e}")
             return
@@ -1114,6 +1222,66 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
+def _json(filepath):
+    try:
+        with open(filepath, 'r') as file:
+            file_content = json.load(file)
+    except Exception as e:
+        logger.error(f"Failed to read file: {e}")
+        return f"Failed to read file: {e}"
+    
+    response = gen_for_query_with_file(file_content)
+    
+    # Generate a unique document ID based on the file path
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+    
+    # Get the file size in bytes and convert to megabytes
+    file_size_bytes = os.path.getsize(filepath)
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    size = f"{file_size_mb:.2f} MB"
+    
+    # Get the basename with extension
+    basename_with_ext = os.path.basename(filepath)
+    
+    # Prepare the document for insertion or update
+    document = {
+        "document_id": doc_id,
+        "document_name": os.path.splitext(basename_with_ext)[0],
+        "Size": size,
+        'Size_numeric': file_size_mb,
+        "Type": os.path.splitext(filepath)[-1],
+        "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+        "metadata": response
+    }
+
+    try:
+        # Search for the document in Elasticsearch
+        res = es.es.search(index='universal_data_index', query={
+            'bool': {
+                'must': [
+                    {'match': {'document_id': doc_id}}
+                ]
+            }
+        })
+
+        # Check if there are any hits
+        if res['hits']['total']['value'] > 0:
+            # Document exists, update it
+            existing_doc_id = res['hits']['hits'][0]['_id']
+            es.es.update(index='universal_data_index', id=existing_doc_id, body={"doc": {
+                "Last_modified": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+                "metadata": response
+            }})
+            logger.info(f"Updated document {existing_doc_id} in Elasticsearch")
+        else:
+            # Document does not exist, insert it
+            es.es.index(index='universal_data_index', id=doc_id, body=document)
+            logger.info(f"Inserted document {doc_id} into Elasticsearch")
+    except Exception as e:
+        logger.error(f"Error indexing document: {str(e)}")
+
+    return response
+
 """
 def get_next_version(model_name: str) -> int:
     client = MlflowClient()
@@ -1159,8 +1327,6 @@ if __name__ == "__main__":
  
     print(es)
     print(es.registered_indices)
-
-
 
 
     

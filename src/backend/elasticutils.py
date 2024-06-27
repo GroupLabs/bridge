@@ -262,6 +262,29 @@ class Search:
                 logger.warn(e.error)
                 raise
         
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='universal_data_index', 
+                mappings={
+                    'properties': {
+                        'document_id': {'type': 'keyword'}, 
+                        'document_name': {'type': 'text'},
+                        'Size': {'type': 'text'},
+                        'Type': {'type': 'keyword'},
+                        'Last_modified': {'type': 'date'},
+                        'Created': {'type': 'date'},
+                        'e5': {
+                            'type': 'dense_vector',
+                            'similarity': 'cosine'
+                            },
+                        'metadata' : {'type' : 'keyword'}
+                    }
+                })
+        except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
+        
         logger.info("Configured.")
 
         self.registered_indices = [
@@ -271,7 +294,8 @@ class Search:
             "file_meta",
             "chat_history",
             "picture_meta",
-            "parent_doc"
+            "parent_doc",
+            "universal_data_index"
         ]
 
         logger.info("Indices Registered.")
