@@ -8,7 +8,7 @@ class config:
     ENV = str(os.getenv('ENV', 'DEBUG')) 
     PORT = int(os.getenv('API_PORT', 8000))
 
-    TEMP_DIR = "tmp"
+    TEMP_DIR = "./tmp"
 
     # auto description
     OPENAI_KEY = os.getenv("OPENAI_KEY", "")
