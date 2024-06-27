@@ -24,6 +24,10 @@ class Load(BaseModel):
     filepath: str
     typehint: Optional[str] = "unknown"
 
+class ChatRequest(BaseModel):
+    id: int
+    message: str
+
 class Connection(BaseModel):
     database: str
     connectionString: Optional[str] = None
