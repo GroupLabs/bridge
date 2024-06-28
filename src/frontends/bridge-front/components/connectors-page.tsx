@@ -1,13 +1,20 @@
-'use client'
-
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
+import { Skeleton } from './ui/skeleton'
+
+// Adjust the type for finalItems to reflect that url is a string
+type Item = {
+  title: string
+  img: string
+  active: boolean
+  url?: string // Ensure url is of type string or undefined
+}
 
 export const ConnectorsPage = ({
   items,
@@ -17,10 +24,33 @@ export const ConnectorsPage = ({
     title: string
     img: string
     active: boolean
+    url?: Promise<string> | undefined
   }[]
   className?: string
 }) => {
   let [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [finalItems, setFinalItems] = useState<Item[] | null>(null)
+
+  useEffect(() => {
+    const resolveUrls = async () => {
+      const resolvedItems: Item[] = await Promise.all(
+        items.map(async (item): Promise<Item> => {
+          if (item.url instanceof Promise) {
+            const resolvedUrl = await item.url
+            return { ...item, url: resolvedUrl } // Ensures url is a string after resolving
+          }
+          return { ...item, url: item.url } // Explicitly spread item to match Item type
+        })
+      )
+      setFinalItems(resolvedItems) // Now resolvedItems matches the Item[] type
+    }
+
+    resolveUrls()
+  }, [items])
+
+  if (!finalItems) {
+    return <Skeleton />
+  }
 
   return (
     <div
@@ -29,7 +59,7 @@ export const ConnectorsPage = ({
         className
       )}
     >
-      {items.map((item, idx) => (
+      {finalItems.map((item, idx) => (
         <div
           key={item?.title}
           className="relative group  block p-2 h-full w-full"
@@ -69,16 +99,17 @@ export const ConnectorsPage = ({
               </div>
               <span className="text-lg font-medium">{item.title}</span>
             </CardHeader>
-            {/* <CardContent className="text-center"></CardContent> */}
             <CardFooter>
               {item.active ? (
                 <Button variant={'outline'} className="w-full">
                   Remove Connection
                 </Button>
               ) : (
-                <Button variant={'default'} className="w-full">
-                  Add Connection
-                </Button>
+                <Link href={item.url || '#'} passHref className="w-full">
+                  <Button variant={'default'} className="w-full">
+                    Add Connection
+                  </Button>
+                </Link>
               )}
             </CardFooter>
           </Card>

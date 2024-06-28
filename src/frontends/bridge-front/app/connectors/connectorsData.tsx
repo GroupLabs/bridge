@@ -5,42 +5,57 @@ import googledriveimg from '@/public/images/googledrive.svg'
 import sapimg from '@/public/images/sap.svg'
 import workdayimg from '@/public/images/workday.svg'
 import salesforceimg from '@/public/images/salesforce.svg'
+import { authenticateSlack } from '@/lib/actions/connector'
 
-const connectors = [
+export interface Connector {
+  title: string
+  img: string
+  active: boolean
+  url?: Promise<string> | undefined
+}
+
+const connectors: Connector[] = [
   {
     title: 'Slack',
     img: slackimg,
-    active: false
+    active: false,
+    url: authenticateSlack()
   },
   {
     title: 'Office 365',
     img: office365img,
-    active: true
+    active: false,
+    url: undefined
   },
   {
     title: 'Google workspace',
     img: googledriveimg,
-    active: false
+    active: false,
+    url: undefined
   },
   {
     title: 'SAP',
     img: sapimg,
-    active: false
+    active: false,
+    url: undefined
   },
   {
     title: 'Workday',
     img: workdayimg,
-    active: true
+    active: false,
+    url: undefined
   },
   {
     title: 'Salesforce',
     img: salesforceimg,
-    active: false
+    active: false,
+    url: undefined
   },
   {
     title: 'Github',
     img: githubimg,
-    active: true
+    active: false,
+    url: undefined
   }
 ]
 
