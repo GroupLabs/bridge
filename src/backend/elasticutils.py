@@ -333,6 +333,10 @@ class Search:
             #document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
+
+        if index == "universal_data_index":
+            document['e5'] = embed_passage(document['metadata']).tolist()[0]
+            document['colbert'] = {}
             
         if index == "file_meta":
             document['created_time'] = datetime.utcfromtimestamp(document['created_time']).isoformat()
@@ -403,6 +407,8 @@ class Search:
             _field = "description_text"
         elif index == 'picture_meta':
             _field = "description_text"
+        elif index == "universal_data_index":
+            _field = "metadata"
         else:
             raise NotImplementedError
 

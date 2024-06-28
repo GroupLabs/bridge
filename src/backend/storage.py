@@ -1244,7 +1244,7 @@ def _json(filepath):
     basename_with_ext = os.path.basename(filepath)
     
     # Prepare the document for insertion or update
-    document = {
+    fields = {
         "document_id": doc_id,
         "document_name": os.path.splitext(basename_with_ext)[0],
         "Size": size,
@@ -1275,7 +1275,8 @@ def _json(filepath):
             logger.info(f"Updated document {existing_doc_id} in Elasticsearch")
         else:
             # Document does not exist, insert it
-            es.es.index(index='universal_data_index', id=doc_id, body=document)
+            es.insert_document(fields, index="universal_data_index")
+            #es.es.index(index='universal_data_index', id=doc_id, body=fields)
             logger.info(f"Inserted document {doc_id} into Elasticsearch")
     except Exception as e:
         logger.error(f"Error indexing document: {str(e)}")
