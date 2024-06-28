@@ -84,7 +84,7 @@ export function AddDatabaseModal({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Modify Database</DialogTitle>
+          <DialogTitle>Add Database</DialogTitle>
           <DialogDescription>
             Connect a new database to integrate with your data sources.
           </DialogDescription>
