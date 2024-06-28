@@ -67,6 +67,9 @@ RUN pip install --no-cache-dir \
     msal \
     semantic-router \
     simple_salesforce
+    aiofiles \
+    asyncio
+
 
 COPY . ./
 

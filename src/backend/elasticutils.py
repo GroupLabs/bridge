@@ -1,8 +1,11 @@
+from typing import List
 from elasticsearch import Elasticsearch, BadRequestError
 
 from config import config
 from log import setup_logger
 from embed.e5_small import embed_passage, embed_query
+from datetime import datetime
+
 
 # logger
 logger = setup_logger("elastic")
@@ -223,6 +226,27 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
+        try:
+            self.es.indices.create( # may fail if index exists
+                index='universal_data_index', 
+                mappings={
+                    'properties': {
+                        'document_id': {'type': 'keyword'}, 
+                        'document_name': {'type': 'text'},
+                        'Size': {'type': 'text'},
+                        'Type': {'type': 'keyword'},
+                        'Last_modified': {'type': 'date'},
+                        'Created': {'type': 'date'},
+                        'e5': {
+                            'type': 'dense_vector',
+                            'similarity': 'cosine'
+                            },
+                        'metadata' : {'type' : 'keyword'}
+                      
+         except BadRequestError as e:
+            if e.error != "resource_already_exists_exception" or e.status_code != 400:
+                logger.warn(e.error)
+                raise
 
         try:
             self.es.indices.create( # may fail if index exists
@@ -242,29 +266,6 @@ class Search:
                 logger.warn(e.error)
                 raise
         
-        try:
-            self.es.indices.create( # may fail if index exists
-                index='universal_data_index', 
-                mappings={
-                    'properties': {
-                        'document_id': {'type': 'keyword'}, 
-                        'document_name': {'type': 'text'},
-                        'Size': {'type': 'text'},
-                        'Type': {'type': 'keyword'},
-                        'Last_modified': {'type': 'date'},
-                        'Created': {'type': 'date'},
-                        'e5': {
-                            'type': 'dense_vector',
-                            'similarity': 'cosine'
-                            },
-                        'metadata' : {'type' : 'keyword'}
-                    }
-                })
-        except BadRequestError as e:
-            if e.error != "resource_already_exists_exception" or e.status_code != 400:
-                logger.warn(e.error)
-                raise
-        
         logger.info("Configured.")
 
         self.registered_indices = [
@@ -275,6 +276,7 @@ class Search:
             "picture_meta",
             "parent_doc",
             "universal_data_index"
+            "chat_history"
         ]
 
         logger.info("Indices Registered.")
@@ -293,10 +295,12 @@ class Search:
         # add embeddings
         if index == "text_chunk":
             document['e5'] = embed_passage(document['chunk_text']).tolist()[0]
+            #document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
 
         if index == "table_meta":
             document['e5'] = embed_passage(document['description_text']).tolist()[0]
+            #document['e5'] = [0.0,0.0,0.1]
             document['colbert'] = {}
             # correlation embeddings are handled at storage
 
@@ -382,19 +386,15 @@ class Search:
         else:
             raise NotImplementedError
 
-        try:
-            match_response = self.es.search(
-                query={
-                    'match': {
-                        _field: query
-                    }
-                },
-                _source=[_field],
-                index=index
-            )
-        except BadRequestError as e:
-            logger.info(e)
-            return None
+        match_response = self.es.search(
+            query={
+                'match': {
+                    _field: query
+                }
+            },
+            _source=[_field],
+            index=index
+        )
 
         if INSPECT:
             print("MATCH")
@@ -404,22 +404,20 @@ class Search:
 
 
         match_results = match_response['hits']['hits']
-
-        try:
-            # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
-            knn_response = self.es.search(
-                knn={
-                    'field': 'e5',
-                    'query_vector': embed_query(query).tolist()[0],
-                    'k': 10,
-                    'num_candidates': 50
-                },
-                _source=[_field],
-                index=index
-            )
-        except BadRequestError as e:
-            logger.info(e)
-            return None
+        if len(match_results) == 0:
+            return
+        # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
+        knn_response = self.es.search(
+            knn={
+                'field': 'e5',
+                'query_vector': embed_query(query).tolist()[0],
+                #'query_vector': [0.0, 0.0, 0.1],
+                'k': 10,
+                'num_candidates': 50
+            },
+            _source=[_field],
+            index=index
+        )
         
         if INSPECT:
             print("KNN")
@@ -446,6 +444,82 @@ class Search:
         logger.info(f"Hybrid search returned {len(rrf_results)} elements.")
 
         return rrf_results
+        
+    def add_connection(self, db_type: str=None, host: str=None, user: str=None, password: str=None, connection_id: str=None, connection_string: str = None):
+        logger.info("received db_info")
+        document = {
+            'db_type': db_type,
+            'host': host,
+            'user': user,
+            'password': password,
+            "connection_id": connection_id,
+            'connection_string': connection_string
+        }
+        try:
+            res = self.es.search(index='db_meta', body={'query': {'bool': {'must': [
+                {'match': {'connection_id': connection_id}}
+            ]}}})
+            if res['hits']['total']['value'] > 0:
+                doc_id = res['hits']['hits'][0]['_id']
+                # Update existing connection
+                self.es.update(index='db_meta', id=doc_id, body={"doc": document})
+                logger.info("Connection updated successfully.")
+            else:
+                logger.info("No existing connection found, creating a new one.")
+                # Create new connection
+                self.es.index(index='db_meta', body=document)
+                logger.info("New connection added successfully.")
+        except Exception as e:
+            logger.error(f"Error adding/editing connection: {str(e)}")
+            raise
+
+    def save_chat_to_history(self, history_id: int, query: str, response: str, user_id: str):
+        try:
+            # Search for documents matching both history_id and user_id
+            res = self.es.search(index='chat_history', query={
+                'bool': {
+                    'must': [
+                        {'match': {'history_id': history_id}},
+                        {'match': {'user_id': user_id}}
+                    ]
+                }
+            })
+
+            # Check if there are any hits
+            if res['hits']['total']['value'] > 0:
+                doc_id = res['hits']['hits'][0]['_id']
+                chat_history = res['hits']['hits'][0]['_source']
+                chat_history['queries'].append(query)
+                chat_history['responses'].append(response)
+                self.es.update(index='chat_history', id=doc_id, body={"doc": chat_history})
+            else:
+                chat_history = {
+                    'user_id': user_id,
+                    'history_id': history_id,
+                    'queries': [query],
+                    'responses': [response],
+                    'title': f"Chat History {user_id} - {history_id}"
+                }
+                self.es.index(index='chat_history', body=chat_history)
+
+            logger.info(f"Chat history {history_id} for user {user_id} updated successfully.")
+        except Exception as e:
+            logger.error(f"Error saving chat history: {str(e)}")
+
+    def get_user_chat_histories(self, user_id: str) -> List[int]:
+        try:
+            response = self.es.search(index='chat_history', query={
+                'match': {'user_id': user_id}
+            })
+
+            if response['hits']['total']['value'] > 0:
+                chat_history_ids = [hit['_source']['history_id'] for hit in response['hits']['hits']]
+                return chat_history_ids
+            else:
+                return []
+        except Exception as e:
+            logger.error(f"Error retrieving chat histories for user {user_id}: {str(e)}")
+            return []
         
     def add_connection(self, db_type: str=None, host: str=None, user: str=None, password: str=None, connection_id: str=None, connection_string: str = None):
         logger.info("received db_info")

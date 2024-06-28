@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hu
 E5_SMALL_MAX_LEN = 512
 EMB_MODEL = "intfloat/e5-small-v2"
 
-cache_dir = os.getenv('HF_HOME', './cache')
+cache_dir = os.getenv('HF_HOME', '/app/cache/huggingface')
 
 try:
     tokenizer = AutoTokenizer.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
@@ -26,13 +26,13 @@ def average_pool(last_hidden_states: Tensor,
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
-def embed_query(query, max_len=E5_SMALL_MAX_LEN, tokenizer=tokenizer, model=model):
+def embed_query(query, max_len=E5_SMALL_MAX_LEN):
     input_text = "query: " + query
     batch_dict = tokenizer(input_text, max_length=max_len, padding=True, truncation=True, return_tensors='pt')
     outputs = model(**batch_dict)
     return average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
 
-def embed_passage(passage, max_len=E5_SMALL_MAX_LEN, tokenizer=tokenizer, model=model):
+def embed_passage(passage, max_len=E5_SMALL_MAX_LEN):
     input_text = "passage: " + passage
     batch_dict = tokenizer(input_text, max_length=max_len, padding=True, truncation=True, return_tensors='pt')
     outputs = model(**batch_dict)

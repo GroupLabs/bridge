@@ -7,6 +7,11 @@ from log import setup_logger
 import base64
 import os
 import asyncio
+from openai import OpenAI
+from log import setup_logger
+import base64
+from llm import gen_for_query_with_file
+
 
 logger = setup_logger("ollama")
 logger.info("LOGGER READY")
@@ -19,7 +24,8 @@ LLM_URL = config.LLM_URL
 LLM_MODEL = config.LLM_MODEL #currently set to gpt-3.5 turbo, switch to gpt-4 in .env and docker-compose
 OPENAI_KEY = config.OPENAI_KEY
 
-client = openai.OpenAI(
+
+client = OpenAI(
     api_key=OPENAI_KEY
 )
 
@@ -34,7 +40,8 @@ async def chat1(messages):
     }
     timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient() as client:
+
         async with client.stream("POST", LLM_URL + "chat/completions", json=data, headers=headers) as response:
             response.raise_for_status()
             async for line in response.aiter_text():
@@ -55,6 +62,7 @@ def gen1(prompt: str):
         "model": LLM_MODEL,
         "messages": [{"role": "system", "content": prompt}]  
     }
+
     timeout = httpx.Timeout(120.0, read=60.0)  # Increase the timeout duration
     with httpx.Client(timeout=timeout) as client:
         response = client.post(LLM_URL + "/chat/completions", headers=headers, json=data)
@@ -98,7 +106,6 @@ async def gen2(prompt: str):
         "temperature": 0,  
     }
 
-    timeout = httpx.Timeout(300.0, read=300.0)
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -161,7 +168,6 @@ def chat_with_model_to_get_description(image_path):
     base64_image = encode_image(image_path)
     name = os.path.basename(image_path)
 
-
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {OPENAI_KEY}'
@@ -175,6 +181,7 @@ def chat_with_model_to_get_description(image_path):
                     {
                         "type": "text",
                         "text": f"The following is a picture, Describe what is in the picture - as detailed as possible, but keep it straight to the point, summarize in 30 words, include the file name. Keep in mind the file name as it might help in your description {name}: "
+
                     },
                     {
                         "type": "image_url",
@@ -196,20 +203,6 @@ def chat_with_model_to_get_description(image_path):
         else:
             raise Exception("Failed to generate text: " + response.text)
 
-def gen_for_query_with_file(file_content):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are an assistant that helps with extracting data from documents. Generate a concise summary that captures the most important information in natural language."},
-                {"role": "user", "content": f"{file_content}"}
-            ],
-            max_tokens=500,
-            temperature=0.5
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"OpenAI API error: {e}"
     
 if __name__ == "__main__":
      # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
@@ -224,3 +217,4 @@ if __name__ == "__main__":
 
     response = gen_for_query_with_file(file_content)
     print(response)
+
