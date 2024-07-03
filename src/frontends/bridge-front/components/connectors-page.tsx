@@ -21,32 +21,32 @@ export const ConnectorsPage = ({
   className
 }: {
   items: {
-    title: string
-    img: string
-    active: boolean
-    url?: Promise<string> | undefined
-  }[]
-  className?: string
+    title: string;
+    img: string;
+    active: Promise<boolean> | undefined; // Correctly adjusted to Promise<boolean> | undefined
+    url?: Promise<string> | undefined; // Correctly adjusted to Promise<string> | undefined
+  }[];
+  className?: string;
 }) => {
-  let [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [finalItems, setFinalItems] = useState<Item[] | null>(null)
+  let [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [finalItems, setFinalItems] = useState<Item[] | null>(null);
 
   useEffect(() => {
-    const resolveUrls = async () => {
+    const resolveProperties = async () => {
       const resolvedItems: Item[] = await Promise.all(
         items.map(async (item): Promise<Item> => {
-          if (item.url instanceof Promise) {
-            const resolvedUrl = await item.url
-            return { ...item, url: resolvedUrl } // Ensures url is a string after resolving
-          }
-          return { ...item, url: item.url } // Explicitly spread item to match Item type
+          // Ensure active is resolved to a boolean value, defaulting to false if undefined
+          const resolvedActive = await item.active ?? false;
+          // Await the resolution of url if it exists, default to undefined if not
+          const resolvedUrl = item.url ? await item.url : undefined;
+          return { ...item, active: resolvedActive, url: resolvedUrl }; // Assign resolved values
         })
-      )
-      setFinalItems(resolvedItems) // Now resolvedItems matches the Item[] type
-    }
+      );
+      setFinalItems(resolvedItems); // Update state with resolved items
+    };
 
-    resolveUrls()
-  }, [items])
+    resolveProperties();
+  }, [items]);
 
   if (!finalItems) {
     return <Skeleton />

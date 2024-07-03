@@ -113,7 +113,7 @@ async def auth():
         auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=config.REDIRECT_URI)
         
         # Print or return the authorization URL so user can authorize manually
-        return JSONResponse(content={"auth_url": auth_url})
+        return JSONResponse(content={"authorization_url": auth_url})
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -477,7 +477,7 @@ async def google_auth():
             include_granted_scopes='true'
         )
         logger.debug(f"Generated auth URL: {auth_url} with state: {state}")
-        return {"auth_url": auth_url}
+        return {"authorization_url": auth_url}
     except Exception as e:
         logger.error(f"Error during authentication initiation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Authentication initiation failed: {e}")
@@ -642,6 +642,71 @@ async def slack_callback(request: Request):
     except Exception as e:
         logger.error(f"Error in slack_callback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+#All pings to be implemented
+@app.get("/slack_ping")
+async def slack_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during slack_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /slack_ping")
+
+@app.get("/office_ping")
+async def office_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during office_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /office_ping")
+
+@app.get("/google_drive_ping")
+async def google_drive_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during google_drive_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /google_drive_ping")
+
+@app.get("/google_ping")
+async def google_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during google_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /google_ping")
+
+@app.get("/sap_ping")
+async def sap_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during sap_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /sap_ping")
+
+@app.get("/workday_ping")
+async def workday_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during workday_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /workday_ping")
+
+@app.get("/salesforce_ping")
+async def salesforce_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during salesforce_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /salesforce_ping")
+
+@app.get("/github_ping")
+async def github_ping():
+    try:
+        return JSONResponse(content={"is_connected": False})
+    except Exception as e:
+        logger.error(f"Error during github_ping: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error in /github_ping")
 
 if __name__ == '__main__':
     import uvicorn

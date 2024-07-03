@@ -5,12 +5,12 @@ import googledriveimg from '@/public/images/googledrive.svg'
 import sapimg from '@/public/images/sap.svg'
 import workdayimg from '@/public/images/workday.svg'
 import salesforceimg from '@/public/images/salesforce.svg'
-import { authenticateSlack } from '@/lib/actions/connector'
+import { authenticateConnector, pingConnector } from '@/lib/actions/connector'
 
 export interface Connector {
   title: string
   img: string
-  active: boolean
+  active: Promise<boolean> | undefined
   url?: Promise<string> | undefined
 }
 
@@ -18,43 +18,49 @@ const connectors: Connector[] = [
   {
     title: 'Slack',
     img: slackimg,
-    active: false,
-    url: authenticateSlack()
+    active: pingConnector("slack_ping"),
+    url: authenticateConnector("slack_auth")
   },
   {
     title: 'Office 365',
     img: office365img,
-    active: false,
-    url: undefined
+    active: pingConnector("office_ping"),
+    url: authenticateConnector("office_auth")
   },
   {
-    title: 'Google workspace',
+    title: 'Google Drive',
     img: googledriveimg,
-    active: false,
-    url: undefined
+    active: pingConnector("google_drive_ping"),
+    url: authenticateConnector("google_drive_auth")
+  },
+  {
+    title: 'Google Workspace',
+    img: googledriveimg,
+    active: pingConnector("google_ping"),
+    url: authenticateConnector("google_auth")
   },
   {
     title: 'SAP',
     img: sapimg,
-    active: false,
+    active: pingConnector("sap_ping"),
     url: undefined
   },
   {
     title: 'Workday',
     img: workdayimg,
-    active: false,
+    active: pingConnector("workday_ping"),
     url: undefined
   },
   {
     title: 'Salesforce',
     img: salesforceimg,
-    active: false,
-    url: undefined
+    active: pingConnector("salesforce_ping"),
+    url: authenticateConnector("salesforce_auth")
   },
   {
     title: 'Github',
     img: githubimg,
-    active: false,
+    active: pingConnector("github_ping"),
     url: undefined
   }
 ]
