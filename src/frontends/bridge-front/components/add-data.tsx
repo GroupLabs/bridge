@@ -31,7 +31,7 @@ export function AddData() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://0.0.0.0:8000/load", {
+      const response = await fetch("http://20.84.99.84:8000/load", {
         method: "POST",
         body: formData,
       });
