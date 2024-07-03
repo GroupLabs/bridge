@@ -229,23 +229,6 @@ class Search:
 
         try:
             self.es.indices.create( # may fail if index exists
-                index='chat_history',
-                mappings={
-                    'properties': {
-                        'user_id': {'type': 'keyword'},
-                        'history_id': {'type': 'keyword'},
-                        'queries': {'type': 'text'},
-                        'responses': {'type': 'text'},
-                        'title': {'type': 'text'}
-                    }
-                })
-        except BadRequestError as e:
-            if e.error != "resource_already_exists_exception" or e.status_code != 400:
-                logger.warn(e.error)
-                raise
-
-        try:
-            self.es.indices.create( # may fail if index exists
                 index='db_meta', 
                 mappings={
                     'properties': {
@@ -292,7 +275,6 @@ class Search:
             "table_meta",
             "model_meta",
             "file_meta",
-            "chat_history",
             "picture_meta",
             "parent_doc",
             "universal_data_index"
