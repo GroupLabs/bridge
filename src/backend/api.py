@@ -5,7 +5,7 @@ import httpx
 from google.auth.transport.requests import Request as GoogleRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
-from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException, BackgroundTasks
+from fastapi import Depends, FastAPI, Response, File, UploadFile, Form, Path, Request, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, JSONResponse, FileResponse
 from contextlib import asynccontextmanager
@@ -37,9 +37,19 @@ import msal
 import connect.salesforceconnector as salesforceconnector
 import connect.slackconnector as slackconnector
 import base64
+import aiofiles
+import asyncio
+from celery.result import AsyncResult
+from pdf2image import convert_from_path
+from PIL import Image, ImageDraw, ImageFont
+import os
 
 # elasticsearch
 es = Search()
+
+# To store clients and their progress
+clients = {}
+
 
 # Load environment variables
 load_dotenv()
@@ -133,6 +143,45 @@ async def get_token(request: Request):
 
     return {"status": "accepted", "task_id": task.id}
 
+@app.get("/downloads/{filename}")
+async def download_file(filename: str):
+    return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
+
+@app.get("/downloads/preview/{filename}")
+async def preview_file(filename: str):
+    file_path = f"{DOWNLOAD_DIR}/{filename}"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    preview_path = f"{DOWNLOAD_DIR}/previews/{filename}.png"
+    os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+
+    # Convert Office files to PDF first
+    if filename.endswith(('.docx', '.pptx', '.xlsx')):
+        pdf_path = file_path.rsplit('.', 1)[0] + '.pdf'
+        subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", os.path.dirname(file_path), file_path], check=True)
+        file_path = pdf_path  # Update file_path to the new PDF
+
+    # Convert PDF to PNG
+    if filename.endswith(('.pdf', '.docx', '.pptx', '.xlsx')):
+        images = convert_from_path(file_path, first_page=0, last_page=1)
+        images[0].save(preview_path, 'PNG')
+    elif filename.endswith(('.jpg', '.jpeg', '.png', '.gif')):
+        return FileResponse(file_path)
+    elif filename.endswith('.txt'):
+        with open(file_path, 'r') as file:
+            text = file.read(500)
+        img = Image.new('RGB', (800, 600), color=(255, 255, 255))
+        d = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        d.text((10, 10), text, font=font, fill=(0, 0, 0))
+        img.save(preview_path, 'PNG')
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type.")
+
+    return FileResponse(preview_path)
+
+
 @app.post("/load_model")
 async def load_model_ep(response: Response, model: UploadFile = File(...), config: UploadFile = File(...), description: str = Form(...)):
     try:
@@ -180,24 +229,77 @@ async def nl_query(input: Query):
     return {"health": health, "status": "success", "resp": resp}
 
 @app.post("/load_query")
-async def load_data_ep(response: Response, file: UploadFile = File(...)):
+async def load_query_ep(response: Response, file: UploadFile = File(...)):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+        temp_file_path = f"{TEMP_DIR}/{file.filename}"
+        download_file_path = f"{DOWNLOAD_DIR}/{file.filename}"
+        filename = file.filename
+        total_size = file.size  # Get total size of the file
+        current_size = 0
+        
+        async with aiofiles.open(download_file_path, "wb") as download_file:
+            while contents := await file.read(1024):
+                await download_file.write(contents)
+                current_size += len(contents)
+                await update_progress(filename, current_size, total_size)
+        
+        # Ensure the file pointer is reset to the beginning before reading the content again
+        await file.seek(0)
+        content = await file.read()
         with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
-            content = await file.read()
             temp_file.write(content)
-        with open(f"{DOWNLOAD_DIR}/{file.filename}", "wb") as download_file:
-            download_file.write(content)
 
+        # Start the task
         task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
+
+        # Start a background task to update the task progress
+        asyncio.create_task(update_task_progress(filename, task.id))
+
         return {"status": "accepted", "task_id": task.id}
-    except NotImplementedError:
-        logger.warn(f"LOAD incomplete: {file.filename}")
-        response.status_code = 400
-        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+async def update_task_progress(filename, task_id):
+    while True:
+        # Get the task progress using AsyncResult
+        task = AsyncResult(task_id)
+        if task.ready():
+            # If the task is done, send a final update and break the loop
+            for ws in clients.get(filename, []):
+                await ws.send_text("Task complete!")
+            break
+        else:
+            # If the task is not done, send a progress update
+            for ws in clients.get(filename, []):
+                await ws.send_text(f"Task progress: {task.result}%")
+        await asyncio.sleep(1)  # sleep for 1 second
+
+async def update_progress(filename, current_size, total_size):
+    percentage = (current_size / total_size) * 100
+    for ws in clients.get(filename, []):
+        await ws.send_text(f"Progress: {percentage:.2f}%")
+        if current_size == total_size:
+            await ws.send_text("Upload complete!")
+
+@app.websocket("/ws/{filename}")
+async def websocket_endpoint(websocket: WebSocket, filename: str):
+    await websocket.accept()
+    if filename not in clients:
+        clients[filename] = []
+    clients[filename].append(websocket)
+    
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        clients[filename].remove(websocket)
+        if not clients[filename]:
+            del clients[filename]
 
 @app.post("/sort")
 async def sort_docs_ep(type: str=Form(...)):
@@ -325,9 +427,9 @@ async def delete_connection(connection_id: str = Path()):
     return {"client": "ok" if client else "error"}
 
 def sort_by_score(data):
-    # Sort the data by the "score" in descending order
-    sorted_data = sorted(data, key=lambda x: x[1]["score"], reverse=True)
-    return sorted_data
+    # Filter the data for entries with a score of .80 or more, then sort by the "score" in descending order
+    filtered_sorted_data = sorted([item for item in data if item[1]["score"] >= 0.015], key=lambda x: x[1]["score"], reverse=True)
+    return filtered_sorted_data
 
 def concatenate_top_entries(data, top_n=5):
     # Sort the data by the "score" in descending order

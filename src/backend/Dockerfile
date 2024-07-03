@@ -66,6 +66,8 @@ RUN pip install --no-cache-dir \
     semantic-router \
     simple_salesforce
 
+RUN pip install asyncio pdf2image aiofiles
+
 COPY . ./
 
 EXPOSE 8000
