@@ -73,7 +73,7 @@ const transformData = (respData: any): { query: string, results: SearchResult[] 
 }
 
 async function bridgeQuery(query: string): Promise<any> {
-  const response = await fetch('http://0.0.0.0:8000/query', {
+  const response = await fetch('http://20.84.99.84:8000/query', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
