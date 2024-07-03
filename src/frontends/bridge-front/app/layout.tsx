@@ -15,10 +15,10 @@ const fontSans = FontSans({
 
 const title = 'GroupLabs'
 const description =
-  'A fully open-source AI-powered answer engine with a generative UI.'
+  'Finding the right data'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://grouplasb.cs'),
+  metadataBase: new URL('https://grouplabs.ca'),
   title,
   description,
   openGraph: {
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     title,
     description,
     card: 'summary_large_image',
-    creator: '@miiura'
+    creator: '@noelfranthomas'
   }
 }
 
