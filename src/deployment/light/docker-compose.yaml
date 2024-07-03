@@ -72,13 +72,14 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g  # Adjust heap size to 1GB
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
       - "9300:9300"
-    mem_limit: ${ES_MEM_LIMIT}
+    mem_limit: 3g
     ulimits:
       memlock:
         soft: -1
@@ -102,6 +103,7 @@ services:
       - "15672:15672"
     volumes:
       - rabbitdata:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
 
   api:
     image: api
@@ -118,7 +120,7 @@ services:
       - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
       - HF_HOME=/app/cache/huggingface
-      - CLIENT_SECRET_FILE=/app/credentials/client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json
+      - CLIENT_SECRET_FILE=/app/credentials/client_secret_314321330211-32eu8fe8sot2qobjgaefq2pgtf2e2bq0.apps.googleusercontent.com.json
       - OAUTHLIB_INSECURE_TRANSPORT=1
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
@@ -133,7 +135,12 @@ services:
       - "8000:8000"
     command: >
       sh -c "celery -A storage worker --loglevel=info -P gevent &
-        python api.py"
+        uvicorn api:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:8000/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   certs:

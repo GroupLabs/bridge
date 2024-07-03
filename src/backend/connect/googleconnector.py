@@ -35,7 +35,7 @@ load_dotenv(dotenv_path=env_path)
 # Path to your OAuth 2.0 client credentials file
 CLIENT_SECRETS_FILE = os.getenv('CLIENT_SECRET_FILE')
 SCOPES = [
-    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/drive.readonly',
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/gmail.readonly'
 ]
@@ -63,13 +63,27 @@ def build_gmail_service(creds):
 
 def list_files(service, created_after=None):
     try:
-        query = "mimeType != 'application/vnd.google-apps.folder'"
-        if created_after:
-            query += f" and createdTime > '{created_after}'"
+        created_after = "2024-01-01T00:00:00Z"  # Hardcoded date
+        query = f"createdTime > '{created_after}'"
         logger.debug(f"Query: {query}")
-        results = service.files().list(q=query, pageSize=1000, fields="files(id, name, mimeType)").execute()
-        items = results.get('files', [])
-        logger.debug(f"API Response: {results}")
+
+        page_token = None
+        items = []
+        while True:
+            logger.debug(f"Fetching files with page token: {page_token}")
+            results = service.files().list(
+                q=query,
+                pageSize=1000,
+                fields="nextPageToken, files(id, name, mimeType, createdTime)",
+                pageToken=page_token
+            ).execute()
+            items.extend(results.get('files', []))
+            page_token = results.get('nextPageToken', None)
+            logger.debug(f"Next page token: {page_token}")
+            if not page_token:
+                break
+
+        logger.debug(f"Total files retrieved: {len(items)}")
         if not items:
             logger.info('No files found.')
         else:
@@ -80,13 +94,18 @@ def list_files(service, created_after=None):
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # Excel files
                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # Word files
                 'application/pdf',  # PDF files
+                'application/vnd.google-apps.presentation',  # Google Slides
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation'  # PowerPoint files
             ]
             items = [item for item in items if item['mimeType'] in supported_mime_types]
             for item in items:
-                logger.info(f"{item['name']} ({item['id']}) - {item['mimeType']}")
+                logger.info(f"{item['name']} ({item['id']}) - {item['mimeType']} - Created Time: {item['createdTime']}")
         return items
+    except HttpError as e:
+        logger.error(f"HTTP error listing files: {str(e)}")
+        return []
     except Exception as e:
-        logger.error(f"Error listing files: {str(e)}")
+        logger.error(f"General error listing files: {str(e)}")
         return []
 
 async def stream_file(service, file_id, file_name):

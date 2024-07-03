@@ -213,14 +213,15 @@ def gen_for_query_with_file(file_content):
     
 if __name__ == "__main__":
      # print(chat_with_model_to_get_description("/Users/codycf/Desktop/betting/prizepicks_site.jpeg"))  # Testing the gen function using the correct chat API
-    filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
+    # filepath = r'C:\Users\nidhi\Downloads\client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json'
     
-    try:
-        with open(filepath, 'r') as file:
-            file_content = json.load(file)
-    except Exception as e:
-        logger.error(f"Failed to read file: {e}")
-        print(f"Failed to read file: {e}")
+    # try:
+    #     with open(filepath, 'r') as file:
+    #         file_content = json.load(file)
+    # except Exception as e:
+    #     logger.error(f"Failed to read file: {e}")
+    #     print(f"Failed to read file: {e}")
 
-    response = gen_for_query_with_file(file_content)
-    print(response)
+    # response = gen_for_query_with_file(file_content)
+    # print(response)
+    pass
