@@ -20,6 +20,9 @@
 .DS_Store
 *.pem
 bun.lockb
+bun.lock*
+components/output.log
+output.log
 
 # debug
 npm-debug.log*

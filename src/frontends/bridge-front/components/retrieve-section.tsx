@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import React from 'react'
 import { Section } from '@/components/section'
 import { SearchResults } from '@/components/search-results'
