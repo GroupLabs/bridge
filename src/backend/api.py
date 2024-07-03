@@ -432,30 +432,27 @@ async def relevant_docs_ep(input: QueryforAll):
 @app.post("/query_all")
 async def get_query_parent_ep(input: QueryforAll):
     names = set()
-    indices = ["table_meta", "picture_meta","text_chunk"]
+    indices = ["table_meta", "picture_meta", "text_chunk"]
     all_responses = []
-
     # Loop through the indices and collect responses
     for index in indices:
         resp = query(input.query, index)
         if resp is not None:
             all_responses.append(resp)
-        
-
     # Concatenate the responses
     flattened_responses = [item for sublist in all_responses for item in sublist]
-
     sorted_responses = sort_by_score(flattened_responses)
-
     information = concatenate_top_entries(sorted_responses)
-
+    print(information)
     topids = get_top_ids(sorted_responses)
     for doc_id in topids:
-        docs = find_document_by_id(doc_id,indices)
+        docs = find_document_by_id(doc_id, indices)
         names.add(find_name_by_document_id(docs))
-
-    chat_generator = gen_for_query(input.query, information, names)
-    return StreamingResponse(chat_generator, media_type="text/plain")
+    # Convert names set to list for JSON serialization
+    names_list = list(names)
+    # Assuming information is already a list of strings as per the new requirement
+    # Return the required information as JSON
+    return {"query": input.query, "information": information, "names": names_list}
 
 @app.post("/chat")
 async def chat_with_model_ep(chat_request: ChatRequest):
