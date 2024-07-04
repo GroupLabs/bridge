@@ -38,8 +38,8 @@ export async function researcher(
 
   const chunks = await bridgeQueryAll(latestUserContentString)
 
-  const null_checker = chunks['information'] ?? ""
-  const null_checker2 = chunks['names'] ?? ""
+  const null_checker = ""
+  const null_checker2 = ""
 
   const currentDate = new Date().toLocaleString()
   const result = await streamText({

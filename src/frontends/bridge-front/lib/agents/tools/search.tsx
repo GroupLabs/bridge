@@ -31,7 +31,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     try {
       searchResult =
         searchAPI === 'tavily'
-          ? await bridgeQuery(query)
+          ? await bridgeQueryAll(query)
           : await exaSearch(query)
     } catch (error) {
       console.error('Search API error:', error)
@@ -108,7 +108,8 @@ export async function bridgeQueryAll(query: string): Promise<any> {
   })
 
   if (!response.ok) {
-    throw new Error(`Error: ${response.status}`)
+    return ""
+    //throw new Error(`Error: ${response.status}`)
   }
 
   const data = await response.json()
