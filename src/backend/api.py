@@ -14,7 +14,7 @@ import subprocess
 import time
 from log import setup_logger
 from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task, download_office365
-from serverutils import Health, Status, Load, Query, QueryforAll
+from serverutils import Health, Status, Load, Query
 from serverutils import ChatRequest
 from ollama import chat1, chat2, gen2, gen1, gen_for_query
 from config import config
@@ -497,65 +497,68 @@ def find_document_by_id_rel_docs(document_id, parent_index="parent_doc"):
         return response['hits']['hits'][0]['_source']
     return None
 
-@app.post("/rel_docs")
-async def relevant_docs_ep(input: QueryforAll):
-    docs = []
-    indices = ["table_meta", "picture_meta","text_chunk"]
-    all_responses = []
+# @app.post("/rel_docs")
+# async def relevant_docs_ep(input: QueryforAll):
+#     docs = []
+#     indices = ["table_meta", "picture_meta","text_chunk"]
+#     all_responses = []
 
-    # Loop through the indices and collect responses
-    for index in indices:
-        resp = query(input.query, index)
-        if resp is not None:
-            all_responses.append(resp)
+#     # Loop through the indices and collect responses
+#     for index in indices:
+#         resp = query(input.query, index)
+#         if resp is not None:
+#             all_responses.append(resp)
 
-    # Concatenate the responses
-    flattened_responses = [item for sublist in all_responses for item in sublist]
+#     # Concatenate the responses
+#     flattened_responses = [item for sublist in all_responses for item in sublist]
 
-    sorted_responses = sort_by_score(flattened_responses)
+#     sorted_responses = sort_by_score(flattened_responses)
 
-    topids = get_top_ids(sorted_responses)
+#     topids = get_top_ids(sorted_responses)
 
-    for doc_id in topids:
-        documents = find_document_by_id(doc_id, indices)
-        data = find_document_by_id_rel_docs(documents)
-        docs.append(data)
+#     for doc_id in topids:
+#         documents = find_document_by_id(doc_id, indices)
+#         data = find_document_by_id_rel_docs(documents)
+#         docs.append(data)
 
-    seen = set()
-    unique_documents = []
-    for doc in docs:
-        doc_id = doc['document_id']
-        if doc_id not in seen:
-            unique_documents.append(doc)
-            seen.add(doc_id)
+#     seen = set()
+#     unique_documents = []
+#     for doc in docs:
+#         doc_id = doc['document_id']
+#         if doc_id not in seen:
+#             unique_documents.append(doc)
+#             seen.add(doc_id)
 
-    return unique_documents
-
+#     return unique_documents
 @app.post("/query_all")
-async def get_query_parent_ep(input: QueryforAll):
-    names = set()
+async def get_query_parent_ep(input: Query):
     indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index"]
-
     all_responses = []
+
     # Loop through the indices and collect responses
     for index in indices:
         resp = query(input.query, index)
         if resp is not None:
-            all_responses.append(resp)
-    # Concatenate the responses
-    flattened_responses = [item for sublist in all_responses for item in sublist]
-    sorted_responses = sort_by_score(flattened_responses)
-    information = concatenate_top_entries(sorted_responses)
-    print(information)
-    topids = get_top_ids(sorted_responses)
-    for doc_id in topids:
-        docs = find_document_by_id(doc_id, indices)
-        names.add(find_name_by_document_id(docs))
-    # Convert names set to list for JSON serialization
-    names_list = list(names)
-    # Assuming information is already a list of strings as per the new requirement
-    # Return the required information as JSON
-    return {"query": input.query, "information": information, "names": names_list}
+            all_responses.extend(resp)
+
+    if not all_responses:
+        raise HTTPException(status_code=404, detail="No data found for the query")
+
+    return {"health": health, "status": "success", "resp": all_responses}
+    # # Concatenate the responses
+    # flattened_responses = [item for sublist in all_responses for item in sublist]
+    # sorted_responses = sort_by_score(flattened_responses)
+    # information = concatenate_top_entries(sorted_responses)
+    # print(information)
+    # topids = get_top_ids(sorted_responses)
+    # for doc_id in topids:
+    #     docs = find_document_by_id(doc_id, indices)
+    #     names.add(find_name_by_document_id(docs))
+    # # Convert names set to list for JSON serialization
+    # names_list = list(names)
+    # # Assuming information is already a list of strings as per the new requirement
+    # # Return the required information as JSON
+    # return {"query": input.query, "information": information, "names": names_list}
 
 @app.post("/chat")
 async def chat_with_model_ep(chat_request: ChatRequest):
