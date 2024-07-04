@@ -1,338 +1,344 @@
 import os
-import json
-import requests
-import msal
-import webbrowser
-import time
-from urllib.parse import urlparse, parse_qs
+import io
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from datetime import datetime, timedelta, timezone
+import base64
+from email.mime.text import MIMEText
 from dotenv import load_dotenv
+import json
+import httpx
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.errors import HttpError
+import sys
+from config import config
+from pathlib import Path
 
-# Load environment variables from .env file
-load_dotenv()
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Azure AD configuration
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-AUTHORITY = os.getenv('AUTHORITY')
-REDIRECT_URI = os.getenv('REDIRECT_URI')
-SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
+from log import setup_logger
 
-# Initialize the MSAL confidential client
-msal_app = msal.ConfidentialClientApplication(
-    CLIENT_ID, authority=AUTHORITY,
-    client_credential=CLIENT_SECRET,
-)
+logger = setup_logger("googelconnector")
+logger.info("LOGGER READY")
+
+#to do: 
+#Connect to an entire organizations workspace, not individual user
+#connect to gmail, google notes... all other google apps
+#store and autogenerate metadata in ES, link that metadata to actual data using an external ID
+#read the metadata upon request
+
+env_path = Path('..') / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Path to your OAuth 2.0 client credentials file
+CLIENT_SECRETS_FILE = os.getenv('CLIENT_SECRET_FILE')
+SCOPES = [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/gmail.readonly'
+]
 
 def authenticate():
-    # Create the authorization URL
-    auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
-    print(f"Please go to this URL and authorize the application: {auth_url}")
-    webbrowser.open(auth_url)
-    
-    # Start a simple HTTP server to listen for the callback
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    class OAuthHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            query_components = parse_qs(urlparse(self.path).query)
-            self.server.auth_code = query_components.get('code')
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(b'You can close this window.')
-    
-    server = HTTPServer(('localhost', 8080), OAuthHandler)
-    server.handle_request()
-    
-    code = server.auth_code[0] if server.auth_code else None
-    print(code)
-    if not code:
-        raise Exception("Failed to get authorization code")
-    
-    # Exchange the authorization code for an access token
-    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
-    if 'access_token' not in result:
-        raise Exception(f"Could not acquire token: {result.get('error_description')}")
-    
-    return result['access_token']
+    # Run local server to get the credentials
+    flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+    creds = flow.run_local_server(port=8080)
+    return creds
 
-def list_files(access_token, folder_id='root'):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get(f'https://graph.microsoft.com/v1.0/me/drive/{folder_id}/children', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    files = response.json().get('value', [])
-    for file in files:
-        if 'folder' in file:
-            print(f"{file['name']} ({file['id']}) - folder")
-            list_files(access_token, f"items/{file['id']}")  # Recursive call
-        else:
-            print(f"{file['name']} ({file['id']}) - {file['file']['mimeType'] if 'file' in file else 'unknown'}")
-    return files
+def build_service(creds):
+    # Build the Drive API client
+    service = build('drive', 'v3', credentials=creds)
+    return service
 
-def list_emails(access_token, folder='inbox', top=10):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get(f'https://graph.microsoft.com/v1.0/me/mailFolders/{folder}/messages?$top={top}', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    emails = response.json().get('value', [])
-    for email in emails:
-        print(f"Subject: {email['subject']}, Received: {email['receivedDateTime']}, From: {email['from']['emailAddress']['address']}")
-        download_email(access_token, email['id'], email['subject'])
-    return emails
+def build_calendar_service(creds):
+    # Build the Calendar API client
+    service = build('calendar', 'v3', credentials=creds)
+    return service
 
-def download_email(access_token, email_id, email_subject):
-    headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/vnd.ms-outlook'}
-    response = requests.get(f'https://graph.microsoft.com/v1.0/me/messages/{email_id}/$value', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    safe_subject = ''.join(c for c in email_subject if c.isalnum() or c in (' ', '_')).rstrip()
-    file_name = f"{safe_subject}.mht"
-    
-    # Define the directory path
-    directory_path = os.path.join(os.getcwd(), 'office365', 'email')
-    
-    # Create the directory if it does not exist
-    os.makedirs(directory_path, exist_ok=True)
-    
-    # Ensure the file name is unique
-    file_path = os.path.join(directory_path, file_name)
-    if os.path.exists(file_path):
-        # If the file already exists, add a timestamp to the file name
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        file_name = f"{safe_subject}_{timestamp}.mht"
-        file_path = os.path.join(directory_path, file_name)
-    
-    print(file_path)
-    
-    # Write the email content to the file
-    with open(file_path, 'wb') as f:
-        f.write(response.content)
-    print(f"Email saved as {file_path}")
+def build_gmail_service(creds):
+    # Build the Gmail API client
+    service = build('gmail', 'v1', credentials=creds)
+    return service
 
-def list_calendar_events(access_token, top=10):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get(f'https://graph.microsoft.com/v1.0/me/events?$top={top}', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    events = response.json().get('value', [])
-    
-    # Ensure the directory exists
-    directory = os.path.join(os.getcwd(), 'office365', 'events')
-    os.makedirs(directory, exist_ok=True)
-    
-    for event in events:
-        event_metadata = {
-            "subject": event.get('subject', 'N/A'),
-            "body": event.get('body', {}).get('content', 'N/A'),
-            "bodyPreview": event.get('bodyPreview', 'N/A'),
-            "start": event.get('start', {}).get('dateTime', 'N/A'),
-            "end": event.get('end', {}).get('dateTime', 'N/A'),
-            "location": event.get('location', {}).get('displayName', 'N/A'),
-            "attendees": [attendee['emailAddress']['name'] for attendee in event.get('attendees', [])],
-            "organizer": event.get('organizer', {}).get('emailAddress', {}).get('name', 'N/A'),
-            "isAllDay": event.get('isAllDay', 'N/A'),
-            "isCancelled": event.get('isCancelled', 'N/A'),
-            "isOrganizer": event.get('isOrganizer', 'N/A'),
-            "importance": event.get('importance', 'N/A'),
-            "showAs": event.get('showAs', 'N/A'),
-            "onlineMeetingUrl": event.get('onlineMeetingUrl', 'N/A'),
-            "responseStatus": event.get('responseStatus', {}).get('response', 'N/A'),
-            "categories": event.get('categories', []),
-            "reminderMinutesBeforeStart": event.get('reminderMinutesBeforeStart', 'N/A'),
-            "recurrence": event.get('recurrence', 'N/A'),
-            "seriesMasterId": event.get('seriesMasterId', 'N/A'),
-            "webLink": event.get('webLink', 'N/A'),
-            "sensitivity": event.get('sensitivity', 'N/A'),
-            "hasAttachments": event.get('hasAttachments', 'N/A'),
-            "attachments": event.get('attachments', []),
-            "createdDateTime": event.get('createdDateTime', 'N/A'),
-            "lastModifiedDateTime": event.get('lastModifiedDateTime', 'N/A'),
-        }
-
-        # Sanitize the event subject to be a valid filename
-        filename = f"{event['subject']}.txt".replace('/', '_').replace('\\', '_')
-        filepath = os.path.join(directory, filename)
-        
-        # Save to a .txt file
-        with open(filepath, 'w') as file:
-            json.dump(event_metadata, file, indent=4)
-    
-    return events
-
-def list_contacts(access_token):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get('https://graph.microsoft.com/v1.0/me/contacts', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    contacts = response.json().get('value', [])
-    
-    # Ensure the directory exists
-    directory = os.path.join(os.getcwd(), 'office365', 'contacts')
-    os.makedirs(directory, exist_ok=True)
-    
-    for contact in contacts:
-        contact_metadata = {
-            "id": contact.get('id', 'N/A'),
-            "displayName": contact.get('displayName', 'N/A'),
-            "givenName": contact.get('givenName', 'N/A'),
-            "surname": contact.get('surname', 'N/A'),
-            "emailAddresses": [email['address'] for email in contact.get('emailAddresses', [])],
-            "businessPhones": contact.get('businessPhones', []),
-            "homePhones": contact.get('homePhones', []),
-            "mobilePhone": contact.get('mobilePhone', 'N/A'),
-            "companyName": contact.get('companyName', 'N/A'),
-            "jobTitle": contact.get('jobTitle', 'N/A'),
-            "department": contact.get('department', 'N/A'),
-            "officeLocation": contact.get('officeLocation', 'N/A'),
-            "profession": contact.get('profession', 'N/A'),
-            "businessAddress": contact.get('businessAddress', 'N/A'),
-            "homeAddress": contact.get('homeAddress', 'N/A'),
-            "birthday": contact.get('birthday', 'N/A'),
-            "personalNotes": contact.get('personalNotes', 'N/A'),
-            "assistantName": contact.get('assistantName', 'N/A'),
-            "manager": contact.get('manager', 'N/A'),
-            "spouseName": contact.get('spouseName', 'N/A'),
-            "children": contact.get('children', 'N/A'),
-            "createdDateTime": contact.get('createdDateTime', 'N/A'),
-            "lastModifiedDateTime": contact.get('lastModifiedDateTime', 'N/A'),
-        }
-
-        # Sanitize the contact display name to be a valid filename
-        filename = f"{contact['displayName']}.txt".replace('/', '_').replace('\\', '_')
-        filepath = os.path.join(directory, filename)
-        
-        # Save to a .txt file
-        with open(filepath, 'w') as file:
-            json.dump(contact_metadata, file, indent=4)
-    
-    return contacts
-
-def list_tasks(access_token):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get('https://graph.microsoft.com/v1.0/me/todo/lists', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    task_lists = response.json().get('value', [])
-    for task_list in task_lists:
-        print(f"Task List: {task_list['displayName']}")
-        tasks_response = requests.get(f'https://graph.microsoft.com/v1.0/me/todo/lists/{task_list["id"]}/tasks', headers=headers)
-        tasks = tasks_response.json().get('value', [])
-        for task in tasks:
-            print(f"  Task: {task['title']}")
-    return task_lists
-
-def list_sharepoint_sites(access_token):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get('https://graph.microsoft.com/v1.0/sites?search=*', headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    sites = response.json().get('value', [])
-    for site in sites:
-        print(f"Site: {site['displayName']} - {site['id']}")
-    return sites
-
-def download_file(access_token, file_name):
-    files = list_files(access_token)
-    file_id = None
-    for file in files:
-        if file['name'] == file_name:
-            file_id = file['id']
-            break
-    if not file_id:
-        print(f"File named {file_name} not found.")
-        return
-    
-    headers = {'Authorization': f'Bearer {access_token}'}
-    download_url = f'https://graph.microsoft.com/v1.0/me/drive/items/{file_id}/content'
-    response = requests.get(download_url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    
-    file_path = os.path.join(os.getcwd(), file_name)
-    
-    with open(file_path, 'wb') as f:
-        f.write(response.content)
-    print(f"File downloaded as {file_path}")
-
-def download_file_by_type(access_token, file_name):
-    if "." not in file_name:
-        print(f"File name {file_name} does not contain a '.'")
-        return None
-
-    files = list_files(access_token)
-    file_id = None
-    for file in files:
-        if file['name'] == file_name:
-            file_id = file['id']
-            break
-
-    if not file_id:
-        print(f"File named {file_name} not found.")
-        return None
-
-    headers = {'Authorization': f'Bearer {access_token}'}
-    download_url = f'https://graph.microsoft.com/v1.0/me/drive/items/{file_id}/content'
-    response = requests.get(download_url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-
-    file_extension = file_name.split(".")[-1]
-    download_dir = os.path.join(os.getcwd(), 'office365' ,'downloads', file_extension)
-    os.makedirs(download_dir, exist_ok=True)
-
-    file_path = os.path.join(download_dir, file_name)
-    with open(file_path, 'wb') as f:
-        f.write(response.content)
-    print(f"File downloaded as {file_path}")
-    
-    return file_path
-
-def download_files(access_token, folder_id='root'):
-    downloaded_files = []
+def list_files(service, created_after=None):
     try:
-        files = list_files(access_token, folder_id)
-        
-        for file in files:
-            file_name = file['name']
+        created_after = "2024-01-01T00:00:00Z"  # Hardcoded date
+        query = f"createdTime > '{created_after}'"
+        logger.debug(f"Query: {query}")
 
-            file_path = download_file_by_type(access_token, file_name)
-            if file_path:
-                downloaded_files.append(file_path)
+        page_token = None
+        items = []
+        while True:
+            logger.debug(f"Fetching files with page token: {page_token}")
+            results = service.files().list(
+                q=query,
+                pageSize=1000,
+                fields="nextPageToken, files(id, name, mimeType, createdTime)",
+                pageToken=page_token
+            ).execute()
+            items.extend(results.get('files', []))
+            page_token = results.get('nextPageToken', None)
+            logger.debug(f"Next page token: {page_token}")
+            if not page_token:
+                break
 
-            
+        logger.debug(f"Total files retrieved: {len(items)}")
+        if not items:
+            logger.info('No files found.')
+        else:
+            logger.info('Files:')
+            supported_mime_types = [
+                'application/vnd.google-apps.document',  # Google Docs
+                'application/vnd.google-apps.spreadsheet',  # Google Sheets
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # Excel files
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # Word files
+                'application/pdf',  # PDF files
+                'application/vnd.google-apps.presentation',  # Google Slides
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation'  # PowerPoint files
+            ]
+            items = [item for item in items if item['mimeType'] in supported_mime_types]
+            for item in items:
+                logger.info(f"{item['name']} ({item['id']}) - {item['mimeType']} - Created Time: {item['createdTime']}")
+        return items
+    except HttpError as e:
+        logger.error(f"HTTP error listing files: {str(e)}")
+        return []
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"General error listing files: {str(e)}")
+        return []
+
+async def stream_file(service, file_id, file_name):
+    try:
+        file_metadata = service.files().get(fileId=file_id).execute()
+        mime_type = file_metadata['mimeType']
+        
+        if mime_type.startswith('application/vnd.google-apps.'):
+            export_mime_type = {
+                'application/vnd.google-apps.document': 'application/pdf',
+                'application/vnd.google-apps.spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.google-apps.presentation': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            }.get(mime_type, None)
+            
+            if export_mime_type:
+                request = service.files().export_media(fileId=file_id, mimeType=export_mime_type)
+                file_extension = {
+                    'application/pdf': '.pdf',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx'
+                }.get(export_mime_type, '')
+                file_name += file_extension
+            else:
+                logger.error(f"File '{file_name}' cannot be exported because it's not a supported Google Docs editors file.")
+                return None, None
+        else:
+            request = service.files().get_media(fileId=file_id)
+        
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            try:
+                status, done = downloader.next_chunk()
+                logger.info(f"Download {int(status.progress() * 100)}%.")
+            except HttpError as e:
+                if e.resp.status in [403, 404]:
+                    logger.error(f"Error in streaming file '{file_name}': {e}")
+                    return None, None
+                raise
+        
+        fh.seek(0)
+        return fh, file_name
+    except HttpError as e:
+        logger.error(f"Error in streaming file '{file_name}': {e}")
+        return None, None
+    except Exception as e:
+        logger.error(f"Error in streaming file '{file_name}': {str(e)}")
+        return None, None
+
+
+
+async def send_file_to_endpoint(file_stream, file_name):
+    async with httpx.AsyncClient() as client:
+        files = {'file': (file_name, file_stream, 'application/octet-stream')}
+        response = await client.post("http://localhost:8000/load_query", files=files)
+        logger.debug(f"Response from server: {response.text}")
+        if response.status_code == 202:
+            logger.info(f"File '{file_name}' accepted for loading")
+        else:
+            logger.warning(f"File '{file_name}' was not accepted for loading. Status code: {response.status_code}")
+
+async def send_data_as_text_file_to_endpoint(data_type, data):
+    async with httpx.AsyncClient() as client:
+        if data_type in ['calendar_events', 'received_emails', 'sent_emails']:
+            if data_type == 'calendar_events':
+                file_content = '\n'.join([f"Event: {event['summary']}, Start: {event['start']}, End: {event['end']}" for event in data])
+            else:
+                file_content = '\n'.join([f"Email Subject: {email['subject']}, Body: {email['body']}" for email in data])
+        else:
+            file_content = ''
+
+        file_name = f"{data_type}.txt"
+        file_stream = io.BytesIO(file_content.encode('utf-8'))
+        files = {'file': (file_name, file_stream, 'text/plain')}
+        response = await client.post("http://localhost:8000/load_query", files=files)
+        logger.debug(f"Response from server: {response.text}")
+        if response.status_code == 202:
+            logger.info(f"{data_type} data accepted for loading")
+        else:
+            logger.warning(f"{data_type} data was not accepted for loading. Status code: {response.status_code}")
+
+
+async def download_and_load(creds_json):
+    try:
+        creds_dict = json.loads(creds_json)
+        
+        if 'refresh_token' not in creds_dict:
+            raise ValueError("Missing 'refresh_token' field in credentials")
+        
+        creds = Credentials.from_authorized_user_info(creds_dict, SCOPES)
+        
+        # Calculate the date one month ago
+        created_after = (datetime.now() - timedelta(days=30)).isoformat() + 'Z'
+        
+        # Handle Google Drive files
+        drive_service = build_service(creds)
+        files = list_files(drive_service, created_after=created_after)
+        logger.debug(f"Files found: {files}")
+
+        if files:
+            for item in files:
+                file_stream, file_name = await stream_file(drive_service, item['id'], item['name'])
+                if file_stream and file_name:
+                    await send_file_to_endpoint(file_stream, file_name)
+                else:
+                    logger.warning(f"Skipping file '{item['name']}' due to export/download issues.")
+
+        # Handle Google Calendar events
+        calendar_service = build_calendar_service(creds)
+        events = list_calendar_events(calendar_service)
+        if events:
+            await send_data_as_text_file_to_endpoint('calendar_events', events)
+
+        # Handle Gmail messages
+        gmail_service = build_gmail_service(creds)
+        
+        # Get the last 10 received emails
+        received_messages = list_messages(gmail_service, 'me', ['INBOX'])
+        if received_messages:
+            received_emails = []
+            for msg in received_messages:
+                msg_data = get_message(gmail_service, 'me', msg['id'])
+                msg_payload = msg_data['payload']
+                msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
+                msg_body = get_message_body(msg_payload)
+                received_emails.append({"subject": msg_subject, "body": msg_body})
+            await send_data_as_text_file_to_endpoint('received_emails', received_emails)
+
+        # Get the last 10 sent emails
+        sent_messages = list_messages(gmail_service, 'me', ['SENT'])
+        if sent_messages:
+            sent_emails = []
+            for msg in sent_messages:
+                msg_data = get_message(gmail_service, 'me', msg['id'])
+                msg_payload = msg_data['payload']
+                msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
+                msg_body = get_message_body(msg_payload)
+                sent_emails.append({"subject": msg_subject, "body": msg_body})
+            await send_data_as_text_file_to_endpoint('sent_emails', sent_emails)
+
+        logger.info("Files, events, and emails streamed and sent successfully")
+    except Exception as e:
+        logger.error(f"Error in downloading and loading files: {str(e)}")
+
+def get_flow():
+    return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=config.REDIRECT_URI)
+  
+
+def list_calendar_events(service):
+    now = datetime.now(timezone.utc).isoformat()  # Use timezone-aware datetime
+    week_from_now = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
     
-    return downloaded_files
+    events_result = service.events().list(
+        calendarId='primary', timeMin=now, timeMax=week_from_now,
+        maxResults=100, singleEvents=True,
+        orderBy='startTime').execute()
+    
+    events = events_result.get('items', [])
+    if not events:
+        logger.info('No upcoming events found.')
+    else:
+        logger.info('Upcoming events:')
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            end = event['end'].get('dateTime', event['end'].get('date'))
+            logger.info(f"{event['summary']} - 'start': {start} - 'end': {end}")
+    # Structure the events for the API
+    structured_events = [{'summary': event['summary'], 'start': event['start'], 'end': event['end']} for event in events]
+    return structured_events
+
+
+def list_messages(service, user_id, label_ids=[], max_results=10):
+    results = service.users().messages().list(userId=user_id, labelIds=label_ids, maxResults=max_results).execute()
+    messages = results.get('messages', [])
+    return messages
+
+def get_message(service, user_id, msg_id):
+    msg = service.users().messages().get(userId=user_id, id=msg_id, format='full').execute()
+    return msg
+
+def get_message_body(msg_payload):
+    msg_body = ''
+    if 'data' in msg_payload['body']:
+        msg_body = base64.urlsafe_b64decode(msg_payload['body']['data']).decode('utf-8')
+    elif 'parts' in msg_payload:
+        for part in msg_payload['parts']:
+            if part['mimeType'] == 'text/plain':
+                msg_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                break
+    return msg_body
+
+
+def print_emails(service, label_id, message_type):
+    messages = list_messages(service, 'me', [label_id])
+    for msg in messages:
+        msg_data = get_message(service, 'me', msg['id'])
+        msg_payload = msg_data['payload']
+        msg_headers = msg_payload['headers']
+        msg_subject = next(header['value'] for header in msg_headers if header['name'] == 'Subject')
+        msg_body = ''
+        
+        if 'data' in msg_payload['body']:
+            msg_body = base64.urlsafe_b64decode(msg_payload['body']['data']).decode('utf-8')
+        elif 'parts' in msg_payload:
+            for part in msg_payload['parts']:
+                if part['mimeType'] == 'text/plain':
+                    msg_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                    break
+        
+        msg_body_excerpt = ' '.join(msg_body.split()[:10]) + '...'
+        print(f"{message_type} - {msg_subject} - {msg_body_excerpt}")
 
 # Example usage
 if __name__ == '__main__':
-    access_token = authenticate()
-    # print("Listing the last 10 received emails in Outlook:")
-    # list_emails(access_token, folder='inbox', top=10)
-    
-    # print("Listing the last 10 sent emails in Outlook:")
-    # list_emails(access_token, folder='sentitems', top=10)
-    
-    # print("Listing the next 10 calendar events:")
-    # list_calendar_events(access_token)
-    
-    print("Listing contacts in Outlook:")   
-    list_contacts(access_token)
-    
-    # print("Listing tasks in Microsoft To-Do:")
-    # print(download_files(access_token))
-    
-    # Commented out because not all ms accounts have the sharepoint app
-    #print("Listing SharePoint sites:")
-    #list_sharepoint_sites(access_token)
-    
+    creds = authenticate()
+    service = build_service(creds)
+    calendar_service = build_calendar_service(creds)
+    gmail_service = build_gmail_service(creds)
+
+    print("Listing all files in Google Drive:")
+    files = list_files(service)
+    for file in files:
+        print(f"{file['name']} ({file['id']}) - {file['mimeType']}")
+
     #file_name_to_download = input("Enter the name of the file to download: ")
-    #download_file(access_token, file_name_to_download)
+    #download_file(service, file_name_to_download)
+
+    print("\nListing upcoming events in Google Calendar for the next week:")
+    list_calendar_events(calendar_service)
+
+    print("\nListing last 10 emails received:")
+    print_emails(gmail_service, 'INBOX', 'Received')
+
+    print("\nListing last 10 emails sent:")
+    print_emails(gmail_service, 'SENT', 'Sent')
