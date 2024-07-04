@@ -16,44 +16,15 @@ export interface Database {
 
 const useDatabasesWithData = () => {
   const [databasesWithData, setDatabasesWithData] = useState<Database[]>([])
+  const [isLoading, setIsLoading] = useState(true) // Added loading state
 
   useEffect(() => {
     const fetchDatabases = async () => {
-      const initialDatabases: Database[] = [
-        // {
-        //   title: 'PostgreSQL',
-        //   db_type: 'postgresql',
-        //   img: postgresqlimg,
-        //   active: false,
-        //   connectionDetails: null
-        // },
-        // {
-        //   title: 'Azure',
-        //   db_type: 'azure',
-        //   img: azureimg,
-        //   active: false,
-        //   connectionDetails: null
-        // },
-        // {
-        //   title: 'MongoDB',
-        //   db_type: 'mongodb',
-        //   img: mongodbimg,
-        //   active: false,
-        //   connectionDetails: null
-        // },
-        // {
-        //   title: 'MySQL',
-        //   db_type: 'mysql',
-        //   img: mysqlimg,
-        //   active: false,
-        //   connectionDetails: null
-        // }
-      ]
-
+      setIsLoading(true) // Start loading
       try {
         const databaseConnections = await getDatabases()
         const combinedDatabases = [
-          ...initialDatabases,
+          // Initial databases commented out for brevity
           ...databaseConnections.map(db => ({
             img: getImageForDbType(db.db_type),
             db_type: db.db_type,
@@ -65,13 +36,15 @@ const useDatabasesWithData = () => {
         setDatabasesWithData(combinedDatabases)
       } catch (error) {
         console.error('Failed to fetch databases:', error)
+      } finally {
+        setIsLoading(false) // End loading
       }
     }
 
     fetchDatabases()
   }, [])
 
-  return databasesWithData
+  return { databasesWithData, isLoading } // Return both data and loading state
 }
 
 function getImageForDbType(db_type: string) {
