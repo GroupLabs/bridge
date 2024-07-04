@@ -260,7 +260,14 @@ class Search:
                             'type': 'dense_vector',
                             'similarity': 'cosine'
                             },
-                        'metadata' : {'type' : 'keyword'}
+                        'metadata' : {'type' : 'text'},
+                        "correlation_embedding": {
+                            "type": "nested",
+                            "properties": {
+                                "key": {"type": "keyword"},
+                            }
+                        },
+                        'colbert': {'type': 'object', 'enabled': False} # disable indexing for the 'colbert' field
                     }
                 })
         except BadRequestError as e:
@@ -319,6 +326,12 @@ class Search:
         if index == "file_meta":
             document['created_time'] = datetime.utcfromtimestamp(document['created_time']).isoformat()
             document['last_modified_time'] = datetime.utcfromtimestamp(document['last_modified_time']).isoformat()
+
+        if index == "universal_data_index":
+            document['e5'] = embed_passage(document['metadata']).tolist()[0]
+            #document['e5'] = [0.0,0.0,0.1]
+            document['colbert'] = {}
+            # correlation embeddings are handled at storage
         
         logger.info("Inserting document.")
 
@@ -385,6 +398,8 @@ class Search:
             _field = "description_text"
         elif index == 'picture_meta':
             _field = "description_text"
+        elif index == 'universal_data_index':
+            _field = "metadata"
         else:
             raise NotImplementedError
 
@@ -397,6 +412,8 @@ class Search:
             _source=[_field],
             index=index
         )
+
+        logger.info(f"{match_response}")
 
         if INSPECT:
             print("MATCH")

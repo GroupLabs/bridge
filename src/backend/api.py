@@ -534,7 +534,8 @@ async def relevant_docs_ep(input: QueryforAll):
 @app.post("/query_all")
 async def get_query_parent_ep(input: QueryforAll):
     names = set()
-    indices = ["table_meta", "picture_meta", "text_chunk"]
+    indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index"]
+
     all_responses = []
     # Loop through the indices and collect responses
     for index in indices:
