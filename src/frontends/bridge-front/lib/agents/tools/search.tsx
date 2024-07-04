@@ -31,7 +31,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     try {
       searchResult =
         searchAPI === 'tavily'
-          ? await bridgeQueryAll(query)
+          ? await bridgeQuery(query)
           : await exaSearch(query)
     } catch (error) {
       console.error('Search API error:', error)
@@ -77,7 +77,7 @@ const transformData = (
 }
 
 async function bridgeQuery(query: string): Promise<any> {
-  const response = await fetch('http://0.0.0.0:8000/query', {
+  const response = await fetch('http://0.0.0.0:8000/query_all', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -108,7 +108,7 @@ export async function bridgeQueryAll(query: string): Promise<any> {
   })
 
   if (!response.ok) {
-    return ""
+    return ''
     //throw new Error(`Error: ${response.status}`)
   }
 
