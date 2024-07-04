@@ -36,12 +36,12 @@ def gen_for_query_with_file(file_content):
         return f"OpenAI API error: {e}"
 
 
-def _json(filepath):
-    try:
-        with open(filepath, 'r') as file:
-            file_content = json.load(file)
-    except Exception as e:
-        logger.error(f"Failed to read file: {e}")
-        return f"Failed to read file: {e}"
+# def _json(filepath):
+#     try:
+#         with open(filepath, 'r') as file:
+#             file_content = json.load(file)
+#     except Exception as e:
+#         logger.error(f"Failed to read file: {e}")
+#         return f"Failed to read file: {e}"
 
-    response = gen_for_query_with_file(file_content)
+#     response = gen_for_query_with_file(file_content)

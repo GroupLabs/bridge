@@ -42,7 +42,7 @@ import asyncio
 from connect.office365connector import list_emails, list_contacts, list_calendar_events, download_files
 from connect.googleconnector import download_and_load
 import json
-from llm import gen_for_query_with_file, _json
+from llm import gen_for_query_with_file
 #import mlflow
 #from mlflow.tracking import MlflowClient
 #from mlflow.exceptions import MlflowException
@@ -1253,32 +1253,36 @@ def _json(filepath):
         "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
         "metadata": response
     }
+    es.insert_document(document,index='universal_data_index')
+    insert_parent(filepath)
+    os.remove(filepath)
+    logger.info(f"Inserted document {doc_id} into Elasticsearch")
 
-    try:
-        # Search for the document in Elasticsearch
-        res = es.es.search(index='universal_data_index', query={
-            'bool': {
-                'must': [
-                    {'match': {'document_id': doc_id}}
-                ]
-            }
-        })
+    # try:
+    #     # Search for the document in Elasticsearch
+    #     res = es.es.search(index='universal_data_index', query={
+    #         'bool': {
+    #             'must': [
+    #                 {'match': {'document_id': doc_id}}
+    #             ]
+    #         }
+    #     })
 
-        # Check if there are any hits
-        if res['hits']['total']['value'] > 0:
-            # Document exists, update it
-            existing_doc_id = res['hits']['hits'][0]['_id']
-            es.es.update(index='universal_data_index', id=existing_doc_id, body={"doc": {
-                "Last_modified": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
-                "metadata": response
-            }})
-            logger.info(f"Updated document {existing_doc_id} in Elasticsearch")
-        else:
-            # Document does not exist, insert it
-            es.es.index(index='universal_data_index', id=doc_id, body=document)
-            logger.info(f"Inserted document {doc_id} into Elasticsearch")
-    except Exception as e:
-        logger.error(f"Error indexing document: {str(e)}")
+    #     # Check if there are any hits
+    #     if res['hits']['total']['value'] > 0:
+    #         # Document exists, update it
+    #         existing_doc_id = res['hits']['hits'][0]['_id']
+    #         es.es.update(index='universal_data_index', id=existing_doc_id, body={"doc": {
+    #             "Last_modified": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+    #             "metadata": response
+    #         }})
+    #         logger.info(f"Updated document {existing_doc_id} in Elasticsearch")
+    #     else:
+    #         # Document does not exist, insert it
+    #         es.insert_document(document,index='universal_data_index')
+    #         logger.info(f"Inserted document {doc_id} into Elasticsearch")
+    # except Exception as e:
+    #     logger.error(f"Error indexing document: {str(e)}")
 
     return response
 
