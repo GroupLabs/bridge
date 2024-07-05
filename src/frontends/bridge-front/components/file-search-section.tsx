@@ -1,6 +1,6 @@
 'use client'
 
-import { SearchResults } from './search-results'
+import { FileSearchResults } from './file-search-results'
 import { SearchSkeleton } from './search-skeleton'
 import { SearchResultsImageSection } from './search-results-image'
 import { Section } from './section'
@@ -34,7 +34,7 @@ export function FileSearchSection({ result }: SearchSectionProps) {
             </Section>
           )}
           <Section title="Files">
-            <SearchResults results={searchResults.results} />
+            <FileSearchResults results={searchResults.results} />
           </Section>
         </>
       ) : (
