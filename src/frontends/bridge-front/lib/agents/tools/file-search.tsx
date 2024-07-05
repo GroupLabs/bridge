@@ -2,12 +2,12 @@ import { createStreamableValue } from 'ai/rsc'
 import Exa from 'exa-js'
 import { searchSchema } from '@/lib/schema/search'
 import { Card } from '@/components/ui/card'
-import { SearchSection } from '@/components/search-section'
+import { FileSearchSection } from '@/components/file-search-section'
 import { ToolProps } from '.'
 import { SearchResult } from '@/lib/types'
 
-export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
-  description: 'Search the web for information',
+export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
+  description: 'Search files for information',
   parameters: searchSchema,
   execute: async ({
     query,
@@ -21,7 +21,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     let hasError = false
     // Append the search section
     const streamResults = createStreamableValue<string>()
-    uiStream.append(<SearchSection result={streamResults.value} />)
+    uiStream.append(<FileSearchSection result={streamResults.value} />)
 
     // Tavily API requires a minimum of 5 characters in the query
     const filledQuery =
@@ -31,7 +31,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     try {
       searchResult =
         searchAPI === 'tavily'
-          ? await tavilySearch(query)
+          ? await bridgeQuery(query)
           : await exaSearch(query)
     } catch (error) {
       console.error('Search API error:', error)

@@ -521,7 +521,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
         if elements is not None:
             pdf_file = open(filepath, 'rb')
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
@@ -577,7 +577,7 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
             
             grouped_elements = group_elements_by_title(elements)
 
@@ -633,7 +633,7 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
@@ -686,7 +686,7 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
             
             grouped_elements = group_elements_by_title(elements)
 
@@ -741,7 +741,7 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
             
             grouped_elements = group_elements_by_title(elements)
 
@@ -797,7 +797,7 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
@@ -850,7 +850,7 @@ def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
@@ -949,7 +949,7 @@ def _csv(filepath):
         "columns": column_details,
     }
 
-    context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+    context_chunk = f"{os.path.basename(filepath)}: \n"
     # Get the current local time
     local_time = datetime.now().astimezone()
 
@@ -1014,7 +1014,7 @@ def _excel(filepath):
         "dimensions": dimensions,
         "columns": column_details,
     }
-    context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+    context_chunk = f"{os.path.basename(filepath)}: \n"
     # Get the current local time
     local_time = datetime.now().astimezone()
 
@@ -1083,7 +1083,7 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):
@@ -1137,7 +1137,7 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
             return
 
         if elements:
-            context_chunk = f"To give a more context this is a chunk from {os.path.basename(filepath)}: \n"
+            context_chunk = f"{os.path.basename(filepath)}: \n"
 
             
             for i, e in enumerate(elements):

@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import {
   BookCheck,
+  Files,
   Film,
   Image,
   MessageCircleMore,
@@ -39,6 +40,9 @@ export const Section: React.FC<SectionProps> = ({
       break
     case 'Sources':
       icon = <Newspaper size={18} className="mr-2" />
+      break
+    case 'Files':
+      icon = <Files size={18} className="mr-2" />
       break
     case 'Answer':
       icon = <BookCheck size={18} className="mr-2" />
