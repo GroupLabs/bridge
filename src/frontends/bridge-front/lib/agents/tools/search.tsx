@@ -31,7 +31,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     try {
       searchResult =
         searchAPI === 'tavily'
-          ? await bridgeQuery(query)
+          ? await combinedSearch(query)
           : await exaSearch(query)
     } catch (error) {
       console.error('Search API error:', error)
@@ -96,26 +96,27 @@ async function bridgeQuery(query: string): Promise<any> {
   return transformData(data)
 }
 
-export async function bridgeQueryAll(query: string): Promise<any> {
-  const response = await fetch('http://0.0.0.0:8000/query_all', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      query: query
-    })
-  })
+async function combinedSearch(
+  query: string,
+  maxResults: number = 10,
+  searchDepth: 'basic' | 'advanced' = 'basic'
+): Promise<any> {
+  const apiKey = process.env.TAVILY_API_KEY // Assuming both functions use the same API key
+  // Parallel requests to both functions
+  const [bridgeData, tavilyData] = await Promise.all([
+    bridgeQuery(query),
+    tavilySearch(query, maxResults, searchDepth)
+  ])
 
-  if (!response.ok) {
-    return ''
-    //throw new Error(`Error: ${response.status}`)
+  // console.log(bridgeData)
+
+  // Assuming both functions return arrays of data, combine them
+  const combinedData = [...bridgeData.results, ...tavilyData.results]
+
+  return {
+    query: query || '', // Assuming the `query` is included in the top level of the API response
+    combinedData
   }
-
-  const data = await response.json()
-  // const information = data.body
-
-  return data
 }
 
 async function tavilySearch(
