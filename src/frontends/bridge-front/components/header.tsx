@@ -25,6 +25,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { Chats } from '@/components/chats'
+import { MessageSquareText, LineChart, HardDrive, User } from 'lucide-react'
 
 export const Header: React.FC = async () => {
   return (
@@ -40,7 +41,7 @@ export const Header: React.FC = async () => {
           <MenubarMenu>
             <Sheet>
               <SheetTrigger className="flex gap-2 lg:px-10 lg:py-0 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-50">
-                <MessageCircleIcon className="h-6 w-6" />
+                <MessageSquareText size={24} />
                 Chat
               </SheetTrigger>
               <SheetContent>
@@ -60,7 +61,7 @@ export const Header: React.FC = async () => {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="gap-2 lg:px-10 py-0">
-              <ActivityIcon className="h-6 w-6" />
+              <LineChart size={24} />
               Insights
             </MenubarTrigger>
             <MenubarContent>
@@ -71,7 +72,7 @@ export const Header: React.FC = async () => {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="gap-2 lg:px-10 py-0">
-              <BarChart2Icon className="h-6 w-6" />
+              <HardDrive size={24} />
               Data
             </MenubarTrigger>
             <MenubarContent>
@@ -94,7 +95,7 @@ export const Header: React.FC = async () => {
           </MenubarMenu>
           <MenubarMenu>
             <MenubarTrigger className="gap-2 lg:px-10 py-0">
-              <AccountIcon className="h-6 w-6" />
+              <User size={24} />
               Account
             </MenubarTrigger>
             <MenubarContent>
@@ -121,93 +122,6 @@ export const Header: React.FC = async () => {
         </div>
       </nav>
     </header>
-  )
-}
-
-function ActivityIcon(
-  props: React.JSX.IntrinsicAttributes & React.SVGProps<SVGSVGElement>
-) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
-    </svg>
-  )
-}
-
-function BarChart2Icon(
-  props: React.JSX.IntrinsicAttributes & React.SVGProps<SVGSVGElement>
-) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" x2="18" y1="20" y2="10" />
-      <line x1="12" x2="12" y1="20" y2="4" />
-      <line x1="6" x2="6" y1="20" y2="14" />
-    </svg>
-  )
-}
-
-function MessageCircleIcon(
-  props: React.JSX.IntrinsicAttributes & React.SVGProps<SVGSVGElement>
-) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-    </svg>
-  )
-}
-
-function AccountIcon(
-  props: React.JSX.IntrinsicAttributes & React.SVGProps<SVGSVGElement>
-) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
   )
 }
 
