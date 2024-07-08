@@ -198,7 +198,7 @@ def download_office365(access_token: str):
 
 
 @celery_app.task(name="load_data_task")
-def load_data(filepath: str, read=True):
+def load_data(filepath: str, from_source, read=True):
     # check if input is a connection string
     c_string = parse_connection_string(filepath)
 
@@ -217,47 +217,47 @@ def load_data(filepath: str, read=True):
 
         # unstructured
         if pathtype == "pdf":
-            _pdf(filepath, read_pdf=read)
+            _pdf(filepath, from_source, read_pdf=read)
 
         elif pathtype == "txt":
-            _txt(filepath, read_txt=read)
+            _txt(filepath, from_source, read_txt=read)
 
         elif pathtype == "markdown":
-            _md(filepath, read_md=read)
+            _md(filepath, from_source, read_md=read)
 
         elif pathtype == "doc":
-            _doc(filepath, read_doc=read)
+            _doc(filepath, from_source, read_doc=read)
 
         elif pathtype == "docx":
-            _docx(filepath, read_docx=read)
+            _docx(filepath, from_source, read_docx=read)
 
         elif pathtype == "odt":
-            _odt(filepath, read_odt=read)
+            _odt(filepath, from_source, read_odt=read)
 
         elif pathtype == "rtf":
-            _rtf(filepath, read_odt=read)
+            _rtf(filepath, from_source, read_odt=read)
 
         elif pathtype == "csv":
-            _csv(filepath)
+            _csv(filepath, from_source)
 
         elif pathtype == "xlsx" or pathtype == "xls":
-            _excel(filepath)
+            _excel(filepath, from_source)
 
         elif pathtype == "jpeg" or pathtype == "jpg" or pathtype == "png":
-            _picture(filepath)
+            _picture(filepath, from_source)
 
         elif pathtype == "ppt":
-            _ppt(filepath)
+            _ppt(filepath, from_source)
 
         elif pathtype == "pptx":
-            _pptx(filepath)
+            _pptx(filepath, from_source)
 
         # mix
         elif pathtype == "dir":
             # recursively call load_data
             pass
         elif pathtype == "json":
-            _json(filepath)
+            _json(filepath, from_source)
 
         else:
             logger.warning("unsupported filetype encountered.")
@@ -478,7 +478,6 @@ def create_title_chunks(grouped_elements: Dict, splitter: RollingWindowSplitter)
                 # Process accumulated text before the table
                 if combined_element_texts:
                     splits = splitter(combined_element_texts)
-                    print("-" * 80)
                     chunks.extend([split.content for split in splits])
                     combined_element_texts = []  # Reset combined texts after processing
 
@@ -492,23 +491,15 @@ def create_title_chunks(grouped_elements: Dict, splitter: RollingWindowSplitter)
         # or if no table was encountered
         if combined_element_texts:
             splits = splitter(combined_element_texts)
-            print("-" * 80)
             chunks.extend([split.content for split in splits])
 
         title_with_chunks.append({"title": title, "chunks": chunks})
 
-    # Print title and chunks for debugging
-    for item in title_with_chunks:
-        print(f"Title: {item['title']}")
-        print("Chunks:")
-        for chunk in item['chunks']:
-            print(f"- {chunk}")
-        print()
 
     return title_with_chunks
 
 
-def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
+def _pdf(filepath, from_source, read_pdf=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -543,7 +534,8 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
                     "access_group": "",  # not yet implemented
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number" : e.metadata.page_number
+                    "page_number" : e.metadata.page_number,
+                    "from_source": from_source
                 }
 
                 # Insert the document into Elasticsearch
@@ -565,7 +557,7 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     os.remove(filepath)
 
 
-def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
+def _txt(filepath, from_source, read_txt=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -603,6 +595,7 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
                         "access_group": "",  # not yet implemented
                         "chunking_strategy": chunking_strategy,
                         "chunk_no": i,
+                        "from_source": from_source
                     }
                     
                     es.insert_document(fields, index="text_chunk")
@@ -621,7 +614,7 @@ def _txt(filepath, read_txt=True, chunking_strategy="by_title"):
     insert_parent(filepath)
     os.remove(filepath)
 
-def _md(filepath, read_md=True, chunking_strategy="by_title"):
+def _md(filepath, from_source, read_md=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -655,7 +648,8 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
                     "access_group": "",  # not yet implemented
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number" : e.metadata.page_number
+                    "page_number" : e.metadata.page_number,
+                    "from_source": from_source
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -674,7 +668,7 @@ def _md(filepath, read_md=True, chunking_strategy="by_title"):
     insert_parent(filepath)
     os.remove(filepath)
 
-def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
+def _doc(filepath, from_source, read_doc=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -712,6 +706,7 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
                         "access_group": "",  # not yet implemented
                         "chunking_strategy": chunking_strategy,
                         "chunk_no": i,
+                        "from_source": from_source
                     }
                     
                     es.insert_document(fields, index="text_chunk")
@@ -729,7 +724,7 @@ def _doc(filepath, read_doc=True, chunking_strategy="by_title"):
     insert_parent(filepath)
     os.remove(filepath)
 
-def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
+def _docx(filepath, from_source, read_docx=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -767,6 +762,7 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
                         "access_group": "",  # not yet implemented
                         "chunking_strategy": chunking_strategy,
                         "chunk_no": i,
+                        "from_source": from_source
                     }
                     
                     es.insert_document(fields, index="text_chunk")
@@ -785,7 +781,7 @@ def _docx(filepath, read_docx=True, chunking_strategy="by_title"):
     os.remove(filepath)
 
 
-def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
+def _odt(filepath, from_source, read_odt=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -819,7 +815,8 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
                     "access_group": "",  # not yet implemented
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number" : e.metadata.page_number
+                    "page_number" : e.metadata.page_number,
+                    "from_source": from_source
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -838,7 +835,7 @@ def _odt(filepath, read_odt=True, chunking_strategy="by_title"):
     insert_parent(filepath)
     os.remove(filepath)
 
-def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
+def _rtf(filepath, from_source, read_rtf=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -872,7 +869,8 @@ def _rtf(filepath, read_rtf=True, chunking_strategy="by_title"):
                     "access_group": "",  # not yet implemented
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
-                    "page_number" : e.metadata.page_number
+                    "page_number" : e.metadata.page_number,
+                    "from_source": from_source
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -909,7 +907,7 @@ def get_detailed_dtypes(df):
     return detailed_dtypes
 
 
-def _csv(filepath):
+def _csv(filepath, from_source):
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     df = pd.read_csv(filepath)
 
@@ -965,7 +963,8 @@ def _csv(filepath):
         "table_name": table_name,
         "embedding": [0],
         "last_updated": int(time.time()),  # current time in long int
-        "data_hash": "not implemented"
+        "data_hash": "not implemented",
+        "from_source":from_source
 
 
     }
@@ -975,7 +974,7 @@ def _csv(filepath):
     os.remove(filepath)
 
 
-def _excel(filepath):
+def _excel(filepath, from_source):
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     df = pd.read_excel(filepath)
 
@@ -1030,14 +1029,15 @@ def _excel(filepath):
         "table_name": table_name,
         "embedding": [0],
         "last_updated": int(time.time()),  # current time in long int
-        "data_hash": "not implemented"
+        "data_hash": "not implemented",
+        "from_source":from_source
     }
 
     es.insert_document(fields, index="table_meta")
     insert_parent(filepath)
     os.remove(filepath)
 
-def _picture(filepath):
+def _picture(filepath, from_source):
 
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     image = Image.open(filepath)
@@ -1064,14 +1064,15 @@ def _picture(filepath):
         "file_path": filepath,
         "embedding": [0],
         "last_updated": int(time.time()),  # current time in long int
-        "data_hash": "not implemented"
+        "data_hash": "not implemented",
+        "from_source":from_source
     }
 
     es.insert_document(fields, index="picture_meta")
     insert_parent(filepath)
     os.remove(filepath)
 
-def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
+def _ppt(filepath, from_source, read_ppt=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -1106,7 +1107,8 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
                     "chunking_strategy": chunking_strategy,
                     'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "chunk_no": i,
-                    "page_number" : e.metadata.page_number
+                    "page_number" : e.metadata.page_number,
+                    "from_source":from_source
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -1125,7 +1127,7 @@ def _ppt(filepath, read_ppt=True, chunking_strategy="by_title"):
     insert_parent(filepath)
     os.remove(filepath)
 
-def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
+def _pptx(filepath, from_source, read_pptx=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
 
@@ -1160,7 +1162,8 @@ def _pptx(filepath, read_pptx=True, chunking_strategy="by_title"):
                     "chunking_strategy": chunking_strategy,
                     'Date added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "chunk_no": i,
-                    "page_number" : e.metadata.page_number
+                    "page_number" : e.metadata.page_number,
+                    "from_source":from_source
                 }
                 
                 es.insert_document(fields, index="text_chunk")
@@ -1222,7 +1225,7 @@ def _db(db_type, host, user, password):
                 
                 print("stored: " + file.split(".")[0])
 
-def _json(filepath):
+def _json(filepath, from_source):
     try:
         with open(filepath, 'r') as file:
             file_content = json.load(file)
@@ -1251,7 +1254,8 @@ def _json(filepath):
         'Size_numeric': file_size_mb,
         "Type": os.path.splitext(filepath)[-1],
         "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
-        "metadata": response
+        "metadata": response,
+        "from_source":from_source
     }
     es.insert_document(document,index='universal_data_index')
     insert_parent(filepath)
@@ -1317,6 +1321,12 @@ def add_model_to_mlflow(model_path):
     except Exception as e:
         logger.error(f"Failed to log to MLflow: {str(e)}")
 """
+
+@celery_app.task(name="delete_connector_task")
+def delete_connector(connector_name):
+    es.delete_connector(connector_name)
+
+
 
 if __name__ == "__main__":
     # load_data("/Users/noelthomas/Desktop/Mistral 7B Paper.pdf", True)
