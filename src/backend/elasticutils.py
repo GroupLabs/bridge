@@ -66,6 +66,7 @@ class Search:
                         'access_group': {'type': 'keyword'},
                         'document_name': {'type': 'text'},
                         'chunk_text': {'type': 'text'},
+                        'from_source': {'type': 'keyword'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
                         # embeddings
@@ -130,6 +131,7 @@ class Search:
                         'picture_name': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'description_text': {'type': 'text'},
+                        'from_source': {'type': 'keyword'},
                         'time_added': {'type': 'text'},
 
                         # embeddings
@@ -158,6 +160,7 @@ class Search:
                         'database_id': {'type': 'keyword'},
                         'access_group': {'type': 'keyword'},
                         'table_name': {'type': 'text'},
+                        'from_source': {'type': 'keyword'},
                         'description_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
@@ -252,6 +255,7 @@ class Search:
                     'properties': {
                         'document_id': {'type': 'keyword'}, 
                         'document_name': {'type': 'text'},
+                        'from_source': {'type': 'keyword'},
                         'Size': {'type': 'text'},
                         'Type': {'type': 'keyword'},
                         'Last_modified': {'type': 'date'},
@@ -296,6 +300,51 @@ class Search:
         for idx in self.registered_indices:
             r = r + f"\n.... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
         return r
+    def search_connector_by_name(self, connector_name):
+        indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index"]
+        results = []
+
+        for index in indices:
+            try:
+                response = self.es.search(
+                    index=index,
+                    query={
+                        "term": {
+                            "from_source": connector_name
+                        }
+                    },
+                    _source=["from_source"]  # Only retrieve the 'from_source' field
+                )
+
+                if response['hits']['total']['value'] > 0:
+                    for hit in response['hits']['hits']:
+                        results.append({
+                            "index": hit['_index'],
+                            "id": hit['_id'],
+                            "source": hit['_source']['from_source']
+                        })
+                        
+            except Exception as e:
+                logger.error(f"Error searching index {index}: {str(e)}")
+
+        return results
+
+    def delete_connector(self, connector_name):
+        results = self.search_connector_by_name(connector_name)
+
+        if not results:
+            logger.info(f"No documents found for connector: {connector_name}")
+            return
+
+        for result in results:
+            try:
+                self.es.delete(index=result["index"], id=result["id"])
+                logger.info(f"Deleted document ID: {result['id']} from index: {result['index']}")
+            except Exception as e:
+                logger.error(f"Error deleting document ID: {result['id']} from index: {result['index']}: {str(e)}")
+
+        logger.info(f"Deleted {len(results)} documents for connector: {connector_name}")
+
     
     # load ops
     def insert_document(self, document: any, index: str):
@@ -364,7 +413,8 @@ class Search:
                 else:
                     combined_results[_id] = {
                         "score": weight / (k + rank),
-                        "text": result["_source"].get(field, '')
+                        "text": result["_source"].get(field, ''),
+                        "source": result["_source"].get("from_source", '')
                     }
 
         # Sort results by score in descending order
@@ -409,11 +459,11 @@ class Search:
                     _field: query
                 }
             },
-            _source=[_field],
+            _source=[_field, 'from_source'],  # Include the 'from_source' field
             index=index
         )
 
-        logger.info(f"{match_response}")
+        logger.info(f"here: {match_response}")
 
         if INSPECT:
             print("MATCH")
@@ -434,7 +484,7 @@ class Search:
                 'k': 10,
                 'num_candidates': 50
             },
-            _source=[_field],
+            _source=[_field, 'from_source'],
             index=index
         )
         

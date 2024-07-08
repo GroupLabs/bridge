@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import subprocess
 import time
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task, download_office365
+from storage import load_data, load_model, query, get_inference, sort_docs, get_parent, download_and_load_task, download_office365, delete_connector
 from serverutils import Health, Status, Load, Query
 from serverutils import ChatRequest
 from ollama import chat1, chat2, gen2, gen1, gen_for_query
@@ -229,7 +229,7 @@ async def nl_query(input: Query):
     return {"health": health, "status": "success", "resp": resp}
 
 @app.post("/load_query")
-async def load_query_ep(response: Response, file: UploadFile = File(...)):
+async def load_query_ep(response: Response, file: UploadFile = File(...), from_source: str = Form(...)):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -252,14 +252,14 @@ async def load_query_ep(response: Response, file: UploadFile = File(...)):
             temp_file.write(content)
 
         # Start the task
-        task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", from_source = from_source)
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
 
         # Start a background task to update the task progress
         asyncio.create_task(update_task_progress(filename, task.id))
 
-        return {"status": "accepted", "task_id": task.id}
+        return {"status": "accepted", "task_id": task.id, "source": from_source}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -811,6 +811,13 @@ async def github_ping():
         logger.error(f"Error during github_ping: {str(e)}")
         raise HTTPException(status_code=500, detail="Error in /github_ping")
 
+@app.post("/delete_connector")
+async def delete_connector_ep(connector_name: str = Form(...)):
+    delete_connector(connector_name)
+    return health
+
+
+    return health
 if __name__ == '__main__':
     import uvicorn
     if not config.ENV:
