@@ -300,9 +300,11 @@ class Search:
         for idx in self.registered_indices:
             r = r + f"\n.... [{idx}] storing {self.es.count(index=idx)['count']} value(s)"
         return r
+
     def search_connector_by_name(self, connector_name):
         indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index"]
         results = []
+        size = 9999  # or any other value depending on your expected results
 
         for index in indices:
             try:
@@ -313,7 +315,8 @@ class Search:
                             "from_source": connector_name
                         }
                     },
-                    _source=["from_source"]  # Only retrieve the 'from_source' field
+                    _source=["from_source"],  # Only retrieve the 'from_source' field
+                    size=size
                 )
 
                 if response['hits']['total']['value'] > 0:
@@ -323,7 +326,7 @@ class Search:
                             "id": hit['_id'],
                             "source": hit['_source']['from_source']
                         })
-                        
+                            
             except Exception as e:
                 logger.error(f"Error searching index {index}: {str(e)}")
         return results
