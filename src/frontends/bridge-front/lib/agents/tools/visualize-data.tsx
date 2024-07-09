@@ -1,12 +1,16 @@
 import { createStreamableValue } from 'ai/rsc'
-import Exa from 'exa-js'
 import { searchSchema } from '@/lib/schema/search'
 import { Card } from '@/components/ui/card'
-import { SearchSection } from '@/components/search-section'
+import { VisualizeDataSection } from '@/components/visualize-data-section'
 import { ToolProps } from '.'
+import { SearchResult } from '@/lib/types'
 
-export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
-  description: 'Search the web for information',
+export const visualizeDataTool = ({
+  uiStream,
+  fullResponse,
+  messages
+}: ToolProps) => ({
+  description: 'Visualize data for information',
   parameters: searchSchema,
   execute: async ({
     query,
@@ -20,7 +24,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     let hasError = false
     // Append the search section
     const streamResults = createStreamableValue<string>()
-    uiStream.append(<SearchSection result={streamResults.value} />)
+    uiStream.append(<VisualizeDataSection result={streamResults.value} />)
 
     // Tavily API requires a minimum of 5 characters in the query
     const filledQuery =
@@ -28,10 +32,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     let searchResult
     const searchAPI: 'tavily' | 'exa' = 'tavily'
     try {
-      searchResult =
-        searchAPI === 'tavily'
-          ? await tavilySearch(query)
-          : await exaSearch(query)
+      searchResult = await bridgeQuery(query)
     } catch (error) {
       console.error('Search API error:', error)
       hasError = true
@@ -53,24 +54,37 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
   }
 })
 
-async function tavilySearch(
-  query: string,
-  maxResults: number = 10,
-  searchDepth: 'basic' | 'advanced' = 'basic'
-): Promise<any> {
-  const apiKey = process.env.TAVILY_API_KEY
-  const response = await fetch('https://api.tavily.com/search', {
+const transformData = (
+  respData: any
+): { query: string; results: SearchResult[] } => {
+  if (!Array.isArray(respData.resp)) {
+    console.error('Expected array but received:', respData)
+    return { query: '', results: [] }
+  }
+
+  const results = respData.resp.map(
+    ([id, { score, text }]: [string, { score: number; text: string }]) => ({
+      id,
+      score,
+      text
+    })
+  )
+
+  return {
+    query: respData.query || '', // Assuming the `query` is included in the top level of the API response
+    results
+  }
+}
+
+async function bridgeQuery(query: string): Promise<any> {
+  const response = await fetch('http://0.0.0.0:8000/query_all', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: maxResults < 5 ? 5 : maxResults,
-      search_depth: searchDepth,
-      include_images: true,
-      include_answers: true
+      query: query,
+      index: 'text_chunk'
     })
   })
 
@@ -79,14 +93,5 @@ async function tavilySearch(
   }
 
   const data = await response.json()
-  return data
-}
-
-async function exaSearch(query: string, maxResults: number = 10): Promise<any> {
-  const apiKey = process.env.EXA_API_KEY
-  const exa = new Exa(apiKey)
-  return exa.searchAndContents(query, {
-    highlights: true,
-    numResults: maxResults
-  })
+  return transformData(data)
 }

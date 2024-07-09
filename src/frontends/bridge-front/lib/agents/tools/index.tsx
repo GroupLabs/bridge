@@ -3,13 +3,16 @@ import { retrieveTool } from './retrieve'
 import { searchTool } from './search'
 import { videoSearchTool } from './video-search'
 import { fileSearchTool } from './file-search'
+import { visualizeDataTool } from './visualize-data'
+import { CoreMessage } from 'ai'
 
 export interface ToolProps {
   uiStream: ReturnType<typeof createStreamableUI>
   fullResponse: string
+  messages?: CoreMessage[]
 }
 
-export const getTools = ({ uiStream, fullResponse }: ToolProps) => {
+export const getTools = ({ uiStream, fullResponse, messages }: ToolProps) => {
   const tools: any = {
     search: searchTool({
       uiStream,
@@ -22,6 +25,11 @@ export const getTools = ({ uiStream, fullResponse }: ToolProps) => {
     retrieve: retrieveTool({
       uiStream,
       fullResponse
+    }),
+    displayData: visualizeDataTool({
+      uiStream,
+      fullResponse,
+      messages
     })
   }
 

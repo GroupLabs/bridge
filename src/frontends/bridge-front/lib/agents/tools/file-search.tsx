@@ -1,5 +1,4 @@
 import { createStreamableValue } from 'ai/rsc'
-import Exa from 'exa-js'
 import { searchSchema } from '@/lib/schema/search'
 import { Card } from '@/components/ui/card'
 import { FileSearchSection } from '@/components/file-search-section'
@@ -19,20 +18,13 @@ export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     search_depth: 'basic' | 'advanced'
   }) => {
     let hasError = false
-    // Append the search section
+    // Append the file search section
     const streamResults = createStreamableValue<string>()
     uiStream.append(<FileSearchSection result={streamResults.value} />)
 
-    // Tavily API requires a minimum of 5 characters in the query
-    const filledQuery =
-      query.length < 5 ? query + ' '.repeat(5 - query.length) : query
     let searchResult
-    const searchAPI: 'tavily' | 'exa' = 'tavily'
     try {
-      searchResult =
-        searchAPI === 'tavily'
-          ? await bridgeQuery(query)
-          : await exaSearch(query)
+      searchResult = await bridgeQuery(query)
     } catch (error) {
       console.error('Search API error:', error)
       hasError = true
@@ -94,65 +86,4 @@ async function bridgeQuery(query: string): Promise<any> {
 
   const data = await response.json()
   return transformData(data)
-}
-
-async function combinedSearch(
-  query: string,
-  maxResults: number = 10,
-  searchDepth: 'basic' | 'advanced' = 'basic'
-): Promise<any> {
-  const apiKey = process.env.TAVILY_API_KEY // Assuming both functions use the same API key
-  // Parallel requests to both functions
-  const [bridgeData, tavilyData] = await Promise.all([
-    bridgeQuery(query),
-    tavilySearch(query, maxResults, searchDepth)
-  ])
-
-  // console.log(bridgeData)
-
-  // Assuming both functions return arrays of data, combine them
-  const combinedData = [...bridgeData.results, ...tavilyData.results]
-
-  return {
-    query: query || '', // Assuming the `query` is included in the top level of the API response
-    combinedData
-  }
-}
-
-async function tavilySearch(
-  query: string,
-  maxResults: number = 10,
-  searchDepth: 'basic' | 'advanced' = 'basic'
-): Promise<any> {
-  const apiKey = process.env.TAVILY_API_KEY
-  const response = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: maxResults < 5 ? 5 : maxResults,
-      search_depth: searchDepth,
-      include_images: true,
-      include_answers: true
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Error: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return data
-}
-
-async function exaSearch(query: string, maxResults: number = 10): Promise<any> {
-  const apiKey = process.env.EXA_API_KEY
-  const exa = new Exa(apiKey)
-  return exa.searchAndContents(query, {
-    highlights: true,
-    numResults: maxResults
-  })
 }

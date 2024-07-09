@@ -131,7 +131,7 @@ def get_token_by_code(code):
 async def auth():
     try:
         auth_url = get_auth_url()
-        return RedirectResponse(url=auth_url)
+        return {"authorization_url": auth_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

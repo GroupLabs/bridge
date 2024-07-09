@@ -9,7 +9,8 @@ import {
   MessageCircleMore,
   Newspaper,
   Repeat2,
-  Search
+  Search,
+  LineChart
 } from 'lucide-react'
 import React from 'react'
 import { Separator } from './ui/separator'
@@ -43,6 +44,9 @@ export const Section: React.FC<SectionProps> = ({
       break
     case 'Files':
       icon = <Files size={18} className="mr-2" />
+      break
+    case 'Data Visualization':
+      icon = <LineChart size={18} className="mr-2" />
       break
     case 'Answer':
       icon = <BookCheck size={18} className="mr-2" />

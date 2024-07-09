@@ -34,7 +34,8 @@ export async function researcher(
     messages,
     tools: getTools({
       uiStream,
-      fullResponse
+      fullResponse,
+      messages
     })
   }).catch(err => {
     hasError = true
