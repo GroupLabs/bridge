@@ -2,7 +2,6 @@ import os
 import json
 import requests
 import msal
-import webbrowser
 import time
 from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
@@ -23,37 +22,12 @@ msal_app = msal.ConfidentialClientApplication(
     client_credential=CLIENT_SECRET,
 )
 
-def authenticate():
-    # Create the authorization URL
-    auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
-    print(f"Please go to this URL and authorize the application: {auth_url}")
-    webbrowser.open(auth_url)
-    
-    # Start a simple HTTP server to listen for the callback
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    class OAuthHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            query_components = parse_qs(urlparse(self.path).query)
-            self.server.auth_code = query_components.get('code')
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(b'You can close this window.')
-    
-    server = HTTPServer(('localhost', 8080), OAuthHandler)
-    server.handle_request()
-    
-    code = server.auth_code[0] if server.auth_code else None
-    print(code)
-    if not code:
-        raise Exception("Failed to get authorization code")
-    
-    # Exchange the authorization code for an access token
+def get_auth_url():
+    return msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+
+def get_token_by_code(code):
     result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
-    if 'access_token' not in result:
-        raise Exception(f"Could not acquire token: {result.get('error_description')}")
-    
-    return result['access_token']
+    return result
 
 def list_files(access_token, folder_id='root'):
     headers = {'Authorization': f'Bearer {access_token}'}
