@@ -409,7 +409,7 @@ def get_document_name(document_id):
         return None
 
 
-def insert_parent(filepath):
+def insert_parent(filepath, from_source):
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
     # Get the file size in bytes
     file_size_bytes = os.path.getsize(filepath)
@@ -424,6 +424,7 @@ def insert_parent(filepath):
         'Size_numeric': file_size_mb,  
         "Type": os.path.splitext(filepath)[-1],
         "Created": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+        "from_source": from_source
     }
     es.insert_document(fields, index="parent_doc")
 
@@ -553,7 +554,7 @@ def _pdf(filepath, from_source, read_pdf=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 
@@ -611,7 +612,7 @@ def _txt(filepath, from_source, read_txt=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _md(filepath, from_source, read_md=True, chunking_strategy="by_title"):
@@ -665,7 +666,7 @@ def _md(filepath, from_source, read_md=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _doc(filepath, from_source, read_doc=True, chunking_strategy="by_title"):
@@ -721,7 +722,7 @@ def _doc(filepath, from_source, read_doc=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _docx(filepath, from_source, read_docx=True, chunking_strategy="by_title"):
@@ -777,7 +778,7 @@ def _docx(filepath, from_source, read_docx=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 
@@ -832,7 +833,7 @@ def _odt(filepath, from_source, read_odt=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _rtf(filepath, from_source, read_rtf=True, chunking_strategy="by_title"):
@@ -886,7 +887,7 @@ def _rtf(filepath, from_source, read_rtf=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 
@@ -970,7 +971,7 @@ def _csv(filepath, from_source):
     }
 
     es.insert_document(fields, index="table_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 
@@ -1034,7 +1035,7 @@ def _excel(filepath, from_source):
     }
 
     es.insert_document(fields, index="table_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _picture(filepath, from_source):
@@ -1069,7 +1070,7 @@ def _picture(filepath, from_source):
     }
 
     es.insert_document(fields, index="picture_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _ppt(filepath, from_source, read_ppt=True, chunking_strategy="by_title"):
@@ -1124,7 +1125,7 @@ def _ppt(filepath, from_source, read_ppt=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
 
 def _pptx(filepath, from_source, read_pptx=True, chunking_strategy="by_title"):
@@ -1178,7 +1179,7 @@ def _pptx(filepath, from_source, read_pptx=True, chunking_strategy="by_title"):
         }
 
         es.insert_document(fields, index="document_meta")
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
     
 
@@ -1258,7 +1259,7 @@ def _json(filepath, from_source):
         "from_source":from_source
     }
     es.insert_document(document,index='universal_data_index')
-    insert_parent(filepath)
+    insert_parent(filepath, from_source)
     os.remove(filepath)
     logger.info(f"Inserted document {doc_id} into Elasticsearch")
 

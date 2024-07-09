@@ -101,6 +101,7 @@ class Search:
                             }
                         },
                         'Size': {'type': 'text'},
+                        'from_source': {'type': 'keyword'},
                         'Size_numeric': {'type': 'float'},  # Add Size_numeric for sorting
                         'Type': {'type': 'keyword'},
                         'Last_modified': {'type': 'text'},
@@ -302,7 +303,7 @@ class Search:
         return r
 
     def search_connector_by_name(self, connector_name):
-        indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index"]
+        indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index", "parent_doc"]
         results = []
         size = 9999  # or any other value depending on your expected results
 
