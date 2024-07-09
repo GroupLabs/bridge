@@ -90,6 +90,7 @@ class Search:
                 index='parent_doc', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'document_name': {
                             'type': 'text',
@@ -113,7 +114,6 @@ class Search:
                             'similarity': 'cosine'
                             },
                         'colbert': {'type': 'object', 'enabled': False}  # disable indexing for the 'colbert' field
-                        
                     }
                 })
         except BadRequestError as e:
@@ -236,6 +236,7 @@ class Search:
                 index='db_meta', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         "db_type": {'type': 'keyword'},
                         'connection_id': {'type': 'keyword'},
                         'host': {'type': 'keyword'},
@@ -254,6 +255,7 @@ class Search:
                 index='universal_data_index', 
                 mappings={
                     'properties': {
+                        'user_id': {'type': 'keyword'},
                         'document_id': {'type': 'keyword'}, 
                         'document_name': {'type': 'text'},
                         'from_source': {'type': 'keyword'},

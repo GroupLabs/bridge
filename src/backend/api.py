@@ -238,8 +238,8 @@ async def nl_query(input: Query):
 
     return {"health": health, "status": "success", "resp": resp}
 
-@app.post("/load_query")
-async def load_query_ep(response: Response, file: UploadFile = File(...), from_source: str = Form(...)):
+@app.post("/load_query/{user_id}")
+async def load_query_ep(response: Response, file: UploadFile = File(...), from_source: str = Form(...), user_id: str = Path()):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -262,7 +262,7 @@ async def load_query_ep(response: Response, file: UploadFile = File(...), from_s
             temp_file.write(content)
 
         # Start the task
-        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", from_source = from_source)
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", from_source = from_source, user_id=user_id)
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
 

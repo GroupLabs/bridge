@@ -120,7 +120,7 @@ services:
       - MODEL_CONTAINER_NAME=${MODEL_CONTAINER_NAME}
       - MODEL_SOURCE_FOLDER=/app/tmp/modeltmp
       - HF_HOME=/app/cache/huggingface
-      - CLIENT_SECRET_FILE=/app/credentials/client_secret_314321330211-32eu8fe8sot2qobjgaefq2pgtf2e2bq0.apps.googleusercontent.com.json
+      - CLIENT_SECRET_FILE=/app/credentials/client_secret_900197506284-pcahsol5524co5rn5bkivpcpd47496pb.apps.googleusercontent.com.json
       - OAUTHLIB_INSECURE_TRANSPORT=1
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
