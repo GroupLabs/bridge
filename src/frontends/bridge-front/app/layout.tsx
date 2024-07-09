@@ -56,7 +56,6 @@ export default function RootLayout({
           disableTransitionOnChange
 
         >
-          <SignOutButton/>
           {children}
           {/* <Sidebar /> */}
           <Footer />
