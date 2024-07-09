@@ -106,7 +106,8 @@ async def send_file_to_endpoint(file_content, file_name, content_type='applicati
     async with httpx.AsyncClient() as client:
         file_stream = io.BytesIO(file_content)
         files = {'file': (file_name, file_stream, content_type)}
-        response = await client.post("http://localhost:8000/load_query", files=files, from_source="slack")
+        data = {'from_source': 'slack'}
+        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{file_name} data accepted for loading")

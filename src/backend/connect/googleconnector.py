@@ -161,7 +161,8 @@ async def stream_file(service, file_id, file_name):
 async def send_file_to_endpoint(file_stream, file_name):
     async with httpx.AsyncClient() as client:
         files = {'file': (file_name, file_stream, 'application/octet-stream')}
-        response = await client.post("http://localhost:8000/load_query", files=files, from_source="google")
+        data = {'from_source': 'google'}
+        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"File '{file_name}' accepted for loading")
@@ -181,7 +182,8 @@ async def send_data_as_text_file_to_endpoint(data_type, data):
         file_name = f"{data_type}.txt"
         file_stream = io.BytesIO(file_content.encode('utf-8'))
         files = {'file': (file_name, file_stream, 'text/plain')}
-        response = await client.post("http://localhost:8000/load_query", files=files, from_source="google")
+        data = {'from_source': 'google'}
+        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{data_type} data accepted for loading")

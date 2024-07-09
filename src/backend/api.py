@@ -60,6 +60,8 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 SCOPE = ['Files.Read', 'Mail.Read', 'Calendars.Read', 'Contacts.Read', 'Tasks.Read', 'Sites.Read.All']
 
+REDIRECT_URI = os.getenv("REDIRECT_URI")
+
 logger = setup_logger("api")
 logger.info("LOGGER READY")
 
@@ -116,32 +118,40 @@ async def load_data_by_path(input: Load, response: Response):
         response.status_code = 400
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
     
-@app.get("/office_auth")
+
+def get_auth_url():
+    return msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+
+def get_token_by_code(code):
+    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
+    return result
+
+
+@app.get("/api/office_auth")
 async def auth():
     try:
-        # Step 1: Get authorization URL
-        auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=config.REDIRECT_URI)
-        
-        # Print or return the authorization URL so user can authorize manually
-        return JSONResponse(content={"authorization_url": auth_url})
-
+        auth_url = get_auth_url()
+        return RedirectResponse(url=auth_url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/token")
-async def get_token(request: Request):
-    code = request.query_params.get('code')
-    if not code:
-        return {"error": "Authorization code not found in the request."}
-    
-    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=config.REDIRECT_URI)
-    if 'access_token' not in result:
-        return {"error": f"Could not acquire token: {result.get('error_description')}"}
-    
-    access_token = result['access_token']
-    task = download_office365.delay(access_token)
+@app.get("/api/office_callback")
+async def office_callback(request: Request):
+    try:
+        code = request.query_params.get('code')
+        state = request.query_params.get('state')
+        if not code:
+            raise HTTPException(status_code=400, detail="Missing code parameter")
+        result = get_token_by_code(code)
+        if 'access_token' not in result:
+            raise HTTPException(status_code=400, detail=f"Could not acquire token: {result.get('error_description')}")
+        access_token = result['access_token']
+        # Automatically start downloading files after successful authentication
+        task = download_office365.delay(access_token)
+        return {"status": "success", "task_id": task.id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication callback failed: {e}")
 
-    return {"status": "accepted", "task_id": task.id}
 
 @app.get("/downloads/{filename}")
 async def download_file(filename: str):
