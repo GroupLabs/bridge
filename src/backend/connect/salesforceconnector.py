@@ -339,7 +339,8 @@ async def send_data_to_endpoint(data, data_type):
     async with httpx.AsyncClient() as client:
         data_json = json.dumps(data).encode('utf-8')
         files = {'file': (f'{data_type}.json', io.BytesIO(data_json), 'application/json')}
-        response = await client.post("http://localhost:8000/load_query", files=files)
+        data = {'from_source': 'salesforce'}
+        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{data_type.capitalize()} data accepted for loading")
@@ -350,7 +351,8 @@ async def send_file_to_endpoint(file_content, file_title, file_extension):
     async with httpx.AsyncClient() as client:
         file_stream = io.BytesIO(file_content)
         files = {'file': (f'{file_title}.{file_extension}', file_stream, 'application/octet-stream')}
-        response = await client.post("http://localhost:8000/load_query", files=files)
+        data = {'from_source': 'salesforce'}
+        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{file_title} data accepted for loading")
