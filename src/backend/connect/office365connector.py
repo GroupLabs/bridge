@@ -266,7 +266,7 @@ async def download_file_by_type(access_token, file_name):
         file_content = response.content
         file_stream = io.BytesIO(file_content)
         files = {'file': (file_name, file_stream, 'application/octet-stream')}
-        data = {'from_source': 'microsoft'}
+        data = {'from_source': 'office365'}
         response = await client.post("http://localhost:8000/load_query", files=files, data=data)
         print(f"Response from server: {response.text}")
         if response.status_code == 202:
