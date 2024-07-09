@@ -43,7 +43,7 @@ class config:
     MLFLOW_TRACKING_URI="http://mlflow:5000"
 
     # googleconnector
-    REDIRECT_URI = "http://localhost:8000/oauth2callback"
+    GOOGLE_REDIRECT_URI = "http://localhost:8000/oauth2callback"
 
     SALESFORCE_CLIENT_ID = os.getenv('SALESFORCE_CLIENT_ID')
     SALESFORCE_CLIENT_SECRET = os.getenv('SALESFORCE_CLIENT_SECRET')

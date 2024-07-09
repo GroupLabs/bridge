@@ -254,7 +254,7 @@ async def download_and_load(creds_json):
         logger.error(f"Error in downloading and loading files: {str(e)}")
 
 def get_flow():
-    return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=config.REDIRECT_URI)
+    return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=config.GOOGLE_REDIRECT_URI)
   
 
 def list_calendar_events(service):
