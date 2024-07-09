@@ -540,14 +540,14 @@ def find_document_by_id_rel_docs(document_id, parent_index="parent_doc"):
 #             seen.add(doc_id)
 
 #     return unique_documents
-@app.post("/query_all")
-async def get_query_parent_ep(input: Query):
+@app.post("/query_all/{user_id}")
+async def get_query_parent_ep(input: Query, user_id=Path()):
     indices = ["table_meta", "picture_meta", "text_chunk", "universal_data_index"]
     all_responses = []
 
     # Loop through the indices and collect responses
     for index in indices:
-        resp = query(input.query, index)
+        resp = query(input.query, index, user_id)
         if resp is not None:
             all_responses.extend(resp)
 

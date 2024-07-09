@@ -441,11 +441,10 @@ class Search:
 
         return sorted_results
     
-    def hybrid_search(self, query: str, index: str):
+    def hybrid_search(self, query: str, index: str, user_id: str):
         INSPECT = False
 
         # Determine the field to use based on the index
-        # TODO: make this better so it can be set up once
         if index == 'text_chunk':
             _field = "chunk_text"
         elif index == 'table_meta':
@@ -459,13 +458,19 @@ class Search:
         else:
             raise NotImplementedError
 
+        # Construct the match query with user_id filter
+        match_query = {
+            'bool': {
+                'must': [
+                    {'match': {_field: query}},
+                    {'term': {'user_id': user_id}}
+                ]
+            }
+        }
+
         match_response = self.es.search(
-            query={
-                'match': {
-                    _field: query
-                }
-            },
-            _source=[_field, 'from_source'],  # Include the 'from_source' field
+            query=match_query,
+            _source=[_field, 'from_source'],
             index=index
         )
 
@@ -474,38 +479,43 @@ class Search:
         if INSPECT:
             print("MATCH")
             for hit in match_response['hits']['hits']:
-                # Print the ID, score, and a snippet of the description_text for each hits
-                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
-
+                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source'][_field][:100]}...")
 
         match_results = match_response['hits']['hits']
         if len(match_results) == 0:
             return
-        # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
-        knn_response = self.es.search(
-            knn={
-                'field': 'e5',
-                'query_vector': embed_query(query).tolist()[0],
-                #'query_vector': [0.0, 0.0, 0.1],
-                'k': 10,
-                'num_candidates': 50
-            },
-            _source=[_field, 'from_source'],
-            index=index
+
+        # Construct the KNN search query
+        knn_query = {
+            'field': 'e5',
+            'query_vector': embed_query(query).tolist()[0],
+            'k': 10,
+            'num_candidates': 50
+        }
+
+        knn_response = self.es.knn_search(
+            index=index,
+            knn=knn_query,
+            _source=[_field, 'from_source']
         )
-        
+
+        # Filter KNN results by user_id
+        filtered_knn_results = [
+            hit for hit in knn_response['hits']['hits']
+            if hit['_source'].get('user_id') == user_id
+        ]
+
         if INSPECT:
             print("KNN")
-            for hit in knn_response['hits']['hits']:
-                # Print the ID, score, and a snippet of the description_text for each hits
-                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
+            for hit in filtered_knn_results:
+                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source'][_field][:100]}...")
 
-        knn_results = knn_response['hits']['hits']
+        knn_results = filtered_knn_results
 
         # (result set, weight)
         result_sets_with_rankings = {
-            "match" : match_results,
-            "knn" : knn_results
+            "match": match_results,
+            "knn": knn_results
         }
 
         # tuning between result_sets

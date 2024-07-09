@@ -444,8 +444,8 @@ def extract_io_metadata(config, io_type):
 
 # TODO remove temp models
 
-def query(q: str, index: str):
-    return es.hybrid_search(q, index)
+def query(q: str, index: str, user_id: str):
+    return es.hybrid_search(q, index, user_id)
 
 def get_parent(chunk):
     response = es.search(
