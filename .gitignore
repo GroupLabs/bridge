@@ -34,3 +34,5 @@ __pycache__/
 # credentials
 *.crt
 bridge.wiki/
+/node_modules
+/src/frontends/bridge-front/node_modules
