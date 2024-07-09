@@ -5,6 +5,9 @@ import msal
 import time
 from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
+import io
+import httpx
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -235,54 +238,62 @@ def download_file(access_token, file_name):
         f.write(response.content)
     print(f"File downloaded as {file_path}")
 
-def download_file_by_type(access_token, file_name):
-    if "." not in file_name:
-        print(f"File name {file_name} does not contain a '.'")
-        return None
 
-    files = list_files(access_token)
-    file_id = None
-    for file in files:
-        if file['name'] == file_name:
-            file_id = file['id']
-            break
+async def download_file_by_type(access_token, file_name):
+    async with httpx.AsyncClient() as client:
+        if "." not in file_name:
+            print(f"File name {file_name} does not contain a '.'")
+            return None
 
-    if not file_id:
-        print(f"File named {file_name} not found.")
-        return None
+        files = list_files(access_token)
+        file_id = None
+        for file in files:
+            if file['name'] == file_name:
+                file_id = file['id']
+                break
 
-    headers = {'Authorization': f'Bearer {access_token}'}
-    download_url = f'https://graph.microsoft.com/v1.0/me/drive/items/{file_id}/content'
-    response = requests.get(download_url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
+        if not file_id:
+            print(f"File named {file_name} not found.")
+            return None
 
-    file_extension = file_name.split(".")[-1]
-    download_dir = os.path.join(os.getcwd(), 'office365' ,'downloads', file_extension)
-    os.makedirs(download_dir, exist_ok=True)
+        headers = {'Authorization': f'Bearer {access_token}'}
+        download_url = f'https://graph.microsoft.com/v1.0/me/drive/items/{file_id}/content'
+        response = requests.get(download_url, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"Error: {response.status_code} - {response.json()}")
 
-    file_path = os.path.join(download_dir, file_name)
-    with open(file_path, 'wb') as f:
-        f.write(response.content)
-    print(f"File downloaded as {file_path}")
-    
-    return file_path
+        # Sending the file content to the endpoint
+        file_content = response.content
+        file_stream = io.BytesIO(file_content)
+        files = {'file': (file_name, file_stream, 'application/octet-stream')}
+        data = {'from_source': 'office365'}
+        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
+        print(f"Response from server: {response.text}")
+        if response.status_code == 202:
+            print(f"File {file_name} accepted for loading")
+        else:
+            print(f"File {file_name} was not accepted for loading. Status code: {response.status_code}")
 
-def download_files(access_token, folder_id='root'):
-    downloaded_files = []
+        return response.status_code
+
+async def download_files(access_token, folder_id='root'):
     try:
         files = list_files(access_token, folder_id)
         
+        tasks = []
         for file in files:
             file_name = file['name']
+            tasks.append(download_file_by_type(access_token, file_name))
 
-            file_path = download_file_by_type(access_token, file_name)
-            if file_path:
-                downloaded_files.append(file_path)
+        # Run all download tasks concurrently
+        results = await asyncio.gather(*tasks)
 
-            
+        # Collect names of successfully downloaded files
+        downloaded_files = [files[i]['name'] for i in range(len(files)) if results[i] == 202]
+
     except Exception as e:
         print(f"An error occurred: {e}")
+        downloaded_files = []
     
     return downloaded_files
 
