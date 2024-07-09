@@ -326,7 +326,6 @@ class Search:
                         
             except Exception as e:
                 logger.error(f"Error searching index {index}: {str(e)}")
-
         return results
 
     def delete_connector(self, connector_name):
@@ -344,6 +343,7 @@ class Search:
                 logger.error(f"Error deleting document ID: {result['id']} from index: {result['index']}: {str(e)}")
 
         logger.info(f"Deleted {len(results)} documents for connector: {connector_name}")
+        return
 
     
     # load ops
