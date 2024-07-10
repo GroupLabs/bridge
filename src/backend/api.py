@@ -642,8 +642,8 @@ async def oauth_callback(request: Request):
 
 oauth_state = None
 
-@app.get("/salesforce_auth")
-def get_salesforce_auth():
+@app.get("/salesforce_auth/{user_id}")
+def get_salesforce_auth(user_id: str):
     global oauth_state
     # Generate PKCE code verifier and challenge
     code_verifier = salesforceconnector.generate_code_verifier()
@@ -658,15 +658,18 @@ def get_salesforce_auth():
         redirect_uri=salesforceconnector.SALESFORCE_REDIRECT_URI, 
         scope=["api", "refresh_token", "offline_access", "id", "profile", "email", "address", "phone", "full"]
     )
+    state = f"{user_id}:{code_challenge}"
     authorization_url, state = oauth.authorization_url(
         salesforceconnector.AUTHORIZATION_BASE_URL, 
+        state=state,  # Include user_id in the state
         code_challenge=code_challenge, 
         code_challenge_method='S256'
     )
 
     oauth_state = {
         'state': state,
-        'code_verifier': code_verifier
+        'code_verifier': code_verifier,
+        'user_id': user_id
     }
 
     logger.info(f"Authorization URL: {authorization_url}")
@@ -683,6 +686,9 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Invalid state or missing code")
 
     try:
+        # Extract user_id from state
+        user_id = oauth_state['user_id']
+
         # Create an OAuth2 session with PKCE
         oauth = salesforceconnector.OAuth2Session(
             salesforceconnector.SALESFORCE_CLIENT_ID, 
@@ -701,7 +707,7 @@ async def callback(request: Request):
         logger.info(f"Token: {token}")
 
         # Trigger the download and load process
-        await salesforceconnector.download_and_load(token)
+        await salesforceconnector.download_and_load(token, user_id)
         
         return JSONResponse(content={"status": "success", "message": "Salesforce data download and load triggered"})
     except Exception as e:

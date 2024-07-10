@@ -196,23 +196,23 @@ def retrieve_attachments(sf, account_id):
         logger.error(f"Error retrieving attachments for account {account_id}: {str(e)}")
         return []
 
-def retrieve_leads(sf, user_id):
+def retrieve_leads(sf, user_info):
     try:
-        leads_query = f"SELECT Id, FirstName, LastName, Company, Status, Email, Phone, Title, CreatedDate FROM Lead WHERE OwnerId = '{user_id}'"
+        leads_query = f"SELECT Id, FirstName, LastName, Company, Status, Email, Phone, Title, CreatedDate FROM Lead WHERE OwnerId = '{user_info}'"
         leads = sf.query(leads_query)['records']
-        logger.info(f"Number of leads retrieved for owner {user_id}: {len(leads)}")
+        logger.info(f"Number of leads retrieved for owner {user_info}: {len(leads)}")
         return leads
     except Exception as e:
-        logger.error(f"Error retrieving leads for owner {user_id}: {str(e)}")
+        logger.error(f"Error retrieving leads for owner {user_info}: {str(e)}")
         return []
 
-def retrieve_files(sf, user_id):
+def retrieve_files(sf, user_info):
     try:
         # Query to retrieve files owned by the user
         owned_files_query = f"""
             SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId, ContentDocument.FileExtension
             FROM ContentDocumentLink 
-            WHERE LinkedEntityId = '{user_id}'
+            WHERE LinkedEntityId = '{user_info}'
         """
         logger.info(f"Running owned files query: {owned_files_query}")
         owned_files = sf.query(owned_files_query)['records']
@@ -221,7 +221,7 @@ def retrieve_files(sf, user_id):
         linked_files_query = f"""
             SELECT ContentDocumentId
             FROM ContentDocumentLink 
-            WHERE LinkedEntityId = '{user_id}'
+            WHERE LinkedEntityId = '{user_info}'
         """
         logger.info(f"Running linked files query: {linked_files_query}")
         linked_files = sf.query(linked_files_query)['records']
@@ -335,24 +335,24 @@ def download_file(sf, file_id, latest_published_version_id, file_extension):
         logger.error(f"Error downloading file {file_id}: {str(e)}")
         return None, None
 
-async def send_data_to_endpoint(data, data_type):
+async def send_data_to_endpoint(data, data_type, user_id):
     async with httpx.AsyncClient() as client:
         data_json = json.dumps(data).encode('utf-8')
         files = {'file': (f'{data_type}.json', io.BytesIO(data_json), 'application/json')}
         data = {'from_source': 'salesforce'}
-        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
+        response = await client.post(f"http://localhost:8000/load_query/{user_id}", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{data_type.capitalize()} data accepted for loading")
         else:
             logger.warning(f"{data_type.capitalize()} data was not accepted for loading. Status code: {response.status_code}")
 
-async def send_file_to_endpoint(file_content, file_title, file_extension):
+async def send_file_to_endpoint(file_content, file_title, file_extension, user_id):
     async with httpx.AsyncClient() as client:
         file_stream = io.BytesIO(file_content)
         files = {'file': (f'{file_title}.{file_extension}', file_stream, 'application/octet-stream')}
         data = {'from_source': 'salesforce'}
-        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
+        response = await client.post(f"http://localhost:8000/load_query/{user_id}", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{file_title} data accepted for loading")
@@ -360,66 +360,66 @@ async def send_file_to_endpoint(file_content, file_title, file_extension):
             logger.warning(f"{file_title} data was not accepted for loading. Status code: {response.status_code}")
 
 # Process Accounts
-async def process_accounts(sf):
+async def process_accounts(sf, user_id):
     accounts = list_records(sf, "Account")
     if accounts:
-        await send_data_to_endpoint(accounts, 'accounts')
+        await send_data_to_endpoint(accounts, 'accounts', user_id)
     for account in accounts:
         account_id = account['Id']
-        await process_account_related_data(sf, account_id)
+        await process_account_related_data(sf, account_id, user_id)
 
-async def process_account_related_data(sf, account_id):
+async def process_account_related_data(sf, account_id, user_id):
     tasks = retrieve_tasks(sf, account_id)
     notes = retrieve_notes(sf, account_id)
     attachments = retrieve_attachments(sf, account_id)
     events = retrieve_events(sf, account_id)
 
     for task in tasks:
-        await send_data_to_endpoint(task, f"Task_account_{task['Id']}")
+        await send_data_to_endpoint(task, f"Task_account_{task['Id']}", user_id)
     for note in notes:
-        await send_data_to_endpoint(note, f"Note_account_{note['Id']}")
+        await send_data_to_endpoint(note, f"Note_account_{note['Id']}", user_id)
     for attachment in attachments:
-        await send_data_to_endpoint(attachment, f"Attachment_account_{attachment['Id']}")
+        await send_data_to_endpoint(attachment, f"Attachment_account_{attachment['Id']}", user_id)
     for event in events:
-        await send_data_to_endpoint(event, f"Event_account_{event['Id']}")
+        await send_data_to_endpoint(event, f"Event_account_{event['Id']}", user_id)
     
 # Process Opportunities
-async def process_opportunities(sf):
+async def process_opportunities(sf, user_id):
     opportunities = retrieve_all_opportunities(sf)
     if opportunities:
-        await send_data_to_endpoint(opportunities, 'opportunities')
+        await send_data_to_endpoint(opportunities, 'opportunities', user_id)
     for opportunity in opportunities:
         opportunity_id = opportunity['Id']
-        await process_opportunity_tasks(sf, opportunity_id)
+        await process_opportunity_tasks(sf, opportunity_id, user_id)
 
-async def process_opportunity_tasks(sf, opportunity_id):
+async def process_opportunity_tasks(sf, opportunity_id, user_id):
     tasks_for_opportunity = retrieve_tasks_for_opportunity(sf, opportunity_id)
     for task in tasks_for_opportunity:
-        await send_data_to_endpoint(task, f"task_opportunity_{task['Id']}")
+        await send_data_to_endpoint(task, f"task_opportunity_{task['Id']}", user_id)
 
 # Process Leads
-async def process_leads(sf, user_id):
-    leads = retrieve_leads(sf, user_id)
+async def process_leads(sf, user_info, user_id):
+    leads = retrieve_leads(sf, user_info)
     if leads:
         for lead in leads:
-            await send_data_to_endpoint(lead, f"Lead_{lead['Id']}")
-            await process_lead_tasks(sf, lead['Id'])
+            await send_data_to_endpoint(lead, f"Lead_{lead['Id']}", user_id)
+            await process_lead_tasks(sf, lead['Id'], user_id)
 
-async def process_lead_tasks(sf, lead_id):
+async def process_lead_tasks(sf, lead_id, user_id):
     tasks_for_lead = retrieve_tasks_for_lead(sf, lead_id)
     for task in tasks_for_lead:
-        await send_data_to_endpoint(task, f"task_lead_{task['Id']}")
+        await send_data_to_endpoint(task, f"task_lead_{task['Id']}", user_id)
 
 # Process Contacts
-async def process_contacts(sf):
+async def process_contacts(sf, user_id):
     all_contacts = retrieve_all_contacts(sf)
     if all_contacts:
-        await send_data_to_endpoint(all_contacts, 'contacts')
+        await send_data_to_endpoint(all_contacts, 'contacts', user_id)
 
 
 # Process Files
-async def process_files(sf, user_id):
-    files = retrieve_files(sf, user_id)
+async def process_files(sf, user_info, user_id):
+    files = retrieve_files(sf, user_info)
     if files:
         for file in files:
             file_id = file.get('Id')
@@ -429,49 +429,49 @@ async def process_files(sf, user_id):
             if file_id and file_title != 'N/A' and latest_published_version_id and file_extension:
                 file_content, file_extension = download_file(sf, file_id, latest_published_version_id, file_extension)
                 if file_content:
-                    await send_file_to_endpoint(file_content, file_title, file_extension)
+                    await send_file_to_endpoint(file_content, file_title, file_extension, user_id)
 
 # Process Cases
-async def process_cases(sf):
+async def process_cases(sf, user_id):
     cases = retrieve_cases(sf)
     if cases:
         for case in cases:
-            await send_data_to_endpoint(case, f"Case_{case['Id']}")
+            await send_data_to_endpoint(case, f"Case_{case['Id']}", user_id)
 
 # Process Campaigns
-async def process_campaigns(sf):
+async def process_campaigns(sf, user_id):
     campaigns = retrieve_campaigns(sf)
     if campaigns:
         for campaign in campaigns:
-            await send_data_to_endpoint(campaign, f"Campaign_{campaign['Id']}")
-            await process_campaign_related_data(sf, campaign['Id'])
+            await send_data_to_endpoint(campaign, f"Campaign_{campaign['Id']}", user_id)
+            await process_campaign_related_data(sf, campaign['Id'], user_id)
 
-async def process_campaign_related_data(sf, campaign_id):
+async def process_campaign_related_data(sf, campaign_id, user_id):
     tasks_for_campaign = retrieve_tasks(sf, campaign_id)
     attachments_for_campaign = retrieve_attachments(sf, campaign_id)
 
     for task in tasks_for_campaign:
-        await send_data_to_endpoint(task, f"task_campaign_{task['Id']}")
+        await send_data_to_endpoint(task, f"task_campaign_{task['Id']}", user_id)
     for attachment in attachments_for_campaign:
-        await send_data_to_endpoint(attachment, f"attachment_campaign_{attachment['Id']}")
+        await send_data_to_endpoint(attachment, f"attachment_campaign_{attachment['Id']}", user_id)
 
-async def download_and_load(token):
+async def download_and_load(token, user_id):
     try:
         sf = get_salesforce_instance(token)
         if not sf:
             raise ValueError("Salesforce authentication failed")
 
-        user_id = get_user_info(token)
-        if not user_id:
+        user_info = get_user_info(token)
+        if not user_info:
             raise ValueError("Failed to retrieve user ID")
 
-        await process_accounts(sf)
-        await process_opportunities(sf)
-        await process_leads(sf, user_id)
-        await process_contacts(sf)
-        await process_files(sf, user_id)
-        await process_cases(sf)
-        await process_campaigns(sf)
+        await process_accounts(sf, user_id)
+        await process_opportunities(sf, user_id)
+        await process_leads(sf, user_info, user_id)
+        await process_contacts(sf, user_id)
+        await process_files(sf, user_info, user_id)
+        await process_cases(sf, user_id)
+        await process_campaigns(sf, user_id)
 
         logger.info("Salesforce data streamed and sent successfully")
     except Exception as e:
