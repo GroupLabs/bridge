@@ -330,8 +330,8 @@ async def websocket_endpoint(websocket: WebSocket, filename: str):
         if not clients[filename]:
             del clients[filename]
 
-@app.post("/sort")
-async def sort_docs_ep(type: str=Form(...)):
+@app.post("/sort/{user_id}")
+async def sort_docs_ep(type: str=Form(...), user_id = Path()):
     global last_sort_type, last_sort_order
     type_of_sort = ["name", "size", "type", "created"]
     if type not in type_of_sort:
@@ -352,7 +352,7 @@ async def sort_docs_ep(type: str=Form(...)):
     last_sort_order = sort_order
 
 
-    return sort_docs(type, sort_order)
+    return sort_docs(type, sort_order, user_id)
 
 # Create an instance of Search class
 search = Search()

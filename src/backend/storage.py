@@ -106,8 +106,9 @@ except Exception as e:
     print(f"Triton not available: {e}")
 
 @celery_app.task(name="sort_documents_task")
-def sort_docs(type: str, order: str):
+def sort_docs(type: str, order: str, user_id: str):
     ordered = []
+
     # Define the index
 
     if type == "name":
@@ -117,6 +118,9 @@ def sort_docs(type: str, order: str):
             body={
                 "query": {
                     "bool": {
+                        "must": [
+                            { "term": { "user_id": user_id } }
+                        ],
                         "must_not": [
                             {
                                 "bool": {
@@ -141,13 +145,14 @@ def sort_docs(type: str, order: str):
                 "sort": [
                     {
                         "document_name.keyword": {
-                            "order":order
+                            "order": order
                         }
                     }
                 ]
             },
             size=10000  # Specify the number of documents to retrieve
         )
+
     if type == "size":
         # Perform the search query with sorting by Size_numeric
         response = es.search(
@@ -155,6 +160,9 @@ def sort_docs(type: str, order: str):
             body={
                 "query": {
                     "bool": {
+                        "must": [
+                            { "term": { "user_id": user_id } }
+                        ],
                         "must_not": [
                             {
                                 "bool": {
@@ -186,6 +194,7 @@ def sort_docs(type: str, order: str):
             },
             size=10000  # Specify the number of documents to retrieve
         )
+
     if type == "type":
         # Perform the search query with sorting by Type
         response = es.search(
@@ -193,6 +202,9 @@ def sort_docs(type: str, order: str):
             body={
                 "query": {
                     "bool": {
+                        "must": [
+                            { "term": { "user_id": user_id } }
+                        ],
                         "must_not": [
                             {
                                 "bool": {
@@ -232,6 +244,9 @@ def sort_docs(type: str, order: str):
             body={
                 "query": {
                     "bool": {
+                        "must": [
+                            { "term": { "user_id": user_id } }
+                        ],
                         "must_not": [
                             {
                                 "bool": {
@@ -263,7 +278,6 @@ def sort_docs(type: str, order: str):
             },
             size=10000  # Specify the number of documents to retrieve
         )
-
 
     # Print the results
     for hit in response['hits']['hits']:
