@@ -4,6 +4,16 @@ import { useState } from 'react'
 import { CardContent, Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SearchResult } from '@/lib/types'
+import { LinkPreview } from '@/components/ui/link-preview'
+import { File } from 'lucide-react'
+import Image from 'next/image'
+import githubimg from '@/public/images/github.svg'
+import slackimg from '@/public/images/slack.svg'
+import office365img from '@/public/images/office365.png'
+import googledriveimg from '@/public/images/googledrive.svg'
+import sapimg from '@/public/images/sap.svg'
+import workdayimg from '@/public/images/workday.svg'
+import salesforceimg from '@/public/images/salesforce.svg'
 
 export interface SearchResultsProps {
   results: SearchResult[]
@@ -32,20 +42,77 @@ export function FileSearchResults({ results = [] }: SearchResultsProps) {
 
   return (
     <div className="flex flex-wrap">
-      {displayedResults.map((result, index) => (
-        <div className="w-1/2 md:w-1/4 p-1" key={index}>
-          <Card className="flex-1" onClick={() => openModal(result.text)}>
-            <CardContent className="p-2">
-              <p className="text-xs line-clamp-2">{result.text}</p>
-              <div className="mt-2 flex items-center space-x-2">
-                <div className="text-xs opacity-60 truncate">
-                  {result.score}
+      {displayedResults.map((result, index) => {
+        // Separate the file name from the rest of the text at the first ": "
+        const separatorIndex = result.text.indexOf(': ')
+        const fileName = result.text.substring(0, separatorIndex)
+        const contentWithoutFileName = result.text.substring(separatorIndex + 2)
+
+        return (
+          <div className="w-1/2 md:w-1/4 p-1" key={index}>
+            <Card
+              className="flex-1"
+              onClick={() => openModal(contentWithoutFileName)}
+            >
+              <CardContent className="p-2">
+                <div className="flex gap-2">
+                  {result.source === 'slack' ? (
+                    <Image src={slackimg} alt="slackimg" className="h-6 w-6" />
+                  ) : result.source === 'github' ? (
+                    <Image
+                      src={githubimg}
+                      alt="githubimg"
+                      className="h-6 w-6"
+                    />
+                  ) : result.source === 'google' ? (
+                    <Image
+                      src={googledriveimg}
+                      alt="googledriveimg"
+                      className="h-6 w-6"
+                    />
+                  ) : result.source === 'office365' ? (
+                    <Image
+                      src={office365img}
+                      alt="office365img"
+                      className="h-6 w-6"
+                    />
+                  ) : result.source === 'sap' ? (
+                    <Image src={sapimg} alt="sapimg" className="h-6 w-6" />
+                  ) : result.source === 'workday' ? (
+                    <Image
+                      src={workdayimg}
+                      alt="workdayimg"
+                      className="h-6 w-6"
+                    />
+                  ) : result.source === 'salesforce' ? (
+                    <Image
+                      src={salesforceimg}
+                      alt="salesforceimg"
+                      className="h-6 w-6"
+                    />
+                  ) : (
+                    <File className="w-6 h-6" />
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ))}
+                <LinkPreview
+                  url={`http://0.0.0.0:8000/downloads/${fileName}`}
+                  imageSrc={`http://0.0.0.0:8000/downloads/preview/${fileName}`}
+                  className="font-bold bg-clip-text text-transparent bg-gradient-to-br from-purple-500 to-pink-500"
+                >
+                  {fileName}
+                </LinkPreview>
+
+                <p className="text-xs line-clamp-2">{contentWithoutFileName}</p>
+                <div className="mt-2 flex items-center space-x-2">
+                  <div className="text-xs opacity-60 truncate">
+                    {result.score}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      })}
       {!showAllResults && additionalResultsCount > 0 && (
         <div className="w-1/2 md:w-1/4 p-1">
           <Card className="flex-1 flex h-full items-center justify-center">

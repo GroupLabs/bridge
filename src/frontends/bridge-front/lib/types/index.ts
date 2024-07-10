@@ -1,14 +1,15 @@
 export interface BridgeSearchResults {
-  query: string;
-  results: SearchResult[];
-  images: string[];
+  query: string
+  results: SearchResult[]
+  images: string[]
 }
 
 // bridge only
 export interface SearchResult {
-  id: string;
-  score: number;
-  text: string;
+  id: string
+  score: number
+  text: string
+  source: string
 }
 
 export type SearchResults = {

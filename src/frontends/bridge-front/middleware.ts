@@ -3,7 +3,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 const isPublicRoute = createRouteMatcher(['/sign-in(.*)', '/sign-up(.*)'])
 
 export default clerkMiddleware((auth, request) => {
-  // Check if it's a POST request to /connectors, /databases, or /files
+  // Check if it's a POST request to /, /connectors, /databases, or /files
   if (
     (request.method === 'POST' && request.url.includes('/')) ||
     request.url.includes('/connectors') ||

@@ -55,10 +55,14 @@ const transformData = (
   }
 
   const results = respData.resp.map(
-    ([id, { score, text }]: [string, { score: number; text: string }]) => ({
+    ([id, { score, text, source }]: [
+      string,
+      { score: number; text: string; source: string }
+    ]) => ({
       id,
       score,
-      text
+      text,
+      source
     })
   )
 
