@@ -1,5 +1,5 @@
 
-from src.utils import PARAMS, init_apis, vec_db, llm, log_question_answer
+from src.utils import PARAMS, init_apis, llm
 
 params = PARAMS() # init parameters
 index = init_apis() # initialize openai and pinecone connection

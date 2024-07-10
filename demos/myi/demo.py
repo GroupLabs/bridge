@@ -3,7 +3,6 @@ import requests
 import json
 import chromadb
 from transformers import pipeline
-import base64
 
 from pdf_gen import *
 

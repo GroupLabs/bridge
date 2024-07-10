@@ -3,9 +3,7 @@ import json
 import time
 from flask import Flask, render_template
 from threading import Thread
-from pprint import pprint
 import subprocess
-import json
 
 from demoHR.embed import embed_passage, embed_query, similarity
 

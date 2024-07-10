@@ -1,7 +1,7 @@
 import unicodedata
 import os
 import yaml
-from uuid import uuid4, uuid5, NAMESPACE_URL
+from uuid import uuid5, NAMESPACE_URL
 import re
 from pathlib import Path
 

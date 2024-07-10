@@ -1,13 +1,10 @@
 import io
 from copy import deepcopy
-from functools import partial
 from typing import List
 
-import torch
 from texify.inference import batch_inference
 from texify.model.model import load_model
 from texify.model.processor import load_processor
-import re
 from PIL import Image, ImageDraw
 
 from marker.bbox import should_merge_blocks, merge_boxes

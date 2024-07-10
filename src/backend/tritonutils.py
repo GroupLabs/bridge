@@ -4,11 +4,10 @@
 
 import os
 import tritonclient.http as httpclient
-from tritonclient.utils import InferenceServerException # for custom error handling later
 from log import setup_logger
 import numpy as np
 from config import config
-from azure.storage.blob import ContainerClient, BlobType
+from azure.storage.blob import ContainerClient
 
 from time import sleep # TODO remove this
 
@@ -74,7 +73,7 @@ class TritonClient:
         # upload to model repository
         _upload(base_path, config.AZURE_CONNECTION_STRING, config.MODEL_CONTAINER_NAME)
 
-        logger.info(f"Successfully added model to /modeltmp")
+        logger.info("Successfully added model to /modeltmp")
 
         sleep(30) # wait before loading model
         self.triton_client.load_model(model_name)
@@ -93,7 +92,7 @@ class TritonClient:
         request_compression_algorithm=None,
         response_compression_algorithm=None,
     ):
-        logger.info(f"Starting to POST request") 
+        logger.info("Starting to POST request") 
         inputs = []
         outputs = []
 
@@ -123,7 +122,7 @@ class TritonClient:
             response_compression_algorithm=None,
         )
 
-        logger.info(f"Ending POST request") 
+        logger.info("Ending POST request") 
         return results
     
 def _upload(directory_path, connection_string, container_name):
@@ -160,4 +159,4 @@ if __name__ == "__main__":
         data = output['outputs'][0]['data']
         logger.info(f"The 'data is {data}") 
     else:
-        logger.info(f"Error: there is no data") 
+        logger.info("Error: there is no data") 

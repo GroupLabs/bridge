@@ -1,5 +1,4 @@
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-import torch
 import time
 import os
 

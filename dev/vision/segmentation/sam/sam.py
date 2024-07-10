@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
-from segment_anything import SamPredictor, SamAutomaticMaskGenerator, sam_model_registry
-from pprint import pprint
+from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 
 # Initialize SAM
 sam = sam_model_registry["default"](checkpoint="sam_vit_h_4b8939.pth")

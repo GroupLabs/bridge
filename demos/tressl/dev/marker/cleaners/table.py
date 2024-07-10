@@ -4,7 +4,6 @@ from copy import deepcopy
 from tabulate import tabulate
 from typing import List
 import re
-import textwrap
 
 
 def merge_table_blocks(blocks: List[Page]):

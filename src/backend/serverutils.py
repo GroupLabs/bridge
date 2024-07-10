@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import Optional
 
 class Status(Enum):
     OK = "OK"

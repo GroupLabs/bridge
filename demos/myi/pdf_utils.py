@@ -1,6 +1,5 @@
 from pdf2image import convert_from_path
 from PIL import Image
-import pytesseract
 
 def handle_uploaded_file(uploaded_file, target_path):
     # Create a new file in write-binary mode

@@ -60,7 +60,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import Patch
 import io
-from PIL import Image, ImageDraw
+from PIL import ImageDraw
 import numpy as np
 import csv
 import pandas as pd
@@ -72,7 +72,6 @@ import torch
 
 import easyocr
 
-import gradio as gr
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"

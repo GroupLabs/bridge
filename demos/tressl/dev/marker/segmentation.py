@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 from transformers import LayoutLMv3ForTokenClassification

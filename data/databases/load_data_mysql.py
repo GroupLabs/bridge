@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import mysql.connector
-import pandas.io.sql as psql
 import os
 from datasets import load_dataset
 from dotenv import load_dotenv, find_dotenv
