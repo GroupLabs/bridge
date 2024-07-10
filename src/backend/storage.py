@@ -273,7 +273,7 @@ def sort_docs(type: str, order: str):
 
 @celery_app.task(name="download_office365")
 def download_office365(access_token: str, user_id: str):
-    file_paths = download_files(access_token)
+    file_paths = asyncio.run(download_files(access_token, user_id))
     for file_path in file_paths:
         load_data.delay(file_path, from_source="office365", user_id=user_id)
 

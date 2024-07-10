@@ -239,7 +239,7 @@ def download_file(access_token, file_name):
     print(f"File downloaded as {file_path}")
 
 
-async def download_file_by_type(access_token, file_name):
+async def download_file_by_type(access_token, file_name, user_id):
     async with httpx.AsyncClient() as client:
         if "." not in file_name:
             print(f"File name {file_name} does not contain a '.'")
@@ -267,7 +267,7 @@ async def download_file_by_type(access_token, file_name):
         file_stream = io.BytesIO(file_content)
         files = {'file': (file_name, file_stream, 'application/octet-stream')}
         data = {'from_source': 'office365'}
-        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
+        response = await client.post(f"http://localhost:8000/load_query/{user_id}", files=files, data=data)
         print(f"Response from server: {response.text}")
         if response.status_code == 202:
             print(f"File {file_name} accepted for loading")
@@ -276,14 +276,14 @@ async def download_file_by_type(access_token, file_name):
 
         return response.status_code
 
-async def download_files(access_token, folder_id='root'):
+async def download_files(access_token, user_id, folder_id='root'):
     try:
         files = list_files(access_token, folder_id)
         
         tasks = []
         for file in files:
             file_name = file['name']
-            tasks.append(download_file_by_type(access_token, file_name))
+            tasks.append(download_file_by_type(access_token, file_name, user_id))
 
         # Run all download tasks concurrently
         results = await asyncio.gather(*tasks)
