@@ -116,7 +116,27 @@ def sort_docs(type: str, order: str):
             index='parent_doc',
             body={
                 "query": {
-                    "match_all": {}
+                    "bool": {
+                        "must_not": [
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "salesforce" } },
+                                        { "term": { "Type": ".json" } }
+                                    ]
+                                }
+                            },
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "slack" } },
+                                        { "term": { "Type": ".txt" } },
+                                        { "wildcard": { "document_name": "*_chat_history" } }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
                 },
                 "sort": [
                     {
@@ -134,7 +154,27 @@ def sort_docs(type: str, order: str):
             index='parent_doc',
             body={
                 "query": {
-                    "match_all": {}
+                    "bool": {
+                        "must_not": [
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "salesforce" } },
+                                        { "term": { "Type": ".json" } }
+                                    ]
+                                }
+                            },
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "slack" } },
+                                        { "term": { "Type": ".txt" } },
+                                        { "wildcard": { "document_name": "*_chat_history" } }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
                 },
                 "sort": [
                     {
@@ -152,7 +192,27 @@ def sort_docs(type: str, order: str):
             index='parent_doc',
             body={
                 "query": {
-                    "match_all": {}
+                    "bool": {
+                        "must_not": [
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "salesforce" } },
+                                        { "term": { "Type": ".json" } }
+                                    ]
+                                }
+                            },
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "slack" } },
+                                        { "term": { "Type": ".txt" } },
+                                        { "wildcard": { "document_name": "*_chat_history" } }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
                 },
                 "sort": [
                     {
@@ -164,13 +224,34 @@ def sort_docs(type: str, order: str):
             },
             size=10000  # Specify the number of documents to retrieve
         )
+
     if type == "created":
         # Perform the search query with sorting by Created
         response = es.search(
             index='parent_doc',
             body={
                 "query": {
-                    "match_all": {}
+                    "bool": {
+                        "must_not": [
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "salesforce" } },
+                                        { "term": { "Type": ".json" } }
+                                    ]
+                                }
+                            },
+                            {
+                                "bool": {
+                                    "must": [
+                                        { "term": { "from_source": "slack" } },
+                                        { "term": { "Type": ".txt" } },
+                                        { "wildcard": { "document_name": "*_chat_history" } }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
                 },
                 "sort": [
                     {
