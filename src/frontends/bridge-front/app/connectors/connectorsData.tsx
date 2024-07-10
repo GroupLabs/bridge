@@ -28,12 +28,6 @@ const connectors: Connector[] = [
     url: authenticateConnector('api/office_auth')
   },
   {
-    title: 'Google Drive',
-    img: googledriveimg,
-    active: pingConnector('google_drive_ping'),
-    url: authenticateConnector('google_drive_auth')
-  },
-  {
     title: 'Google Workspace',
     img: googledriveimg,
     active: pingConnector('google_ping'),
