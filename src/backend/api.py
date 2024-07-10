@@ -554,7 +554,7 @@ async def get_query_parent_ep(input: Query):
     if not all_responses:
         raise HTTPException(status_code=404, detail="No data found for the query")
 
-    return {"health": health, "status": "success", "resp": all_responses}
+    return {"status": "success", "resp": all_responses}
     # # Concatenate the responses
     # flattened_responses = [item for sublist in all_responses for item in sublist]
     # sorted_responses = sort_by_score(flattened_responses)
