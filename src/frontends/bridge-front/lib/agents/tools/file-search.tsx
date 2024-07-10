@@ -6,7 +6,10 @@ import { ToolProps } from '.'
 import { SearchResult } from '@/lib/types'
 
 export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
-  description: 'Search files for information',
+  description: `You are a helpful assistant that searches a user's files. If a user asks something personal, related to their data, or that likely returns few web results, search the files. Examples of such queries include:
+
+  "What are my recent emails?"
+  "What is my development team doing today?"`,
   parameters: searchSchema,
   execute: async ({
     query,
