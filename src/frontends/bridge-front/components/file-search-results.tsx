@@ -97,7 +97,7 @@ export function FileSearchResults({ results = [] }: SearchResultsProps) {
                 <LinkPreview
                   url={`http://0.0.0.0:8000/downloads/${fileName}`}
                   imageSrc={`http://0.0.0.0:8000/downloads/preview/${fileName}`}
-                  className="font-bold bg-clip-text text-transparent bg-gradient-to-br from-purple-500 to-pink-500"
+                  className="line-clamp-2 font-bold bg-clip-text text-transparent bg-gradient-to-br from-purple-500 to-pink-500"
                 >
                   {fileName}
                 </LinkPreview>
