@@ -18,6 +18,7 @@ class Health():
 class Query(BaseModel):
     query: str
     index: str
+    doc_id: Optional[str] = None # to restrict search to a specific file
     use_llm: Optional[bool] = False
 
 class Load(BaseModel):

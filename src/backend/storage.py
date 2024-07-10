@@ -51,13 +51,7 @@ try:
 except Exception as e:
     print(f"Triton not available: {e}")
 
-try:
-    # triton server
-    tc = TritonClient()
-except Exception as e:
-    print(f"Triton not available: {e}")
-
-@celery_app.task(name="load_data_task")
+@celery_app.task(name="load_data_task", bind=True)
 def load_data(filepath: str, read=True):
 
     # check if input is a connection string
@@ -107,8 +101,8 @@ def retrieve_object_ids(index: str):
 
     return doc_tuples
 
-def query(q: str, index: str):
-    return es.hybrid_search(q, index)
+def query(q: str, index: str, doc_id: str = None):
+    return es.hybrid_search(q, index, doc_id)
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     

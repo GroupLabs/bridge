@@ -94,7 +94,7 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
 @app.post("/query")
 async def nl_query(input: Query):
 
-    resp = query(input.query, input.index)
+    resp = query(input.query, input.index, input.doc_id)
 
     if input.use_llm:
         # context_list = [x["fields"]["text"] for x in resp.hits] this is for vespa, need to switch to es

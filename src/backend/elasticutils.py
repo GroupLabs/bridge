@@ -259,12 +259,15 @@ class Search:
         # Sort results by score in descending order
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
 
+        # convert to list of dicts (readability)
+        sorted_results = [{"id": _id, "score": res["score"], "text": res["text"]} for _id, res in sorted_results]
+
         # Optionally normalize scores
-        # if normalize:
-        #     min_score = min(result["score"] for _, result in sorted_results)
-        #     max_score = max(result["score"] for _, result in sorted_results)
-        #     for _, result in sorted_results:
-        #         result["normalized_score"] = (result["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
+        if normalize:
+            min_score = min(result["score"] for _, result in sorted_results)
+            max_score = max(result["score"] for _, result in sorted_results)
+            for _, result in sorted_results:
+                result["normalized_score"] = (result["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
 
         # Optionally inspect final results
         if INSPECT:
@@ -274,11 +277,12 @@ class Search:
 
         return sorted_results
     
-    def hybrid_search(self, query: str, index: str):
+    def hybrid_search(self, query: str, index: str, doc_id: str = None):
         INSPECT = False
-
+        print(doc_id)
+        if not doc_id:
+            print("no doc_id")
         # Determine the field to use based on the index
-        # TODO: make this better so it can be set up once
         if index == 'text_chunk':
             _field = "chunk_text"
         elif index == 'table_meta':
@@ -288,16 +292,24 @@ class Search:
         else:
             raise NotImplementedError
 
+        # construct the match query
         try:
-            match_response = self.es.search(
-                query={
-                    'match': {
-                        _field: query
+            match_query = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"match": {_field: query}}
+                        ]
                     }
                 },
-                _source=[_field],
-                index=index
-            )
+                "_source": [_field]
+            }
+
+            # add filter if doc_id is provided
+            if doc_id:
+                match_query["query"]["bool"]["filter"] = [{"term": {"document_id": doc_id}}]
+
+            match_response = self.es.search(index=index, body=match_query)
         except BadRequestError as e:
             logger.info(e)
             return None
@@ -305,43 +317,49 @@ class Search:
         if INSPECT:
             print("MATCH")
             for hit in match_response['hits']['hits']:
-                # Print the ID, score, and a snippet of the description_text for each hits
-                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
-
+                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source'][_field][:100]}...")
 
         match_results = match_response['hits']['hits']
 
+        # Construct the knn query
         try:
-            # TODO: knn tuning | https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
-            knn_response = self.es.search(
-                knn={
-                    'field': 'e5',
-                    'query_vector': embed_query(query).tolist()[0],
-                    'k': 10,
-                    'num_candidates': 50
-                },
-                _source=[_field],
-                index=index
-            )
+            knn_query = {
+                    "size" : 0,
+                    "query" : {
+                        "bool" : {
+                            "must" : {
+                                "knn": {
+                                    'field': 'e5',
+                                    'query_vector': embed_query(query).tolist()[0],
+                                    'num_candidates': 50
+                                }
+                            }
+                        }
+                    }
+                }
+            
+            # add filter if doc_id is provided
+            if doc_id:
+                knn_query["query"]["bool"]["filter"] = [{"term": {"document_id": doc_id}}]
+
+            knn_response = self.es.search(index=index, body=knn_query)
         except BadRequestError as e:
             logger.info(e)
             return None
-        
+
         if INSPECT:
             print("KNN")
             for hit in knn_response['hits']['hits']:
-                # Print the ID, score, and a snippet of the description_text for each hits
-                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
+                print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source'][_field][:100]}...")
 
         knn_results = knn_response['hits']['hits']
 
-        # (result set, weight)
+        # Combine results with reciprocal rank fusion
         result_sets_with_rankings = {
-            "match" : match_results,
-            "knn" : knn_results
+            "match": match_results,
+            "knn": knn_results
         }
 
-        # tuning between result_sets
         weights = {
             "match": 1.0,
             "knn": 1.0
@@ -355,80 +373,4 @@ class Search:
 
 
 if __name__ == "__main__":    
-    es = Search()
-
-    # response = es.hybrid_search("What is sliding GQA?", "text_chunk")
-
-    response = es.search(
-        index="text_chunk",
-        query={
-            "match": {"chunk_text": "What is GQA?"}
-        },
-        _source=["_id", "chunk_text"]  # Fetch these fields
-    )
-
-
-    print("F")
-
-    # print(response)
-
-    for hit in response['hits']['hits']:
-        # Print the ID, score, and a snippet of the description_text for each hits
-        print(f"ID: {hit['_id']}, Score: {hit['_score']}, Snippet: {hit['_source']['chunk_text'][:100]}...")
-
-
-    # # es.es.indices.delete(index="test")
-    
-
-    # resp = es.retrieve_document_by_id(
-    #     resp['_id'],
-    #     index='test'
-    # )
-
-    # print()
-    # pprint(resp)
-
-    # resp = es.search(
-    #     query={
-    #         'match': {
-    #             'chunk_text': {
-    #                 'query': 'Bridge'
-    #             }
-    #         }
-    #     },
-    #     index='test'
-    # )
-
-    # print()
-    # pprint(resp['hits'])
-
-    # print()
-    # pprint(es.es.indices.get_mapping(index='test')["test"])
-
-    # resp = es.search(
-    #     # query={
-    #     #     'match': {
-    #     #         'title': {
-    #     #             'query': 'describe bridge'
-    #     #         }
-    #     #     }
-    #     # },
-    #     knn={
-    #         'field': 'e5',
-    #         'query_vector': embed_query("describe bridge").tolist()[0],
-    #         'k': 10,
-    #         'num_candidates': 50
-    #     },
-    #     # rank={
-    #     #     'rrf': {}
-    #     # },
-    #     index='test'
-    # )
-
-    # print()
-    # pprint(resp['hits'])
-
-    print(es)
-
-    # print(es.retrieve_document_by_id("iI78g44BIew1j5poztvp", "text_chunk"))
-
+    pass
