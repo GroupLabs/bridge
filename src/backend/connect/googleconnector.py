@@ -158,18 +158,18 @@ async def stream_file(service, file_id, file_name):
 
 
 
-async def send_file_to_endpoint(file_stream, file_name):
+async def send_file_to_endpoint(file_stream, file_name, user_id):
     async with httpx.AsyncClient() as client:
         files = {'file': (file_name, file_stream, 'application/octet-stream')}
         data = {'from_source': 'google'}
-        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
+        response = await client.post(f"http://localhost:8000/load_query/{user_id}", files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"File '{file_name}' accepted for loading")
         else:
             logger.warning(f"File '{file_name}' was not accepted for loading. Status code: {response.status_code}")
 
-async def send_data_as_text_file_to_endpoint(data_type, data):
+async def send_data_as_text_file_to_endpoint(data_type, data, user_id):
     async with httpx.AsyncClient() as client:
         if data_type in ['calendar_events', 'received_emails', 'sent_emails']:
             if data_type == 'calendar_events':
@@ -183,7 +183,8 @@ async def send_data_as_text_file_to_endpoint(data_type, data):
         file_stream = io.BytesIO(file_content.encode('utf-8'))
         files = {'file': (file_name, file_stream, 'text/plain')}
         data = {'from_source': 'google'}
-        response = await client.post("http://localhost:8000/load_query", files=files, data=data)
+        url = f"http://localhost:8000/load_query/{user_id}"  # Correctly interpolate user_id
+        response = await client.post(url, files=files, data=data)
         logger.debug(f"Response from server: {response.text}")
         if response.status_code == 202:
             logger.info(f"{data_type} data accepted for loading")
@@ -191,7 +192,7 @@ async def send_data_as_text_file_to_endpoint(data_type, data):
             logger.warning(f"{data_type} data was not accepted for loading. Status code: {response.status_code}")
 
 
-async def download_and_load(creds_json):
+async def download_and_load(creds_json, user_id):
     try:
         creds_dict = json.loads(creds_json)
         
@@ -212,7 +213,7 @@ async def download_and_load(creds_json):
             for item in files:
                 file_stream, file_name = await stream_file(drive_service, item['id'], item['name'])
                 if file_stream and file_name:
-                    await send_file_to_endpoint(file_stream, file_name)
+                    await send_file_to_endpoint(file_stream, file_name, user_id)
                 else:
                     logger.warning(f"Skipping file '{item['name']}' due to export/download issues.")
 
@@ -220,7 +221,7 @@ async def download_and_load(creds_json):
         calendar_service = build_calendar_service(creds)
         events = list_calendar_events(calendar_service)
         if events:
-            await send_data_as_text_file_to_endpoint('calendar_events', events)
+            await send_data_as_text_file_to_endpoint('calendar_events', events, user_id)
 
         # Handle Gmail messages
         gmail_service = build_gmail_service(creds)
@@ -235,7 +236,7 @@ async def download_and_load(creds_json):
                 msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
                 msg_body = get_message_body(msg_payload)
                 received_emails.append({"subject": msg_subject, "body": msg_body})
-            await send_data_as_text_file_to_endpoint('received_emails', received_emails)
+            await send_data_as_text_file_to_endpoint('received_emails', received_emails, user_id)
 
         # Get the last 10 sent emails
         sent_messages = list_messages(gmail_service, 'me', ['SENT'])
@@ -247,14 +248,18 @@ async def download_and_load(creds_json):
                 msg_subject = next(header['value'] for header in msg_payload['headers'] if header['name'] == 'Subject')
                 msg_body = get_message_body(msg_payload)
                 sent_emails.append({"subject": msg_subject, "body": msg_body})
-            await send_data_as_text_file_to_endpoint('sent_emails', sent_emails)
+            await send_data_as_text_file_to_endpoint('sent_emails', sent_emails, user_id)
 
         logger.info("Files, events, and emails streamed and sent successfully")
     except Exception as e:
         logger.error(f"Error in downloading and loading files: {str(e)}")
 
 def get_flow():
-    return Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=config.GOOGLE_REDIRECT_URI)
+    return Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, 
+        scopes=SCOPES, 
+        redirect_uri=config.GOOGLE_REDIRECT_URI
+    )
   
 
 def list_calendar_events(service):

@@ -406,8 +406,8 @@ def load_model(model, config, description):
 
 
 @celery_app.task(name="download_and_load_task")
-def download_and_load_task(creds_json):
-    asyncio.run(download_and_load(creds_json))
+def download_and_load_task(creds_json, user_id):
+    asyncio.run(download_and_load(creds_json, user_id))
 
 def extract_io_metadata(config, io_type):
     with open(config, 'r') as file:

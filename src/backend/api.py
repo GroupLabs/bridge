@@ -580,14 +580,16 @@ async def chat_with_model_ep(chat_request: ChatRequest):
 async def download_file(filename: str):
     return FileResponse(f"{DOWNLOAD_DIR}/{filename}")
 
-@app.get("/google_auth")
-async def google_auth():
+@app.get("/google_auth/{user_id}")
+async def google_auth(user_id: str = Path(...)):
     try:
         flow = get_flow()
-        auth_url, state = flow.authorization_url(
+        state = f"user_id={user_id}"
+        auth_url, _ = flow.authorization_url(
             access_type='offline',  # Ensure offline access to get a refresh token
             prompt='consent',  # Force consent screen to ensure refresh token is issued
-            include_granted_scopes='true'
+            include_granted_scopes='true',
+            state=state  # Pass the state which includes the user_id
         )
         logger.debug(f"Generated auth URL: {auth_url} with state: {state}")
         return {"authorization_url": auth_url}
@@ -605,6 +607,17 @@ async def oauth_callback(request: Request):
 
         logger.debug(f"Received state: {state} and code: {code}")
 
+        # Extract user_id from state
+        user_id = None
+        state_params = state.split('&')
+        for param in state_params:
+            if param.startswith('user_id='):
+                user_id = param.split('=')[1]
+                break
+
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in state parameter")
+
         flow = get_flow()
         authorization_response = str(request.url)
         logger.debug(f"Received authorization response: {authorization_response}")
@@ -620,13 +633,13 @@ async def oauth_callback(request: Request):
             raise ValueError("Refresh token is missing")
 
         # Call the Celery task
-        download_and_load_task.delay(creds.to_json())
+        download_and_load_task.delay(creds.to_json(), user_id)
         
         return {"status": "success", "message": "Authentication successful, download started in background"}
     except Exception as e:
         logger.error(f"Error during OAuth2 callback: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Authentication callback failed: {e}")
-    
+
 oauth_state = None
 
 @app.get("/salesforce_auth")
