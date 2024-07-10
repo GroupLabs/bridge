@@ -708,11 +708,12 @@ async def callback(request: Request):
         logger.error(f"Error in callback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
-def encode_state(state, code_verifier, session_id):
+def encode_state(state, code_verifier, session_id, user_id):
     state_data = {
         "state": state,
         "code_verifier": code_verifier,
-        "session_id": session_id
+        "session_id": session_id,
+        "user_id": user_id
     }
     state_json = json.dumps(state_data)
     state_encoded = base64.urlsafe_b64encode(state_json.encode()).decode()
@@ -722,12 +723,12 @@ def decode_state(state_encoded):
     state_json = base64.urlsafe_b64decode(state_encoded.encode()).decode()
     return json.loads(state_json)
 
-@app.get("/slack_auth")
-async def slack_auth():
+@app.get("/slack_auth/{user_id}")
+async def slack_auth(user_id: str):
     try:
         authorization_url, state, code_verifier = slackconnector.get_slack_authorization_url()
         session_id = os.urandom(16).hex()
-        encoded_state = encode_state(state, code_verifier, session_id)
+        encoded_state = encode_state(state, code_verifier, session_id, user_id)
         return JSONResponse(content={"authorization_url": f"{authorization_url}&state={encoded_state}"})
     except Exception as e:
         logger.error(f"Error during slack_auth: {str(e)}")
@@ -745,6 +746,7 @@ async def slack_callback(request: Request):
         state = decoded_state['state']
         code_verifier = decoded_state['code_verifier']
         session_id = decoded_state['session_id']
+        user_id = decoded_state['user_id']  # Extract user_id
 
         logger.info(f"Decoded state: {decoded_state}")
 
@@ -758,7 +760,7 @@ async def slack_callback(request: Request):
             logger.info(f"Slack Token: {token}")
 
             # Process files and chat history from Slack
-            await slackconnector.process_files_and_chats(token)
+            await slackconnector.process_files_and_chats(token, user_id)  # Pass user_id if needed
 
             return JSONResponse(content={"status": "success", "message": "Slack authorization successful"})
         except Exception as e:
