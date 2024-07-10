@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/sheet'
 import { Chats } from '@/components/chats'
 import { MessageSquareText, LineChart, HardDrive, User } from 'lucide-react'
+import { SignedIn, UserButton } from '@clerk/nextjs'
 
 export const Header: React.FC = async () => {
   return (
@@ -94,8 +95,11 @@ export const Header: React.FC = async () => {
             </MenubarContent>
           </MenubarMenu>
           <MenubarMenu>
-            <MenubarTrigger className="gap-2 lg:px-10 py-0">
-              <User size={24} />
+            <MenubarTrigger className="gap-2 lg:px-10 py-0" disabled>
+              {/* <User size={24} /> */}
+              <SignedIn>
+                <UserButton />
+              </SignedIn>
               Account
             </MenubarTrigger>
             <MenubarContent>

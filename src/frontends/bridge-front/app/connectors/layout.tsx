@@ -1,5 +1,6 @@
 import { Inter } from 'next/font/google'
 import '.././globals.css'
+import Header from '@/components/header'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -13,5 +14,11 @@ interface RootLayoutProps {
 }
 
 export default function RootLayout({ children }: RootLayoutProps) {
-  return <div className={inter.className}>{children}</div>
+  return (
+    <div className={inter.className}>
+      <Header />
+
+      {children}
+    </div>
+  )
 }
