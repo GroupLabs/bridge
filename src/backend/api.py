@@ -119,18 +119,19 @@ async def load_data_by_path(input: Load, response: Response):
         return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
     
 
-def get_auth_url():
-    return msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+def get_auth_url(user_id):
+    state = f"user_id={user_id}"
+    return msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI, state=state)
 
 def get_token_by_code(code):
     result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
     return result
 
 
-@app.get("/api/office_auth")
-async def auth():
+@app.get("/api/office_auth/{user_id}")
+async def auth(user_id: str):
     try:
-        auth_url = get_auth_url()
+        auth_url = get_auth_url(user_id)
         return {"authorization_url": auth_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -142,12 +143,30 @@ async def office_callback(request: Request):
         state = request.query_params.get('state')
         if not code:
             raise HTTPException(status_code=400, detail="Missing code parameter")
+        if not state:
+            raise HTTPException(status_code=400, detail="Missing state parameter")
+        
+        # Log state parameter for debugging
+        print(f"State parameter: {state}")
+        
+        # Extract user_id from state
+        user_id = None
+        state_params = state.split('&')
+        for param in state_params:
+            if param.startswith('user_id='):
+                user_id = param.split('=')[1]
+                break
+
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in state parameter")
+
         result = get_token_by_code(code)
         if 'access_token' not in result:
             raise HTTPException(status_code=400, detail=f"Could not acquire token: {result.get('error_description')}")
         access_token = result['access_token']
+        
         # Automatically start downloading files after successful authentication
-        task = download_office365.delay(access_token)
+        task = download_office365.delay(access_token, user_id)  # Pass user_id to the task
         return {"status": "success", "task_id": task.id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Authentication callback failed: {e}")

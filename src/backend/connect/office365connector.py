@@ -41,7 +41,7 @@ def list_files(access_token, folder_id='root'):
     files = response.json().get('value', [])
     for file in files:
         if 'folder' in file:
-            print(f"{file['name']} ({file['id']}) - folder")
+            # print(f"{file['name']} ({file['id']}) - folder")
             list_files(access_token, f"items/{file['id']}")  # Recursive call
         else:
             print(f"{file['name']} ({file['id']}) - {file['file']['mimeType'] if 'file' in file else 'unknown'}")
