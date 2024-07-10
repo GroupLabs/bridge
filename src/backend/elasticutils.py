@@ -23,6 +23,7 @@ class Search:
         logger.info("ES is available")
         logger.info(str(client_info))
 
+        # inferior to documents
         # configure text_chunk
         try:
             self.es.indices.create( # may fail if index exists
@@ -31,7 +32,14 @@ class Search:
                     'properties': {
                         'document_id': {'type': 'keyword'}, # TODO: Should this be murmur? check the available types
                         'access_group': {'type': 'keyword'},
-                        'document_name': {'type': 'text'},
+                        "document_name": {
+                                "type": "text",  # Main type for full-text search
+                                "fields": {
+                                    "kw": {  # Sub-field for exact matches and aggregations
+                                        "type": "keyword"
+                                    }
+                                }
+                            },
                         'chunk_text': {'type': 'text'},
                         'chunking_strategy': {'type': 'keyword'},
                         'chunk_no': {'type': 'integer'},
@@ -50,6 +58,7 @@ class Search:
                 logger.warn(e.error)
                 raise
         
+        # inferior to databases
         # configure table_meta
         try:
             self.es.indices.create( # may fail if index exists
@@ -83,7 +92,8 @@ class Search:
             if e.error != "resource_already_exists_exception" or e.status_code != 400:
                 logger.warn(e.error)
                 raise
-
+        
+        # inferior to model tasks
         # configure model_meta
         try:
             self.es.indices.create( # may fail if index exists
@@ -147,7 +157,7 @@ class Search:
         return r
     
     # load ops
-    def insert_document(self, document: any, index: str):
+    def insert_object(self, document: any, index: str):
 
         # add embeddings
         if index == "text_chunk":
@@ -167,7 +177,7 @@ class Search:
 
         return self.es.index(index=index, body=document)
 
-    def insert_documents(self, documents: any, index: str):
+    def insert_objects(self, documents: any, index: str):
         operations = []
         for document in documents:
             operations.append({'index': {'_index': index}})
@@ -175,8 +185,57 @@ class Search:
         return self.es.bulk(operations=operations)
 
     # query ops
-    def retrieve_document_by_id(self, id, index):
+    def retrieve_object_by_id(self, id, index):
         return self.es.get(index=index, id=id)
+    
+    def retrieve_all_objects(self, index, scroll='2m', size=1000):
+        # Initialize the scroll
+        data = self.es.search(
+            index=index,
+            scroll=scroll,
+            size=size,
+            body={
+                "query": {
+                    "match_all": {}
+                }
+            }
+        )
+
+        sid = data['_scroll_id']
+        scroll_size = len(data['hits']['hits'])
+
+        # Start scrolling
+        objects = []
+        while scroll_size > 0:
+            objects.extend(data['hits']['hits'])
+            
+            # Perform next scroll
+            data = self.es.scroll(scroll_id=sid, scroll=scroll)
+            
+            # Update the scroll ID
+            sid = data['_scroll_id']
+            
+            # Get the number of results that returned in the last scroll
+            scroll_size = len(data['hits']['hits'])
+        
+        return objects
+    
+    def retrieve_object_ids(self, index):
+        query = {
+            "size": 0,
+            "aggs": {
+                "unique_docs": {
+                    "composite": {
+                        "size": 10000,  # set an appropriate size limit
+                        "sources": [
+                            {"document_name": {"terms": {"field": "document_name.kw"}}},
+                            {"document_id": {"terms": {"field": "document_id"}}}
+                        ]
+                    }
+                }
+            }
+        }
+        return self.es.search(index=index, body=query)
 
     def search(self, index: str, **query_args):
         return self.es.search(index=index, **query_args)
@@ -201,11 +260,11 @@ class Search:
         sorted_results = sorted(combined_results.items(), key=lambda item: item[1]['score'], reverse=True)
 
         # Optionally normalize scores
-        if normalize:
-            min_score = min(result["score"] for _, result in sorted_results)
-            max_score = max(result["score"] for _, result in sorted_results)
-            for _, result in sorted_results:
-                result["normalized_score"] = (result["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
+        # if normalize:
+        #     min_score = min(result["score"] for _, result in sorted_results)
+        #     max_score = max(result["score"] for _, result in sorted_results)
+        #     for _, result in sorted_results:
+        #         result["normalized_score"] = (result["score"] - min_score) / (max_score - min_score) if max_score > min_score else 0
 
         # Optionally inspect final results
         if INSPECT:

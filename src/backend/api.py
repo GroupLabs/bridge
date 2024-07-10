@@ -1,13 +1,11 @@
-
 from fastapi import Depends, FastAPI, Response, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
-import json
 
 from log import setup_logger
-from storage import load_data, load_model, query, get_inference
-from serverutils import Health, Status, Load, Query
+from storage import load_data, query, retrieve_object_ids
+from serverutils import Health, Status,Query
 
 from config import config
 
@@ -29,6 +27,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Endpoints for debugging
+if config.ENV == "DEBUG":
+    from debug import router as debug_router
+    app.include_router(debug_router)
+
 origins = [
     "http://localhost:3000",  # Add the origin(s) you want to allow
     # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
@@ -44,10 +47,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-@app.get("/health-check")
+@app.get("/health")
 async def health_endpoint():
     return {"health": health}
-
 
 @app.get("/task/{task_id}")
 async def get_task_result(task_id: str):
@@ -60,21 +62,13 @@ async def get_task_result(task_id: str):
 
     return {"task_id": task_id, "status": task.state}
 
+@app.get("/retrieve_ids/{index}")
+async def retrieve_all(index: str):
+    return {"health": health, "status" : "success", "ids" : retrieve_object_ids(index)}
+
 # load collection (dir)/document (pdf, txt) or database (postgres, mssql, duckdb)/table (csv, tsv, parquet)
 # accepts path to data (unstructurded | structured)
 # returns ok
-
-@app.post("/load_by_path")
-async def load_data_by_path(input: Load, response: Response):
-    try:
-        task = load_data.delay(input.filepath)
-        response.status_code = 202
-        logger.info(f"LOAD accepted: {input.filepath}")
-        return {"status": "accepted", "task_id": task.id}
-    except NotImplementedError:
-        logger.warn(f"LOAD incomplete: {input.filepath}")
-        response.status_code = 400
-        return {"health": "ok", "status": "fail", "reason": "file type not implemented"}
 
 @app.post("/load")
 async def load_data_ep(response: Response, file: UploadFile = File(...)):
@@ -84,7 +78,7 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         with open(f"{TEMP_DIR}/{file.filename}", "wb") as temp_file:
             temp_file.write(await file.read())
 
-        task = load_data.delay(f"{TEMP_DIR}/{file.filename}")
+        task = load_data.delay(f"{TEMP_DIR}/{file.filename}", file.filename)
         response.status_code = 202
         logger.info(f"LOAD accepted: {file.filename}")
         return {"status": "accepted", "task_id": task.id}

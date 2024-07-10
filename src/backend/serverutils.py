@@ -23,7 +23,3 @@ class Query(BaseModel):
 class Load(BaseModel):
     filepath: str
     typehint: Optional[str] = "unknown"
-
-#for chat with GPT-4:
-class ChatRequest(BaseModel):
-    message: str
