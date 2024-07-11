@@ -1,133 +1,98 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useMemo, ChangeEvent, JSX, SVGProps } from 'react'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { getSortedFiles, uploadFile } from '@/lib/actions/file'
-import { LinkPreview } from '@/components/ui/link-preview'
+import { useState, useEffect, useMemo, ChangeEvent, JSX, SVGProps } from 'react';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getSortedFiles, uploadFile } from '@/lib/actions/file';
+import { LinkPreview } from '@/components/ui/link-preview';
+import { useUser } from '@clerk/clerk-react';
 
 type File = {
-  name: any
-  size: any
-  type: any
-  createdDate: string
-}
+  name: any;
+  size: any;
+  type: any;
+  createdDate: string;
+};
 
-type SortOrder = 'asc' | 'desc'
+type SortOrder = 'asc' | 'desc';
 
 export function FilesPage() {
-  const [files, setFiles] = useState<File[]>([])
-  const [sortField, setSortField] = useState<string>('created')
+  const [files, setFiles] = useState<File[]>([]);
+  const [sortField, setSortField] = useState<string>('created');
+  const [isUploading, setIsUploading] = useState<boolean>(true);
+  const [sortBy, setSortBy] = useState<keyof File>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
-  const [isUploading, setIsUploading] = useState<boolean>(true)
-  const [sortBy, setSortBy] = useState<keyof File>('name')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+  const { user } = useUser();
+  const userId = user ? user.id : '';
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const uploadedFile = event.target.files?.[0]
-    if (uploadedFile) {
+    const uploadedFile = event.target.files?.[0];
+    if (uploadedFile && userId) {
       try {
-        setIsUploading(true)
-        await uploadFile(uploadedFile)
-        console.log('Here')
-        console.log(uploadedFile)
-        setTimeout(fetchFiles, 1000)
-        setIsUploading(false)
+        setIsUploading(true);
+        await uploadFile(uploadedFile, userId);
+        setTimeout(fetchFiles, 1000);
+        setIsUploading(false);
       } catch (error) {
-        console.error('Error uploading file:', error)
-        setIsUploading(false)
+        console.error('Error uploading file:', error);
+        setIsUploading(false);
       }
     }
-  }
+  };
 
-  // Extract the file fetching logic into its own function so it can be reused
   const fetchFiles = () => {
-    getSortedFiles(sortField)
-      .then(response => {
-        // Check if response is an array before calling map
-        if (Array.isArray(response) && response.length > 0) {
-          const mappedFiles = response.map((file: any) => ({
-            name: file._source.document_name,
-            size: file._source.Size,
-            type: file._source.Type.slice(1).toUpperCase(),
-            createdDate: new Date(file._source.Created).toLocaleDateString(
-              undefined,
-              {
+    if (userId) {
+      getSortedFiles(sortField, userId)
+        .then(response => {
+          if (Array.isArray(response) && response.length > 0) {
+            const mappedFiles = response.map((file: any) => ({
+              name: file._source.document_name,
+              size: file._source.Size,
+              type: file._source.Type.slice(1).toUpperCase(),
+              createdDate: new Date(file._source.Created).toLocaleDateString(undefined, {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
-              }
-            )
-          }))
-          setFiles(mappedFiles)
-          setIsUploading(false)
-        } else {
-          console.error('Unexpected response:', response)
-          // Optionally set some error state here
-          setIsUploading(false)
-        }
-      })
-      .catch(error => {
-        console.error('Error fetching files:', error)
-        // Optionally set some error state here
-        setIsUploading(false)
-      })
-  }
-
-  // Call fetchFiles in the useEffect hook instead of duplicating the logic
-  useEffect(() => {
-    fetchFiles()
-  }, [sortField])
+              })
+            }));
+            setFiles(mappedFiles);
+            setIsUploading(false);
+          } else {
+            console.error('Unexpected response:', response);
+            setIsUploading(false);
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching files:', error);
+          setIsUploading(false);
+        });
+    }
+  };
 
   useEffect(() => {
-    getSortedFiles(sortField)
-      .then(response => {
-        if (response && response.length > 0) {
-          const mappedFiles = response.map((file: any) => ({
-            name: file._source.document_name,
-            size: file._source.Size,
-            type: file._source.Type.slice(1).toUpperCase(),
-            createdDate: new Date(file._source.Created).toLocaleDateString(
-              undefined,
-              {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              }
-            )
-          }))
-          setFiles(mappedFiles)
-        }
-      })
-      .catch(error => {
-        console.error('Error fetching files:', error)
-        // Optionally set some error state here
-      })
-  }, [sortField])
+    fetchFiles();
+  }, [sortField, userId]);
 
   const handleSort = (key: keyof File) => {
     if (sortBy === key) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortBy(key)
-      setSortOrder('asc')
+      setSortBy(key);
+      setSortOrder('asc');
     }
-  }
+  };
 
   const sortedFiles = useMemo(() => {
     return [...files].sort((a, b) => {
-      if (a[sortBy] < b[sortBy]) return sortOrder === 'asc' ? -1 : 1
-      if (a[sortBy] > b[sortBy]) return sortOrder === 'asc' ? 1 : -1
-      return 0
-    })
-  }, [files, sortBy, sortOrder])
+      if (a[sortBy] < b[sortBy]) return sortOrder === 'asc' ? -1 : 1;
+      if (a[sortBy] > b[sortBy]) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [files, sortBy, sortOrder]);
 
   return (
-    <div
-      // onDrop={handleDrop}
-      // onDragOver={e => e.preventDefault()}
-      className="p-6 md:p-8 lg:p-10"
-    >
+    <div className="p-6 md:p-8 lg:p-10">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <label
@@ -150,13 +115,7 @@ export function FilesPage() {
             onClick={() => handleSort('name')}
           >
             <AArrowUpIcon
-              className={`w-5 h-5 ${
-                sortBy === 'name'
-                  ? sortOrder === 'asc'
-                    ? 'rotate-180'
-                    : ''
-                  : ''
-              }`}
+              className={`w-5 h-5 ${sortBy === 'name' ? (sortOrder === 'asc' ? 'rotate-180' : '') : ''}`}
             />
             <span className="sr-only">Sort by name</span>
           </Button>
@@ -167,13 +126,7 @@ export function FilesPage() {
             onClick={() => handleSort('size')}
           >
             <DatabaseIcon
-              className={`w-5 h-5 ${
-                sortBy === 'size'
-                  ? sortOrder === 'asc'
-                    ? 'rotate-180'
-                    : ''
-                  : ''
-              }`}
+              className={`w-5 h-5 ${sortBy === 'size' ? (sortOrder === 'asc' ? 'rotate-180' : '') : ''}`}
             />
             <span className="sr-only">Sort by size</span>
           </Button>
@@ -184,13 +137,7 @@ export function FilesPage() {
             onClick={() => handleSort('createdDate')}
           >
             <CalendarDaysIcon
-              className={`w-5 h-5 ${
-                sortBy === 'createdDate'
-                  ? sortOrder === 'asc'
-                    ? 'rotate-180'
-                    : ''
-                  : ''
-              }`}
+              className={`w-5 h-5 ${sortBy === 'createdDate' ? (sortOrder === 'asc' ? 'rotate-180' : '') : ''}`}
             />
             <span className="sr-only">Sort by created date</span>
           </Button>
@@ -200,18 +147,10 @@ export function FilesPage() {
         <table className="w-full table-auto border-collapse">
           <thead>
             <tr className="bg-muted">
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                File Name
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                Size
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                Type
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                Created
-              </th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">File Name</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Size</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Type</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Created</th>
             </tr>
           </thead>
           <tbody>
@@ -235,7 +174,7 @@ export function FilesPage() {
         </table>
       </div>
     </div>
-  )
+  );
 }
 
 function TableRow({ file }: { file: File }) {
@@ -243,12 +182,8 @@ function TableRow({ file }: { file: File }) {
     <tr className="border-b border-muted/40 hover:bg-muted/20">
       <td className="px-4 py-3 text-sm font-medium text-foreground">
         <LinkPreview
-          url={`http://0.0.0.0:8000/downloads/${
-            file.name
-          }.${file.type.toLowerCase()}`}
-          imageSrc={`http://0.0.0.0:8000/downloads/preview/${
-            file.name
-          }.${file.type.toLowerCase()}`}
+          url={`http://0.0.0.0:8000/downloads/${file.name}.${file.type.toLowerCase()}`}
+          imageSrc={`http://0.0.0.0:8000/downloads/preview/${file.name}.${file.type.toLowerCase()}`}
           className="font-bold bg-clip-text text-transparent bg-gradient-to-br from-purple-500 to-pink-500"
         >
           {file.name}
@@ -256,11 +191,9 @@ function TableRow({ file }: { file: File }) {
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.size}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{file.type}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">
-        {file.createdDate}
-      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground">{file.createdDate}</td>
     </tr>
-  )
+  );
 }
 
 function CalendarDaysIcon(
@@ -290,7 +223,7 @@ function CalendarDaysIcon(
       <path d="M12 18h.01" />
       <path d="M16 18h.01" />
     </svg>
-  )
+  );
 }
 
 function DatabaseIcon(
@@ -313,7 +246,7 @@ function DatabaseIcon(
       <path d="M3 5V19A9 3 0 0 0 21 19V5" />
       <path d="M3 12A9 3 0 0 0 21 12" />
     </svg>
-  )
+  );
 }
 
 function UploadIcon(props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) {
@@ -334,7 +267,7 @@ function UploadIcon(props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) {
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" x2="12" y1="3" y2="15" />
     </svg>
-  )
+  );
 }
 
 function AArrowUpIcon(
@@ -358,5 +291,5 @@ function AArrowUpIcon(
       <path d="M18 16V7" />
       <path d="m14 11 4-4 4 4" />
     </svg>
-  )
+  );
 }

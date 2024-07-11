@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import Footer from '@/components/footer'
 import { Sidebar } from '@/components/sidebar'
 import { Toaster } from '@/components/ui/sonner'
-import { ClerkProvider, SignOutButton } from '@clerk/nextjs'
+import { ClerkProvider } from '@clerk/nextjs'
 
 const fontSans = FontSans({
   subsets: ['latin'],
@@ -46,24 +46,21 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider>
-    <html lang="en" suppressHydrationWarning>
-      <body className={cn('font-sans antialiased', fontSans.variable)}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-
-        >
-          {children}
-          {/* <Sidebar /> */}
-          <Footer />
-          <Toaster />
-        </ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''}>
+      <html lang="en" suppressHydrationWarning>
+        <body className={cn('font-sans antialiased', fontSans.variable)}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Footer />
+            <Toaster />
+          </ThemeProvider>
+        </body>
+      </html>
     </ClerkProvider>
-    
   )
 }
