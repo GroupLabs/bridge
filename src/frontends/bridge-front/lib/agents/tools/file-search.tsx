@@ -1,9 +1,12 @@
+'use client'
+
 import { createStreamableValue } from 'ai/rsc'
 import { searchSchema } from '@/lib/schema/search'
 import { Card } from '@/components/ui/card'
 import { FileSearchSection } from '@/components/file-search-section'
 import { ToolProps } from '.'
 import { SearchResult } from '@/lib/types'
+import { useUser } from '@clerk/clerk-react'
 
 export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
   description: `You are a helpful assistant that searches a user's files. If a user asks something personal, related to their data, or that likely returns few web results, search the files. Examples of such queries include:
@@ -20,6 +23,9 @@ export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     max_results: number
     search_depth: 'basic' | 'advanced'
   }) => {
+    const { user } = useUser()
+    const userId = user ? user.id : ''
+
     let hasError = false
     // Append the file search section
     const streamResults = createStreamableValue<string>()
@@ -27,7 +33,7 @@ export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
 
     let searchResult
     try {
-      searchResult = await bridgeQuery(query)
+      searchResult = await bridgeQuery(query, userId)
     } catch (error) {
       console.error('Search API error:', error)
       hasError = true
@@ -75,8 +81,8 @@ const transformData = (
   }
 }
 
-async function bridgeQuery(query: string): Promise<any> {
-  const response = await fetch('http://0.0.0.0:8000/query_all', {
+async function bridgeQuery(query: string, userId: string): Promise<any> {
+  const response = await fetch(`http://0.0.0.0:8000/query_all/${userId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
