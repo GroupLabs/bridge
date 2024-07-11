@@ -26,6 +26,8 @@ export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     const { user } = useUser()
     const userId = user ? user.id : ''
 
+    console.log('userId:', userId) // Log userId
+
     let hasError = false
     // Append the file search section
     const streamResults = createStreamableValue<string>()
@@ -33,7 +35,9 @@ export const fileSearchTool = ({ uiStream, fullResponse }: ToolProps) => ({
 
     let searchResult
     try {
+      console.log('Attempting to call bridgeQuery')
       searchResult = await bridgeQuery(query, userId)
+      console.log('bridgeQuery result:', searchResult)
     } catch (error) {
       console.error('Search API error:', error)
       hasError = true
@@ -82,6 +86,7 @@ const transformData = (
 }
 
 async function bridgeQuery(query: string, userId: string): Promise<any> {
+  console.log('Sending request with userId:', userId) // Log before sending request
   const response = await fetch(`http://0.0.0.0:8000/query_all/${userId}`, {
     method: 'POST',
     headers: {
