@@ -17,22 +17,22 @@ import {
 
 export const Header: React.FC = async () => {
   return (
-    <header className="fixed w-full p-1 md:p-2 flex justify-between items-center z-10 backdrop-blur md:backdrop-blur-none bg-background/80 md:bg-transparent">
-      <div>
-        <a href="/">
-          <IconLogo className={cn('w-5 h-5')} />
-          <span className="sr-only">Bridge</span>
-        </a>
-      </div>
-      <div className="flex gap-0.5">
+    <header className="w-full p-1 md:p-2 flex justify-between items-center">
         <div className='flex items-center px-4'>
           <a href="#" className="group block flex-shrink-0">
             <div className="flex items-center">
-              <AddData />
+              Bridge
             </div>
           </a>
-
-
+          {/* <ModeToggle /> */}
+        </div>
+      <div className="flex gap-0.5">
+        <div className='flex items-center px-4'>
+          <div className="group block flex-shrink-0">
+            <div className="flex items-center">
+              Settings
+            </div>
+          </div>
           {/* <ModeToggle /> */}
         </div>
         <HistoryContainer location="header" />

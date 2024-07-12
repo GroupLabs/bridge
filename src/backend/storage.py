@@ -51,7 +51,7 @@ try:
 except Exception as e:
     print(f"Triton not available: {e}")
 
-@celery_app.task(name="load_data_task", bind=True)
+@celery_app.task(name="load_data_task")
 def load_data(filepath: str, read=True):
 
     # check if input is a connection string
@@ -88,6 +88,8 @@ def load_data(filepath: str, read=True):
     
     if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
             os.remove(filepath)
+
+    return "success"
 
 def _retrieve_all_objects(index: str):
     response = es.retrieve_all_objects(index)

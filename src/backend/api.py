@@ -51,8 +51,11 @@ app.add_middleware(
 async def health_endpoint():
     return {"health": health}
 
+
 @app.get("/task/{task_id}")
 async def get_task_result(task_id: str):
+    # note: no point adding a progress bar, the longest part (unstructured) is opaque
+
     task = load_data.AsyncResult(task_id)
 
     # return result obj
