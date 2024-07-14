@@ -10,33 +10,43 @@ import {
 } from "@radix-ui/react-icons"
 
 export const labels = [
+  // file types
   {
-    value: "PostGreSQL",
-    label: "PostGreSQL",
-  },
-  {
-    value: "MySQL",
-    label: "MySQL",
-  },
-  {
-    value: "CSV",
+    value: "csv",
     label: "CSV",
   },
   {
-    value: "PDF",
+    value: "pdf",
     label: "PDF",
+  },
+  {
+    value: "txt",
+    label: "TXT",
+  },
+  // 3rd party integrations
+  {
+    value: "slack",
+    label: "Slack",
+  },
+  // database types
+  {
+    value: "postgres",
+    label: "Postgres",
+  },
+  {
+    value: "mysql",
+    label: "MySQL",
+  },
+  {
+    value: "mongodb",
+    label: "MongoDB",
   },
 ]
 
 export const statuses = [
   {
-    value: "backlog",
-    label: "Backlog",
-    icon: QuestionMarkCircledIcon,
-  },
-  {
-    value: "todo",
-    label: "Todo",
+    value: "pending",
+    label: "Pending",
     icon: CircleIcon,
   },
   {
@@ -55,3 +65,21 @@ export const statuses = [
     icon: CrossCircledIcon,
   },
 ]
+
+// export const priorities = [
+//   {
+//     label: "Low",
+//     value: "low",
+//     icon: ArrowDownIcon,
+//   },
+//   {
+//     label: "Medium",
+//     value: "medium",
+//     icon: ArrowRightIcon,
+//   },
+//   {
+//     label: "High",
+//     value: "high",
+//     icon: ArrowUpIcon,
+//   },
+// ]

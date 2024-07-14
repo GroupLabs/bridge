@@ -9,14 +9,15 @@ import { DataTable } from "@/components/ui/connector-table/data-table"
 import { UserNav } from "@/components/ui/connector-table/user-nav"
 import { taskSchema } from "@/lib/types/schema"
 import { AddData } from "@/components/add-data"
+import { get } from "http"
 
 export const metadata: Metadata = {
-  title: "Tasks",
+  title: "Integrations",
   description: "A task and issue tracker build using Tanstack Table.",
 }
 
 // Simulate a database read for tasks.
-async function getTasks() {
+async function getIntegrations() {
   const data = await fs.readFile(
     path.join(process.cwd(), "/lib/data/tasks.json")
   )
@@ -26,38 +27,21 @@ async function getTasks() {
   return z.array(taskSchema).parse(tasks)
 }
 
-export default async function TaskPage() {
-  const tasks = await getTasks()
+export default async function IntegrationsPage() {
+  const integrationsData = await getIntegrations()
 
   return (
     <>
-      <div className="md:hidden">
-        <Image
-          src="/examples/tasks-light.png"
-          width={1280}
-          height={998}
-          alt="Playground"
-          className="block dark:hidden"
-        />
-        <Image
-          src="/examples/tasks-dark.png"
-          width={1280}
-          height={998}
-          alt="Playground"
-          className="hidden dark:block"
-        />
-      </div>
-      <div className="hidden h-full flex-1 flex-col md:flex">
-        <div className="flex items-center justify-between space-y-8 pb-8">
+      <div className="hidden h-full flex-1 flex-col space-y-8 md:flex">
+        <div className="flex items-center justify-between space-y-2">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Welcome back!</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Integrations</h2>
             <p className="text-muted-foreground">
-              Here&apos;s a list of your tasks for this month!
+              Here are all the integrations that are logged in Bridge.
             </p>
           </div>
-          <AddData />
         </div>
-        <DataTable data={tasks} columns={columns} />
+        <DataTable data={integrationsData} columns={columns} />
       </div>
     </>
   )

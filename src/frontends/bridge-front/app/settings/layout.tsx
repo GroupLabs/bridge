@@ -33,7 +33,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-8">
+      <main className="flex-1 py-8">
         <div className="max-w-3xl mx-auto">
           {children}
         </div>
