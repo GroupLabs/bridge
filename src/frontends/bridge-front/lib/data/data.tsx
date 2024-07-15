@@ -45,22 +45,22 @@ export const labels = [
 
 export const statuses = [
   {
-    value: "pending",
+    value: "PENDING",
     label: "Pending",
     icon: CircleIcon,
   },
   {
-    value: "in progress",
+    value: "STARTED",
     label: "In Progress",
     icon: StopwatchIcon,
   },
   {
-    value: "done",
+    value: "SUCCESS",
     label: "Done",
     icon: CheckCircledIcon,
   },
   {
-    value: "canceled",
+    value: "FAILURE",
     label: "Canceled",
     icon: CrossCircledIcon,
   },

@@ -9,22 +9,70 @@ import { DataTable } from "@/components/ui/connector-table/data-table"
 import { UserNav } from "@/components/ui/connector-table/user-nav"
 import { taskSchema } from "@/lib/types/schema"
 import { AddData } from "@/components/add-data"
-import { get } from "http"
 
 export const metadata: Metadata = {
   title: "Integrations",
-  description: "A task and issue tracker build using Tanstack Table.",
+  description: "See all the integrations that are logged in Bridge.",
 }
 
-// Simulate a database read for tasks.
+interface IntegrationsInterface {
+  task_id?: string;
+  filename?: string;
+  status?: string;
+  type?: string;
+}
+
 async function getIntegrations() {
-  const data = await fs.readFile(
-    path.join(process.cwd(), "/lib/data/tasks.json")
-  )
+  const url = process.env.BRIDGE_URL;
 
-  const tasks = JSON.parse(data.toString())
+  if (!url) {
+    throw new Error('BRIDGE_URL is not defined');
+  }
 
-  return z.array(taskSchema).parse(tasks)
+  try {
+    const response = await fetch(`${url}/integrations/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+
+    const textData = await response.text();
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(textData);
+    } catch (jsonError) {
+      console.error('Error parsing JSON:', jsonError);
+      throw new Error('Failed to parse JSON response');
+    }
+
+    if (!parsedData.tasks) {
+      console.error('No tasks found in the response:', parsedData);
+      throw new Error('No tasks found in the response');
+    }
+
+    if (parsedData.tasks.length === 0) {
+      console.warn('Tasks array is empty:', parsedData.tasks);
+    }
+
+    const tasks = (parsedData.tasks as IntegrationsInterface[]).map((task) => ({
+      id: task.task_id ?? '',
+      title: task.filename ?? '',
+      status: task.status ?? '',
+      label: task.type ?? '',
+    }));
+
+    return z.array(taskSchema).parse(tasks);
+  } catch (error) {
+    console.error('Error fetching integrations:', error);
+    throw new Error('Failed to fetch integrations');
+  }
 }
 
 export default async function IntegrationsPage() {

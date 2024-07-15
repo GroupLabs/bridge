@@ -21,15 +21,17 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="celery.platforms")
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = config.CELERY_RESULT_BACKEND
 
 # logger
 logger = setup_logger("storage")
 
 # celery config
+
 celery_app = Celery(
     "worker",
-    broker=CELERY_BROKER_URL,  # Default RabbitMQ credentials
-    backend="rpc://",  # Use RPC as the backend with RabbitMQ
+    broker=CELERY_BROKER_URL,
+    backend=CELERY_RESULT_BACKEND,
 )
 
 celery_app.conf.update(
@@ -39,6 +41,8 @@ celery_app.conf.update(
     result_serializer='json',
     timezone='Europe/London',
     enable_utc=True,
+    result_expires=None,  # Results do not expire
+    task_track_started=True,
 )
 
 # elasticsearch
@@ -89,7 +93,7 @@ def load_data(filepath: str, read=True):
     if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
             os.remove(filepath)
 
-    return "success"
+    return pathtype
 
 def _retrieve_all_objects(index: str):
     response = es.retrieve_all_objects(index)

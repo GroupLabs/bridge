@@ -73,7 +73,13 @@ const transformData = (respData: any): { query: string, results: SearchResult[] 
 }
 
 async function bridgeQuery(query: string): Promise<any> {
-  const response = await fetch('http://20.84.99.84:8000/query', {
+  const url = process.env.BRIDGE_URL;
+
+  if (!url) {
+    throw new Error('BRIDGE_URL is not defined');
+  }
+  
+  const response = await fetch(`${url}/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

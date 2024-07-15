@@ -22,16 +22,23 @@ export function AddData() {
   };
 
   const handleSubmit = async () => {
+
+    const url = process.env.BRIDGE_URL;
+
     if (!file) {
       toast("Please select a file first.");
       return;
+    }
+
+    if (!url) {
+      throw new Error('BRIDGE_URL is not defined');
     }
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://20.84.99.84:8000/load", {
+      const response = await fetch(`${url}/load`, {
         method: "POST",
         body: formData,
       });
