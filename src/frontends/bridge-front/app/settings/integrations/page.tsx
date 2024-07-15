@@ -23,6 +23,13 @@ interface IntegrationsInterface {
 }
 
 async function getIntegrations() {
+
+  //
+  //
+  // Is this optimal? Should the server process these requests? Should it be cached?
+  //
+  //
+
   const url = process.env.BRIDGE_URL;
 
   if (!url) {
