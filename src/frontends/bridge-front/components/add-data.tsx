@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner"
+import { toast } from "sonner";
 
 export function AddData() {
   const [file, setFile] = useState(null);
@@ -22,29 +22,27 @@ export function AddData() {
   };
 
   const handleSubmit = async () => {
-
-    const url = process.env.BRIDGE_URL;
-
     if (!file) {
       toast("Please select a file first.");
       return;
     }
 
-    if (!url) {
-      throw new Error('BRIDGE_URL is not defined');
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const response = await fetch(`${url}/load`, {
+      const form = new FormData();
+      form.append("file", file);
+
+      const response = await fetch('/api/upload', {
         method: "POST",
-        body: formData,
+        body: form,
       });
 
       if (response.ok) {
-        toast("File uploaded successfully!");
+        const result = await response.json();
+        if (result.success) {
+          toast("File uploaded successfully!");
+        } else {
+          toast("File upload failed.");
+        }
       } else {
         toast("File upload failed.");
       }

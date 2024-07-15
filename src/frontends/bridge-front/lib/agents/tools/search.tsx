@@ -56,20 +56,20 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
 
 const transformData = (respData: any): { query: string, results: SearchResult[] } => {
   if (!Array.isArray(respData.resp)) {
-    console.error('Expected array but received:', respData)
-    return { query: '', results: [] }
+    console.error('Expected array but received:', respData);
+    return { query: '', results: [] };
   }
 
-  const results = respData.resp.map(([id, { score, text }]: [string, { score: number, text: string }]) => ({
-    id,
-    score,
-    text
-  }))
+  const results = respData.resp.map((item: { id: string; score: number; text: string }) => ({
+    id: item.id,
+    score: item.score,
+    text: item.text
+  }));
 
   return {
-    query: respData.query || '', // Assuming the `query` is included in the top level of the API response
+    query: respData.query || '',
     results
-  }
+  };
 }
 
 async function bridgeQuery(query: string): Promise<any> {
@@ -89,6 +89,8 @@ async function bridgeQuery(query: string): Promise<any> {
       "index": "text_chunk"
     })
   })
+
+  console.log(response)
 
   if (!response.ok) {
     throw new Error(`Error: ${response.status}`)

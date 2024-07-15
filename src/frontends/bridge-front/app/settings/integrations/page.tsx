@@ -25,7 +25,7 @@ interface IntegrationsInterface {
 async function getIntegrations() {
 
   //
-  //
+  // TODO
   // Is this optimal? Should the server process these requests? Should it be cached?
   //
   //
@@ -87,6 +87,9 @@ export default async function IntegrationsPage() {
 
   return (
     <>
+      <div className="my-8">
+        <AddData />
+      </div>
       <div className="hidden h-full flex-1 flex-col space-y-8 md:flex">
         <div className="flex items-center justify-between space-y-2">
           <div>
