@@ -29,7 +29,7 @@ export const AddDataLinearTasks: React.FC<AddDataLinearTasksProps> = ({ onClose 
         const nango = new Nango({ publicKey: process.env.NEXT_PUBLIC_NANGO_PUBLIC_KEY as string });
 
         try {
-            const authResult = await nango.auth(process.env.NEXT_PUBLIC_LINEAR_INTEGRATION_ID as string, 'test-connection-id');
+            const authResult = await nango.auth(process.env.NEXT_PUBLIC_LINEAR_INTEGRATION_ID as string, 'linear');
 
             // Assuming authResult has a connectionId to use for fetching data
             const connectionId = authResult.connectionId;
