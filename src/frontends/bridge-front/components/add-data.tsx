@@ -13,12 +13,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { TypeSelector } from "@/components/add-data-type-selector";
+import { AddDataLinearTasks } from '@/components/add-data-linear-tasks';
+import { PlusIcon } from "@radix-ui/react-icons";
 
 export function AddData() {
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [selectedFileType, setSelectedFileType] = useState<string>("");
 
-  const handleFileChange = (event: any) => {
-    setFile(event.target.files[0]);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files;
+    if (selectedFiles && selectedFiles.length > 0) {
+      setFile(selectedFiles[0]);
+    } else {
+      setFile(null);
+    }
   };
 
   const handleSubmit = async () => {
@@ -56,25 +65,45 @@ export function AddData() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline">Upload File</Button>
+        <Button variant="outline">
+          Add Data
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="">
         <DialogHeader>
-          <DialogTitle>Upload PDF File</DialogTitle>
+          <DialogTitle>Upload Data</DialogTitle>
           <DialogDescription>
-            Anyone who has this link will be able to view added data.
+            Select the type of data you want to upload and then choose the file or enter details.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center justify-center my-4">
-          <Input id="file" type="file" accept='.pdf' onChange={handleFileChange} />
+        <div className="">
+          <TypeSelector
+            value={selectedFileType}
+            onChange={setSelectedFileType}
+          />
         </div>
-        <DialogFooter className="sm:justify-start">
-        <DialogClose asChild>
-            <Button type="button" variant="secondary" onClick={handleSubmit}>
-              Submit
-            </Button>
-          </DialogClose>
-        </DialogFooter>
+        {selectedFileType === "pdf" && (
+          <>
+            <div className="flex items-center justify-center">
+              <Input 
+                id="file" 
+                type="file" 
+                accept="application/pdf"
+                onChange={handleFileChange} 
+              />
+            </div>
+            <DialogFooter className="sm:justify-start">
+              <DialogClose asChild>
+                <Button type="button" variant="secondary" onClick={handleSubmit}>
+                  Submit
+                </Button>
+              </DialogClose>
+            </DialogFooter>
+          </>
+        )}
+        {selectedFileType === "linear" && (
+          <AddDataLinearTasks />
+        )}
       </DialogContent>
     </Dialog>
   );

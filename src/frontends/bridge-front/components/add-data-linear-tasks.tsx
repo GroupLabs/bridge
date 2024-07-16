@@ -1,8 +1,12 @@
-// components/AuthorizeLinear.tsx
+// components/add-data-linear-tasks.tsx
 'use client';
 
 import React, { useState } from 'react';
 import Nango from '@nangohq/frontend';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 interface Issue {
     id: string;
@@ -11,7 +15,7 @@ interface Issue {
     createdAt: string;
 }
 
-const AuthorizeLinear: React.FC = () => {
+export const AddDataLinearTasks: React.FC = () => {
     const [issues, setIssues] = useState<Issue[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,25 +59,39 @@ const AuthorizeLinear: React.FC = () => {
     };
 
     return (
-        <div>
-            <button onClick={handleAuth} disabled={loading}>
+        <div className="">
+            <Button onClick={handleAuth} disabled={loading} variant="outline" className="mb-4">
                 {loading ? 'Authorizing and Fetching Issues...' : 'Authorize with Linear and Fetch Issues'}
-            </button>
+            </Button>
             {error && <p>{error}</p>}
+            
             {issues.length > 0 && (
-                <div>
-                    <h2>Linear Issues</h2>
-                    <ul>
-                        {issues.map((issue) => (
-                            <li key={issue.id}>
-                                {issue.title} - {issue.status} (Created at: {new Date(issue.createdAt).toLocaleString()})
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                <>
+                    <h4 className="mb-4 text-sm font-medium leading-none">Fetched Linear Issues</h4>
+                    <ScrollArea className="h-72 rounded-md border">
+                        <div className="p-4">
+                            
+                            {issues.map((issue) => (
+                                <React.Fragment key={issue.id}>
+                                    <div className="font-medium text-sm py-1">
+                                        <Badge variant="outline">{issue.status}</Badge>
+                                    </div>
+                                    <div className="flex items-center text-sm px-2">
+                                        {issue.title}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground px-2">
+                                        {new Date(issue.createdAt).toLocaleString()}
+                                    </div>
+                                    <Separator className="my-2" />
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                    <Button disabled={loading} variant="secondary" className="mt-4">
+                        {"Submit"}
+                    </Button>
+                </>
             )}
         </div>
     );
 };
-
-export default AuthorizeLinear;

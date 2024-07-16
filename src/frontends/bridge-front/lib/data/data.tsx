@@ -25,6 +25,10 @@ export const labels = [
   },
   // 3rd party integrations
   {
+    value: "linear",
+    label: "Linear",
+  },
+  {
     value: "slack",
     label: "Slack",
   },
