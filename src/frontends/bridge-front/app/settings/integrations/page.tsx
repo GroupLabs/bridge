@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/connector-table/data-table"
 import { UserNav } from "@/components/ui/connector-table/user-nav"
 import { taskSchema } from "@/lib/types/schema"
 import { AddData } from "@/components/add-data"
+import AuthorizeLinear from "@/components/authorize-linear"
 
 export const metadata: Metadata = {
   title: "Integrations",
@@ -89,6 +90,7 @@ export default async function IntegrationsPage() {
     <>
       <div className="my-8">
         <AddData />
+        <AuthorizeLinear />
       </div>
       <div className="hidden h-full flex-1 flex-col space-y-8 md:flex">
         <div className="flex items-center justify-between space-y-2">
