@@ -88,7 +88,6 @@ async def get_all_integration():
         else:
             task_states.append({"task_id": task_id["task_id"], "status": task.state, "filename": task_id["filename"]})
 
-    print(task_states)
     return {"tasks": task_states}
 
 @app.get("/retrieve_ids/{index}")
