@@ -19,16 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-const fileTypes = [
-  {
-    value: "pdf",
-    label: "PDF",
-  },
-  {
-    value: "linear",
-    label: "Linear",
-  }
-]
+import { labels} from "@/lib/data/data";
 
 export function TypeSelector({ value, onChange }: { value: string, onChange: (value: string) => void }) {
   const [open, setOpen] = React.useState(false)
@@ -43,7 +34,7 @@ export function TypeSelector({ value, onChange }: { value: string, onChange: (va
           className="w-[200px] justify-between"
         >
           {value
-            ? fileTypes.find((type) => type.value === value)?.label
+            ? labels.find((type) => type.value === value)?.label
             : "Select type..."}
           <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -53,7 +44,7 @@ export function TypeSelector({ value, onChange }: { value: string, onChange: (va
           <CommandInput placeholder="Search type..." className="h-9" />
           <CommandEmpty>No type found.</CommandEmpty>
           <CommandGroup>
-            {fileTypes.map((type) => (
+            {labels.map((type) => (
             <CommandList key={type.value}>
                 <CommandItem
                     key={type.value}

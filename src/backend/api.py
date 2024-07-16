@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, File, UploadFile
+from fastapi import FastAPI, Form, Response, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
@@ -100,7 +100,7 @@ async def retrieve_all(index: str):
 # returns ok
 
 @app.post("/load")
-async def load_data_ep(response: Response, file: UploadFile = File(...)):
+async def load_data_ep(response: Response, file: UploadFile = File(...), c_type: str = Form(None)):
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -108,7 +108,7 @@ async def load_data_ep(response: Response, file: UploadFile = File(...)):
         with open(temp_file_path, "wb") as temp_file:
             temp_file.write(await file.read())
 
-        task = load_data.delay(temp_file_path, file.filename)
+        task = load_data.delay(temp_file_path, file.filename, c_type)
 
         # Read existing tasks
         if os.path.exists(TASK_ID_FILE):

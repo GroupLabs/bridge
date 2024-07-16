@@ -1,4 +1,4 @@
-// app/api/proxy/route.ts
+'use server'
 import { NextRequest, NextResponse } from 'next/server';
 import { Nango } from '@nangohq/node';
 
@@ -7,10 +7,10 @@ export async function POST(req: NextRequest) {
     console.log('Received connectionId:', connectionId);
 
     try {
-        const nango = new Nango({ secretKey: process.env.NEXT_PUBLIC_NANGO_SECRET_KEY as string });
+        const nango = new Nango({ secretKey: process.env.NANGO_SECRET_KEY as string });
 
         const records = await nango.listRecords({
-            providerConfigKey: process.env.NEXT_PUBLIC_NANGO_INTEGRATION_ID as string,
+            providerConfigKey: process.env.NEXT_PUBLIC_LINEAR_INTEGRATION_ID as string,
             connectionId: connectionId,
             model: 'LinearIssue'
         });

@@ -4,6 +4,7 @@ import yaml
 from uuid import uuid5, NAMESPACE_URL
 import re
 from pathlib import Path
+import json
 
 from celery import Celery
 
@@ -56,44 +57,51 @@ except Exception as e:
     print(f"Triton not available: {e}")
 
 @celery_app.task(name="load_data_task")
-def load_data(filepath: str, read=True):
+def load_data(filepath: str, read=True, c_type=None):
 
-    # check if input is a connection string
-    c_string = parse_connection_string(filepath)
+    # if connection type is not provided, try to infer it
+    if not c_type:
+        filepath = Path(filepath).absolute().as_posix() # standardize path
+        c_type = get_pathtype(filepath) # checks for illegal paths and returns type
+
+    print("Using connection type: " + c_type)
+
+    # unstructured
+    if c_type == "pdf":
+        _pdf(filepath, read_pdf=read)
+
+    elif c_type == "txt":
+        pass
+
+    elif c_type == "linear":
+        _linear(filepath)
 
     # structured
-    if c_string: # or other structured filetypes!
-        _db(
-            db_type=c_string["database_type"],
-            host=c_string["host"],
-            user=c_string["user"],
-            password=c_string["password"],
-            )
+    elif c_type == "db":
+        # check if input is a supported connection string
+        c_string = parse_connection_string(filepath)
+
+        if c_string: # or other structured filetypes!
+            _db(
+                db_type=c_string["database_type"],
+                host=c_string["host"],
+                user=c_string["user"],
+                password=c_string["password"],
+                )
+
+    # mix
+    elif c_type == "dir":
+        # recursively call load_data
+        pass
+
     else:
-        filepath = Path(filepath).absolute().as_posix() # standardize path
-
-        pathtype = get_pathtype(filepath) # checks for illegal paths and returns type
-
-        # unstructured
-        if pathtype == "pdf":
-            _pdf(filepath, read_pdf=read)
-
-        elif pathtype == "txt":
-            pass
-
-        # mix
-        elif pathtype == "dir":
-            # recursively call load_data
-            pass
-
-        else:
-            logger.warning("unsupported filetype encountered.")
-            raise NotImplementedError(f"File ({pathtype}) type is not supported.")
+        logger.warning("unsupported filetype encountered.")
+        raise NotImplementedError(f"File ({c_type}) type is not supported.")
     
     if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
             os.remove(filepath)
 
-    return pathtype
+    return c_type
 
 def _retrieve_all_objects(index: str):
     response = es.retrieve_all_objects(index)
@@ -149,6 +157,25 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
     os.remove(filepath)
 
+def _linear(filepath):
+
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+
+    data = data['issues']
+    for issue in data:
+        fields = {
+                    "document_id": doc_id,  # should it be the id of the linear import? Or the id of the issue?
+                    "document_name": os.path.basename(filepath),
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": f"Title: {issue['title']}\nStatus: {issue['status']}\nCreated At: {issue['createdAt']}",
+                    "chunking_strategy": "by issue",
+                    "chunk_no": "",
+                }
+
+        es.insert_object(fields, index="text_chunk")
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use

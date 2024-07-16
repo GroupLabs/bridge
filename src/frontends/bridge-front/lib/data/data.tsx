@@ -11,40 +11,40 @@ import {
 
 export const labels = [
   // file types
-  {
-    value: "csv",
-    label: "CSV",
-  },
+  // {
+  //   value: "csv",
+  //   label: "CSV",
+  // },
   {
     value: "pdf",
     label: "PDF",
   },
-  {
-    value: "txt",
-    label: "TXT",
-  },
+  // {
+  //   value: "txt",
+  //   label: "TXT",
+  // },
   // 3rd party integrations
   {
     value: "linear",
     label: "Linear",
   },
-  {
-    value: "slack",
-    label: "Slack",
-  },
-  // database types
-  {
-    value: "postgres",
-    label: "Postgres",
-  },
-  {
-    value: "mysql",
-    label: "MySQL",
-  },
-  {
-    value: "mongodb",
-    label: "MongoDB",
-  },
+  // {
+  //   value: "slack",
+  //   label: "Slack",
+  // },
+  // // database types
+  // {
+  //   value: "postgres",
+  //   label: "Postgres",
+  // },
+  // {
+  //   value: "mysql",
+  //   label: "MySQL",
+  // },
+  // {
+  //   value: "mongodb",
+  //   label: "MongoDB",
+  // },
 ]
 
 export const statuses = [

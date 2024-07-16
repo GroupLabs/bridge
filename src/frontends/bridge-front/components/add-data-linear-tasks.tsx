@@ -1,4 +1,3 @@
-// components/add-data-linear-tasks.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -7,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 interface Issue {
     id: string;
@@ -15,7 +15,11 @@ interface Issue {
     createdAt: string;
 }
 
-export const AddDataLinearTasks: React.FC = () => {
+interface AddDataLinearTasksProps {
+    onClose: () => void;
+}
+
+export const AddDataLinearTasks: React.FC<AddDataLinearTasksProps> = ({ onClose }) => {
     const [issues, setIssues] = useState<Issue[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -25,7 +29,7 @@ export const AddDataLinearTasks: React.FC = () => {
         const nango = new Nango({ publicKey: process.env.NEXT_PUBLIC_NANGO_PUBLIC_KEY as string });
 
         try {
-            const authResult = await nango.auth(process.env.NEXT_PUBLIC_NANGO_INTEGRATION_ID as string, 'test-connection-id');
+            const authResult = await nango.auth(process.env.NEXT_PUBLIC_LINEAR_INTEGRATION_ID as string, 'test-connection-id');
 
             // Assuming authResult has a connectionId to use for fetching data
             const connectionId = authResult.connectionId;
@@ -58,6 +62,31 @@ export const AddDataLinearTasks: React.FC = () => {
         }
     };
 
+    const handleSubmit = async () => {
+        try {
+            const date = new Date().toISOString().split('.')[0];
+            const jsonBlob = new Blob([JSON.stringify({ issues })], { type: 'application/json' });
+            const formData = new FormData();
+            formData.append("file", jsonBlob, `LinearIssues---${date}.json`);
+            formData.append("c_type", "linear");
+
+            const response = await fetch('/api/upload/linear', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to submit issues');
+            }
+
+            toast("Issues submitted successfully!");
+            onClose();  // Close the dialog on successful submission
+        } catch (error) {
+            console.error('Error submitting issues:', error);
+            toast("An error occurred while submitting the issues.");
+        }
+    };
+
     return (
         <div className="">
             <Button onClick={handleAuth} disabled={loading} variant="outline" className="mb-4">
@@ -70,7 +99,6 @@ export const AddDataLinearTasks: React.FC = () => {
                     <h4 className="mb-4 text-sm font-medium leading-none">Fetched Linear Issues</h4>
                     <ScrollArea className="h-72 rounded-md border">
                         <div className="p-4">
-                            
                             {issues.map((issue) => (
                                 <React.Fragment key={issue.id}>
                                     <div className="font-medium text-sm py-1">
@@ -87,8 +115,8 @@ export const AddDataLinearTasks: React.FC = () => {
                             ))}
                         </div>
                     </ScrollArea>
-                    <Button disabled={loading} variant="secondary" className="mt-4">
-                        {"Submit"}
+                    <Button onClick={handleSubmit} disabled={loading} variant="secondary" className="mt-4">
+                        Submit
                     </Button>
                 </>
             )}
