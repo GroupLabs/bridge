@@ -4,7 +4,7 @@ import Exa from 'exa-js'
 import { searchSchema } from '@/lib/schema/search'
 import { SearchSection } from '@/components/search-section'
 import { ToolProps } from '.'
- 
+
 export const webSearchTool = ({ uiStream, fullResponse }: ToolProps) => tool({
   description: 'Search the web for  (discouraged)',
   parameters: searchSchema,
