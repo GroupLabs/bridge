@@ -1,7 +1,6 @@
 import base64
 import json
 import os
-import zlib
 from typing import List
 
 from marker.schema import Page

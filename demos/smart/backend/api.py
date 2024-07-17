@@ -6,7 +6,7 @@ import uvicorn
 from pdfminer.high_level import extract_text
 import io
 import instructor
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List
 from openai import OpenAI
 

@@ -23,8 +23,9 @@ class config:
     LLM_URL = str(os.getenv('LLM_URL', "https://api.openai.com/v1"))
     LLM_MODEL = str(os.getenv('LLM_MODEL', "gpt-3.5-turbo")) #just change to gpt-4 when needed also change the .env
 
-    # storage
-    CELERY_BROKER_URL = str(os.getenv('CELERY_BROKER_URL', "amqp://guest:guest@localhost"))
+    # celery
+    CELERY_BROKER_URL = str(os.getenv('CELERY_BROKER_URL', "redis://redis:6379/0"))
+    CELERY_RESULT_BACKEND = str(os.getenv('CELERY_RESULT_BACKEND', "redis://redis:6379/0"))
 
     # elasticutils
     ELASTIC_PASSWORD = str(os.getenv('ELASTIC_PASSWORD'))

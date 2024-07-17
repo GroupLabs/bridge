@@ -1,5 +1,4 @@
 from transformers import ViltProcessor, ViltForQuestionAnswering
-import requests
 from PIL import Image
 
 # prepare image + question

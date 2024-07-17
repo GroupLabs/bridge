@@ -1,10 +1,10 @@
 import unicodedata
 import os
 import yaml
-from uuid import uuid4, uuid5, NAMESPACE_URL
-import time
+from uuid import uuid5, NAMESPACE_URL
 import re
 from pathlib import Path
+import json
 
 from celery import Celery
 
@@ -16,24 +16,23 @@ from log import setup_logger
 from typeutils import get_pathtype, parse_connection_string
 from elasticutils import Search
 from tritonutils import TritonClient
-from integration_layer import parse_config_from_string, format_model_inputs, prepare_inputs_for_model
-
-import PyPDF2
 
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="celery.platforms")
 
 CELERY_BROKER_URL = config.CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = config.CELERY_RESULT_BACKEND
 
 # logger
 logger = setup_logger("storage")
 
 # celery config
+
 celery_app = Celery(
     "worker",
-    broker=CELERY_BROKER_URL,  # Default RabbitMQ credentials
-    backend="rpc://",  # Use RPC as the backend with RabbitMQ
+    broker=CELERY_BROKER_URL,
+    backend=CELERY_RESULT_BACKEND,
 )
 
 celery_app.conf.update(
@@ -43,6 +42,8 @@ celery_app.conf.update(
     result_serializer='json',
     timezone='Europe/London',
     enable_utc=True,
+    result_expires=None,  # Results do not expire
+    task_track_started=True,
 )
 
 # elasticsearch
@@ -55,149 +56,67 @@ try:
 except Exception as e:
     print(f"Triton not available: {e}")
 
-try:
-    # triton server
-    tc = TritonClient()
-except Exception as e:
-    print(f"Triton not available: {e}")
-
 @celery_app.task(name="load_data_task")
-def load_data(filepath: str, read=True):
+def load_data(filepath: str, read=True, c_type=None):
 
-    # check if input is a connection string
-    c_string = parse_connection_string(filepath)
+    # if connection type is not provided, try to infer it
+    if not c_type:
+        filepath = Path(filepath).absolute().as_posix() # standardize path
+        c_type = get_pathtype(filepath) # checks for illegal paths and returns type
+
+    print("Using connection type: " + c_type)
+
+    # unstructured
+    if c_type == "pdf":
+        _pdf(filepath, read_pdf=read)
+
+    elif c_type == "txt":
+        pass
+
+    elif c_type == "linear":
+        _linear(filepath)
 
     # structured
-    if c_string: # or other structured filetypes!
-        _db(
-            db_type=c_string["database_type"],
-            host=c_string["host"],
-            user=c_string["user"],
-            password=c_string["password"],
-            )
+    elif c_type == "db":
+        # check if input is a supported connection string
+        c_string = parse_connection_string(filepath)
+
+        if c_string: # or other structured filetypes!
+            _db(
+                db_type=c_string["database_type"],
+                host=c_string["host"],
+                user=c_string["user"],
+                password=c_string["password"],
+                )
+
+    # mix
+    elif c_type == "dir":
+        # recursively call load_data
+        pass
+
     else:
-        filepath = Path(filepath).absolute().as_posix() # standardize path
-
-        pathtype = get_pathtype(filepath) # checks for illegal paths and returns type
-
-        # unstructured
-        if pathtype == "pdf":
-            _pdf(filepath, read_pdf=read)
-
-        elif pathtype == "txt":
-            pass
-
-        # mix
-        elif pathtype == "dir":
-            # recursively call load_data
-            pass
-
-        else:
-            logger.warning("unsupported filetype encountered.")
-            raise NotImplementedError(f"File ({pathtype}) type is not supported.")
+        logger.warning("unsupported filetype encountered.")
+        raise NotImplementedError(f"File ({c_type}) type is not supported.")
     
     if os.path.exists(filepath): # remove tempfile, not needed if we don't create the temp file
             os.remove(filepath)
 
-@celery_app.task(name="get_inference_task")
-def get_inference(model, data):
-    search_body = { #finds the document id which has the model name.
-    "query": {
-        "match": {
-            "model_name": model
-            }
-        }
-    }
+    return c_type
 
-    response = es.search(index="model_meta", body=search_body)
+def _retrieve_all_objects(index: str):
+    response = es.retrieve_all_objects(index)
+    return response
 
-    
+def retrieve_object_ids(index: str):
+    result = es.retrieve_object_ids(index)
 
-    hit = response['hits']['hits']
+    unique_docs = result['aggregations']['unique_docs']['buckets']
+    doc_tuples = [(bucket['key']['document_id'], bucket['key']['document_name'], bucket['doc_count']) for bucket in unique_docs]
 
-    if not hit:
-        logger.info("Model is not present in Elastic Search")
-        return
-    else:
-        parsed_data = {
-        'input': response['hits']['hits'][0]['_source']['input'],
-        'output': response['hits']['hits'][0]['_source']['output']
-    }   
-    
-    models_inputs = prepare_inputs_for_model(data, parsed_data)
+    return doc_tuples
 
-
-        
-
-
-    return models_inputs
-
-
-
-@celery_app.task(name="load_model_task")
-def load_model(model, config, description):
-
-    # load to ES
-    # need to fetch model description 
-    fields = {
-        "model_id" : uuid4(),
-        "access_group" : "", # not yet implemented
-        "model_name" : model,
-        "description_text" : description,
-        "input" : extract_io_metadata(config, 'input'),
-        "output" : extract_io_metadata(config, 'output'), 
-        "chunking_strategy" : "", # not chunked rn
-        "chunking_no" : "", # not chunked rn
-        "model_hash" : "not implemented", # for integrity check
-    }
-
-    es.insert_document(fields, index="model_meta")
-
-    # load to triton
-    tc.add_model(model,config) # TODO this function needs to leave the path of the original alone so that
-    # we can do an os.remove at this level, or maybe we should pass file objects to each of these functions?
-
-
-def extract_io_metadata(config, io_type):
-    with open(config, 'r') as file:
-        config_content = file.read()
-    
-    pattern = fr'{io_type}\s*\[\s*((?:\s*{{\s*(?:.|\n)*?\s*}}\s*,?\s*)+)\s*\]\s*'
-    match = re.search(pattern, config_content, re.DOTALL)
-
-    io_info = []
-
-    if match:
-        # Find all blocks within the input or output section
-        blocks = re.findall(r'{(.*?)}', match.group(0), re.DOTALL)
-
-        # Iterate over each block
-        for block in blocks:
-            current_info = {}
-
-            # Extract name, data type, and dims from the block
-            name_match = re.search(r'name:\s*"([^"]+)"', block)
-            current_info['name'] = name_match.group(1) if name_match else None
-
-            data_type_match = re.search(r'data_type:\s*TYPE_(\w+)', block)
-            current_info['data_type'] = data_type_match.group(1) if data_type_match else None
-
-            dims_match = re.search(r'dims:\s*\[\s*(.*?)\s*\]', block)
-            dims = dims_match.group(1) if dims_match else None
-            current_info['dims'] = [int(dim) for dim in dims.split(',')] if dims else None
-
-            # Append the current input or output info to the list
-            io_info.append(current_info)
-    
-    return io_info
-
-# TODO remove temp models
-
-def query(q: str, index: str):
-    return es.hybrid_search(q, index)
-#removes white spaces in text
-def remove_whitespace(text):
-    return re.sub(r'\s+', '', text)
+def query(q: str, index: str, doc_id: str = None):
+    return es.hybrid_search(q, index, doc_id)
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
@@ -213,40 +132,50 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
         if elements is not None:
             pdf_file = open(filepath, 'rb')
 
-            
             for i, e in enumerate(elements):
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
                 )  # remove control characters
                 
-                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) #this will add a space character after every ". ? !"
+                formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
 
                 fields = {
                     "document_id": doc_id,  # document id from path
                     "access_group": "",  # not yet implemented
+                    "document_name": os.path.basename(filepath),
                     "chunk_text": formatted_chunk,
                     "chunking_strategy": chunking_strategy,
                     "chunk_no": i,
                 }
 
                 # Insert the document into Elasticsearch
-                es.insert_document(fields, index="text_chunk")
+                es.insert_object(fields, index="text_chunk")
 
             pdf_file.close()
     else:
-        fields = {
-            "access_group" : "", # not yet implemented
-            "description_text" : "", # not yet implemented
-            "file_path" : filepath,
-            "embedding" : [0],
-            "last_updated" : int(time.time()), # current time in long int
-            "data_hash" : "not implemented"
-        }
-
-        es.insert_document(fields, index="document_meta")
+        raise PermissionError('File is not readable.')
     
     os.remove(filepath)
 
+def _linear(filepath):
+
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+
+    data = data['issues']
+    for issue in data:
+        fields = {
+                    "document_id": doc_id,  # should it be the id of the linear import? Or the id of the issue?
+                    "document_name": os.path.basename(filepath),
+                    "access_group": "",  # not yet implemented
+                    "chunk_text": f"Title: {issue['title']}\nStatus: {issue['status']}\nCreated At: {issue['createdAt']}",
+                    "chunking_strategy": "by issue",
+                    "chunk_no": "",
+                }
+
+        es.insert_object(fields, index="text_chunk")
 
 def _db(db_type, host, user, password):
     # figure out which db connector to use
@@ -287,7 +216,7 @@ def _db(db_type, host, user, password):
                     "data_hash" : "not implemented", # for integrity check
                 }
 
-                es.insert_document(fields, index="table_meta")
+                es.insert_object(fields, index="table_meta")
                 
                 print("stored: " + file.split(".")[0])
 

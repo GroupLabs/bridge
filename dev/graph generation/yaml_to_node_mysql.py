@@ -1,6 +1,3 @@
-import neo4j
-import pandas as pd
-import numpy as np
 import yaml 
 
 from neo4j import GraphDatabase

@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from pydantic import BaseModel, field_validator
 import ftfy
@@ -99,7 +99,7 @@ class Block(BboxElement):
         for line in self.lines:
             new_spans = []
             for span in line.spans:
-                if not span.span_id in bad_span_ids:
+                if span.span_id not in bad_span_ids:
                     new_spans.append(span)
             line.spans = new_spans
             if len(new_spans) > 0:
