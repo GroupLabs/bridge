@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Section } from '@/components/section'
-import { SearchResults } from '@/components/search-results'
+import { SearchResultsWeb } from '@/components/search-results-web'
 import { SearchResults as SearchResultsType } from '@/lib/types'
 
 interface RetrieveSectionProps {
@@ -12,7 +12,7 @@ interface RetrieveSectionProps {
 const RetrieveSection: React.FC<RetrieveSectionProps> = ({ data }) => {
   return (
     <Section title="Sources">
-      <SearchResults results={data.results} />
+      <SearchResultsWeb results={data.results} />
     </Section>
   )
 }

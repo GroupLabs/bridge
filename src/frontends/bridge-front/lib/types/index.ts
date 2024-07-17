@@ -1,20 +1,26 @@
-export interface BridgeSearchResults {
-  query: string;
-  results: SearchResult[];
-  images: string[];
-}
 
 // bridge only
-export interface SearchResult {
+export type BridgeSearchResults = {
+  query: string;
+  results: BridgeSearchResultItem[];
+}
+
+export type BridgeSearchResultItem = {
   id: string;
   score: number;
-  text: string;
+  content: string;
 }
 
 export type SearchResults = {
   images: string[]
   results: SearchResultItem[]
   query: string
+}
+
+export type SearchResultItem = {
+  title: string
+  url: string
+  content: string
 }
 
 export type ExaSearchResults = {
@@ -28,12 +34,6 @@ export type SerperSearchResults = {
     engine: string
   }
   videos: SerperSearchResultItem[]
-}
-
-export type SearchResultItem = {
-  title: string
-  url: string
-  content: string
 }
 
 export type ExaSearchResultItem = {
