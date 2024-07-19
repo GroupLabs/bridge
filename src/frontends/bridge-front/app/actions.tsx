@@ -378,6 +378,7 @@ export const getUIStateFromAIState = (aiState: Chat) => {
                 id,
                 component: (
                   <Section title="Related" separator={true}>
+                    {/* @ts-ignore */}
                     <SearchRelated relatedQueries={relatedQueries.value} />
                   </Section>
                 )
@@ -403,6 +404,7 @@ export const getUIStateFromAIState = (aiState: Chat) => {
               case 'search':
                 return {
                   id,
+                  // @ts-ignore
                   component: <SearchSection result={searchResults.value} />,
                   isCollapsed: isCollapsed.value
                 }
