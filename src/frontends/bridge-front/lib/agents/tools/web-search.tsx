@@ -1,13 +1,13 @@
 import { tool } from 'ai'
 import { createStreamableValue } from 'ai/rsc'
 import Exa from 'exa-js'
-import { searchSchema } from '@/lib/schema/search'
+import { searchSchemaWeb } from '@/lib/schema/search'
 import { SearchSection } from '@/components/search-section'
 import { ToolProps } from '.'
 
 export const webSearchTool = ({ uiStream, fullResponse }: ToolProps) => tool({
   description: 'Search the web for  (discouraged)',
-  parameters: searchSchema,
+  parameters: searchSchemaWeb,
   execute: async ({
     query,
     max_results,

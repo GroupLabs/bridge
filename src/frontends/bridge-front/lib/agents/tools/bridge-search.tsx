@@ -2,19 +2,15 @@ import { createStreamableValue } from 'ai/rsc'
 import { searchSchema } from '@/lib/schema/search'
 import { Card } from '@/components/ui/card'
 import { SearchSection } from '@/components/search-section'
-import { ToolProps } from '.'
+import { ToolProps, Tool } from '.'
 import { BridgeSearchResults } from '@/lib/types'
 
 export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
   description: 'Search for information uploaded to the organization through Bridge.',
   parameters: searchSchema,
-  execute: async ({
-    query
-  }: {
-    query: string
-  }) => {
+  execute: async ({ query }: { query: string }) => {
+
     let hasError = false
-    // Append the search section for Bridge results
     const streamResultsBridge = createStreamableValue<string>()
     uiStream.append(
       <SearchSection 

@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 class Status(Enum):
     OK = "OK"
@@ -18,8 +18,7 @@ class Health():
 class Query(BaseModel):
     query: str
     index: str
-    doc_id: Optional[str] = None # to restrict search to a specific file
-    use_llm: Optional[bool] = False
+    doc_ids: Optional[List[str]] = None # to restrict search to a specific file
 
 class Load(BaseModel):
     filepath: str
