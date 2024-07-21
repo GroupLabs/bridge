@@ -52,11 +52,21 @@ async function submit(formData?: FormData, skip?: boolean) {
     ? `{"action": "skip"}`
     : (formData?.get('input') as string)
 
+
+  const selectedFileIds = (formData?.getAll('files') || []).filter(
+    (entry): entry is string => typeof entry === 'string'
+  )
+
   const content = skip
     ? userInput
     : formData
-    ? JSON.stringify(Object.fromEntries(formData))
-    : null
+    ? JSON.stringify(
+      Object.fromEntries(
+        Array.from(formData.entries()).filter(([key]) => key !== 'files')
+      )
+    )
+  : null
+
   const type = skip
     ? undefined
     : formData?.has('input')
@@ -83,6 +93,8 @@ async function submit(formData?: FormData, skip?: boolean) {
       content
     })
   }
+
+  console.log(messages)
 
   async function processEvents() {
     let action = { object: { next: 'proceed' } }
@@ -114,11 +126,6 @@ async function submit(formData?: FormData, skip?: boolean) {
     let errorOccurred = false
     const streamText = createStreamableValue<string>()
     uiStream.update(<Spinner />)
-
-    // Get file IDs from formData
-    const selectedFileIds = (formData?.getAll('files') || []).filter(
-      (entry): entry is string => typeof entry === 'string'
-    )
 
     while (
       useSpecificAPI

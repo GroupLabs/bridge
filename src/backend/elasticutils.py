@@ -277,7 +277,7 @@ class Search:
 
         return sorted_results
     
-    def hybrid_search(self, query: str, index: str, doc_ids: str = None):
+    def hybrid_search(self, query: str, index: str, doc_ids: list[str] = None):
         INSPECT = False
         print(doc_ids)
         if not doc_ids:
@@ -307,7 +307,7 @@ class Search:
 
             # add filter if doc_id is provided
             if doc_ids:
-                match_query["query"]["bool"]["filter"] = [{"term": {"document_id": doc_ids[0]}}]
+                match_query["query"]["bool"]["filter"] = [{"terms": {"document_id": doc_ids}}]
 
             match_response = self.es.search(index=index, body=match_query)
         except BadRequestError as e:
@@ -340,7 +340,7 @@ class Search:
             
             # add filter if doc_id is provided
             if doc_ids:
-                knn_query["query"]["bool"]["filter"] = [{"term": {"document_id": doc_ids[0]}}]
+                knn_query["query"]["bool"]["filter"] = [{"terms": {"document_id": doc_ids}}]
 
             knn_response = self.es.search(index=index, body=knn_query)
         except BadRequestError as e:
