@@ -94,7 +94,7 @@ async function submit(formData?: FormData, skip?: boolean) {
     })
   }
 
-  console.log(messages)
+  // console.log(messages) to see what is pushed and visible to LLMs Be wary that this is only a subset of all messages
 
   async function processEvents() {
     let action = { object: { next: 'proceed' } }

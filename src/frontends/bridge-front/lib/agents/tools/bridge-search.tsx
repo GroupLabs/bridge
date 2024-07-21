@@ -8,7 +8,7 @@ import { BridgeSearchResults } from '@/lib/types'
 export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
   description: 'Search for information uploaded to the organization through Bridge.',
   parameters: searchSchema,
-  execute: async ({ query, fileIds }: { query: string, fileIds?: string[] }) => {
+  execute: async ({ query }: { query: string }) => {
 
     let hasError = false
     const streamResultsBridge = createStreamableValue<string>()
@@ -19,7 +19,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     )
     let searchResult
     try {
-      searchResult = await bridgeQuery(query, fileIds)
+      searchResult = await bridgeQuery(query)
     } catch (error) {
       console.error('Bridge API error:', error)
       hasError = true
@@ -58,7 +58,7 @@ const transformData = (respData: any): BridgeSearchResults => {
   }
 }
 
-async function bridgeQuery(query: string, fileIds?: string[]): Promise<any> {
+async function bridgeQuery(query: string): Promise<any> {
   const url = process.env.BRIDGE_URL;
 
   if (!url) {
