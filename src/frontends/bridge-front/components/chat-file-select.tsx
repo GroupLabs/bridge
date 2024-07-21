@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dialog"
 import { Command as CommandPrimitive } from "cmdk";
 
-// Define the type for the file data
 interface FileData {
   value: string;
   label: string;
@@ -32,22 +31,15 @@ interface FileData {
 
 // Fetch function to get files from the server
 async function fetchFiles(): Promise<FileData[]> {
-  const url = process.env.BRIDGE_URL;
-
-  if (!url) {
-    throw new Error('BRIDGE_URL is not defined');
-  }
-  
   try {
-    const response = await fetch(
-      `${url}/integrations/`, {
-        cache: 'no-store'
-      });
+    const response = await fetch('/api/fetchfiles', {
+      cache: 'no-store',
+    });
     const data = await response.json();
     if (!data || !Array.isArray(data.ids)) {
       return [];
     }
-    return data.ids.map(([id, label, _size]: [string, string, number]) => ({ value: id, label }));
+    return data.ids;
   } catch (error) {
     console.error("Error fetching files:", error);
     return [];
