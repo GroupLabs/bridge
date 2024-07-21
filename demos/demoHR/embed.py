@@ -1,6 +1,5 @@
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
-from sentence_transformers.quantization import quantize_embeddings
 
 # 1. Specify preffered dimensions
 dimensions = 512

@@ -53,7 +53,7 @@ def get_tables(db_name, conn):
         if df.empty:
             print(f"No tables found in database '{db_name}' within the 'public' schema.")
         else:
-            print(f"Tables found")
+            print("Tables found")
         return df
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -175,7 +175,7 @@ def postgres_to_yamls(host, user, password):
             yamls.append(yaml_structure)
 
             yaml_str = yaml.dump(yaml_structure, default_flow_style=None, sort_keys=False)
-            os.makedirs(f"models/postgres/yamls", exist_ok=True)
+            os.makedirs("models/postgres/yamls", exist_ok=True)
             with open(f"models/postgres/yamls/{table}.yaml", 'w') as yaml_file:
                 yaml_file.write(yaml_str)
 

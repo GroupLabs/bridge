@@ -9,6 +9,7 @@ export async function inquire(
   messages: CoreMessage[]
 ) {
   const objectStream = createStreamableValue<PartialInquiry>()
+  // @ts-ignore
   uiStream.update(<Copilot inquiry={objectStream.value} />)
 
   let finalInquiry: PartialInquiry = {}

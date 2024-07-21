@@ -22,8 +22,8 @@ export const SearchRelated: React.FC<SearchRelatedProps> = ({
 }) => {
   const { submit } = useActions()
   const [, setMessages] = useUIState<typeof AI>()
-  const [data, error, pending] =
-    useStreamableValue<PartialRelated>(relatedQueries)
+  // @ts-ignore
+  const [data, error, pending] = useStreamableValue<PartialRelated>(relatedQueries)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()

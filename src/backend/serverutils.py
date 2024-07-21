@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import Optional, List
 
 class Status(Enum):
     OK = "OK"
@@ -18,12 +18,8 @@ class Health():
 class Query(BaseModel):
     query: str
     index: str
-    use_llm: Optional[bool] = False
+    doc_ids: Optional[List[str]] = None # to restrict search to a specific file
 
 class Load(BaseModel):
     filepath: str
     typehint: Optional[str] = "unknown"
-
-#for chat with GPT-4:
-class ChatRequest(BaseModel):
-    message: str

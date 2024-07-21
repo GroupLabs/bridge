@@ -18,7 +18,7 @@ cache_dir = os.getenv('HF_HOME', './cache')
 try:
     tokenizer = AutoTokenizer.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
     model = AutoModel.from_pretrained(EMB_MODEL, cache_dir=cache_dir)
-except EnvironmentError as e:
+except EnvironmentError:
     print(f"{EMB_MODEL} not available")
 
 def average_pool(last_hidden_states: Tensor,

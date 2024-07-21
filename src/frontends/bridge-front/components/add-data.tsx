@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -11,65 +10,44 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { toast } from "sonner"
+import { TypeSelector } from "@/components/add-data-type-selector";
+import { AddDataLinearTasks } from '@/components/add-data-linear-tasks';
+import { AddDataFile } from '@/components/add-data-file';
 
 export function AddData() {
-  const [file, setFile] = useState(null);
+  const [selectedFileType, setSelectedFileType] = useState<string>("");
+  const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 
-  const handleFileChange = (event: any) => {
-    setFile(event.target.files[0]);
-  };
-
-  const handleSubmit = async () => {
-    if (!file) {
-      toast("Please select a file first.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch("http://20.84.99.84:8000/load", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (response.ok) {
-        toast("File uploaded successfully!");
-      } else {
-        toast("File upload failed.");
-      }
-      setFile(null);
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      toast("An error occurred while uploading the file.");
-    }
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
   };
 
   return (
-    <Dialog>
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">Upload File</Button>
+        <Button variant="outline" onClick={() => setIsDialogOpen(true)}>
+          Add Data
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="">
         <DialogHeader>
-          <DialogTitle>Upload PDF File</DialogTitle>
+          <DialogTitle>Upload Data</DialogTitle>
           <DialogDescription>
-            Anyone who has this link will be able to view added data.
+            Select the type of data you want to upload and then choose the file or enter details.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center justify-center my-4">
-          <Input id="file" type="file" accept='.pdf' onChange={handleFileChange} />
+        <div className="">
+          <TypeSelector
+            value={selectedFileType}
+            onChange={setSelectedFileType}
+          />
         </div>
-        <DialogFooter className="sm:justify-start">
-        <DialogClose asChild>
-            <Button type="button" variant="secondary" onClick={handleSubmit}>
-              Submit
-            </Button>
-          </DialogClose>
-        </DialogFooter>
+        {selectedFileType === "pdf" && (
+          <AddDataFile onClose={handleCloseDialog} />
+        )}
+        {selectedFileType === "linear" && (
+          <AddDataLinearTasks onClose={handleCloseDialog} />
+        )}
       </DialogContent>
     </Dialog>
   );

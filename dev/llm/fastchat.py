@@ -5,7 +5,6 @@ from fastchat.model.model_adapter import load_model, get_conversation_template, 
 import argparse
 
 from typing import Optional
-import os
 
 class SimpleChatIO(ChatIO):
     def prompt_for_input(self, role) -> str:

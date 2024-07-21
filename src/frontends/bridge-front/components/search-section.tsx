@@ -1,45 +1,55 @@
 'use client'
 
-import { SearchResults } from './search-results'
+import { SearchResultsWeb } from './search-results-web'
+import { SearchResultsBridge } from './search-results-bridge'
 import { SearchSkeleton } from './search-skeleton'
-import { SearchResultsImageSection } from './search-results-image'
 import { Section } from './section'
 import { ToolBadge } from './tool-badge'
-import type { BridgeSearchResults as TypeSearchResults } from '@/lib/types'
+import type { SearchResults as TypeSearchResults } from '@/lib/types'
+import type { BridgeSearchResults } from '@/lib/types'
 import { StreamableValue, useStreamableValue } from 'ai/rsc'
 
 export type SearchSectionProps = {
-  result?: StreamableValue<string>
+  resultWeb?: StreamableValue<string>
+  resultBridge?: StreamableValue<string>
 }
 
-export function SearchSection({ result }: SearchSectionProps) {
-  const [data, error, pending] = useStreamableValue(result)
-  const searchResults: TypeSearchResults = data ? JSON.parse(data) : { query: '', results: [] }
+export function SearchSection({ resultWeb, resultBridge }: SearchSectionProps) {
+  const [dataWeb, errorWeb, pendingWeb] = useStreamableValue(resultWeb)
+  const [dataBridge, errorBridge, pendingBridge] = useStreamableValue(resultBridge)
+  const searchResultsWeb: TypeSearchResults = dataWeb ? JSON.parse(dataWeb) : { query: '', results: [] }
+  const searchResultsBridge: BridgeSearchResults = dataBridge ? JSON.parse(dataBridge) : { query: '', results: [] }
+
+  const hasWebResults = !pendingWeb && dataWeb
+  const hasBridgeResults = !pendingBridge && dataBridge
 
   return (
     <div>
-      {!pending && data ? (
+      {hasWebResults ? (
         <>
           <Section size="sm" className="pt-2 pb-0">
-            <ToolBadge tool="search">{`${searchResults.query}`}</ToolBadge>
+            <ToolBadge tool="search">{`${searchResultsWeb.query}`}</ToolBadge>
           </Section>
-          {searchResults.images && searchResults.images.length > 0 && (
-            <Section title="Images">
-              <SearchResultsImageSection
-                images={searchResults.images}
-                query={searchResults.query}
-              />
-            </Section>
-          )}
-          <Section title="Sources">
-            <SearchResults results={searchResults.results} />
+          <Section title="Web Results">
+            <SearchResultsWeb results={searchResultsWeb.results} />
           </Section>
         </>
-      ) : (
+      ) : null}
+      {hasBridgeResults ? (
+        <>
+          <Section size="sm" className="pt-2 pb-0">
+            <ToolBadge tool="search">{`${searchResultsBridge.query}`}</ToolBadge>
+          </Section>
+          <Section title="Bridge Results">
+            <SearchResultsBridge results={searchResultsBridge.results} />
+          </Section>
+        </>
+      ) : null}
+      {!hasWebResults && !hasBridgeResults ? (
         <Section className="pt-2 pb-0">
           <SearchSkeleton />
         </Section>
-      )}
+      ) : null}
     </div>
   )
 }

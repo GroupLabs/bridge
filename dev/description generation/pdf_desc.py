@@ -1,5 +1,3 @@
-import openai
-import pandas as pd
 import numpy as np 
 from PyPDF2 import PdfReader
 import sys
@@ -9,10 +7,6 @@ from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import nltk
 from nltk.tokenize import RegexpTokenizer
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-import re
-from unstructured.partition.pdf import partition_pdf
 nltk.download('stopwords')
 nltk.download('wordnet')
 

@@ -1,6 +1,5 @@
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from PIL import Image
-import requests
 
 # load image from the IAM database (actually this model is meant to be used on printed text)
 image = Image.open("book_cover.jpg")

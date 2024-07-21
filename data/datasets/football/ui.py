@@ -50,7 +50,7 @@ if query:
             if DEBUG:
                 st.code(response.json()["output"])
             exec(response.json()["output"], globals(), locals())
-        except Exception as e:
+        except Exception:
             status.update(label="Self-healing method A", state="running")
             st.write("Self-healing...")
             
@@ -89,7 +89,7 @@ if query:
                 OUTPUT = "No OUTPUT variable returned."
                 
         if response.status_code == 200:
-            st.success(f"Server has a healthy response!")
+            st.success("Server has a healthy response!")
         else:
             st.error(f"Failed to get response from server. Status code: {response.status_code}")
             status.update(label=f"Status code: {response.status_code}", state="error", expanded=False)
