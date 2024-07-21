@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import { labels} from "@/lib/data/data";
+import { labels } from "@/lib/data/data";
 
 export function TypeSelector({ value, onChange }: { value: string, onChange: (value: string) => void }) {
   const [open, setOpen] = React.useState(false)
