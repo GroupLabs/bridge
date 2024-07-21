@@ -36,9 +36,8 @@ if config.ENV == "DEBUG":
     app.include_router(debug_router)
 
 origins = [
-    "http://localhost:3000",  # Add the origin(s) you want to allow
-    "*"
-    # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
+  "*",  # Add the origin(s) you want to allow
+  # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
 ]
 
 # TODO remove CORS
