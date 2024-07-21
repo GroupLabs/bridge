@@ -2,19 +2,15 @@ import { createStreamableValue } from 'ai/rsc'
 import { searchSchema } from '@/lib/schema/search'
 import { Card } from '@/components/ui/card'
 import { SearchSection } from '@/components/search-section'
-import { ToolProps } from '.'
+import { ToolProps, Tool } from '.'
 import { BridgeSearchResults } from '@/lib/types'
 
 export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
   description: 'Search for information uploaded to the organization through Bridge.',
   parameters: searchSchema,
-  execute: async ({
-    query
-  }: {
-    query: string
-  }) => {
+  execute: async ({ query, fileIds }: { query: string, fileIds?: string[] }) => {
+
     let hasError = false
-    // Append the search section for Bridge results
     const streamResultsBridge = createStreamableValue<string>()
     uiStream.append(
       <SearchSection 
@@ -23,7 +19,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) => ({
     )
     let searchResult
     try {
-      searchResult = await bridgeQuery(query)
+      searchResult = await bridgeQuery(query, fileIds)
     } catch (error) {
       console.error('Bridge API error:', error)
       hasError = true
@@ -62,7 +58,7 @@ const transformData = (respData: any): BridgeSearchResults => {
   }
 }
 
-async function bridgeQuery(query: string): Promise<any> {
+async function bridgeQuery(query: string, fileIds?: string[]): Promise<any> {
   const url = process.env.BRIDGE_URL;
 
   if (!url) {

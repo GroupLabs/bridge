@@ -3,6 +3,11 @@ import { retrieveTool } from './retrieve';
 import { searchTool } from './bridge-search';
 import { webSearchTool } from './web-search'; // Import the new tool
 
+export interface Tool {
+  description: string;
+  execute: (params: { query: string, fileIds?: string[] }) => Promise<any>;
+}
+
 export interface ToolProps {
   uiStream: ReturnType<typeof createStreamableUI>;
   fullResponse: string;

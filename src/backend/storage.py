@@ -115,8 +115,8 @@ def retrieve_object_ids(index: str):
 
     return doc_tuples
 
-def query(q: str, index: str, doc_id: str = None):
-    return es.hybrid_search(q, index, doc_id)
+def query(q: str, index: str, doc_ids: str = None):
+    return es.hybrid_search(q, index, doc_ids)
 
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
