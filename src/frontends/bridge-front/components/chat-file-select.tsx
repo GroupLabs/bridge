@@ -33,7 +33,10 @@ interface FileData {
 // Fetch function to get files from the server
 async function fetchFiles(): Promise<FileData[]> {
   try {
-    const response = await fetch('http://0.0.0.0:8000/retrieve_ids/text_chunk');
+    const response = await fetch(
+      'http://0.0.0.0:8000/retrieve_ids/text_chunk', {
+        cache: 'no-store'
+      });
     const data = await response.json();
     if (!data || !Array.isArray(data.ids)) {
       return [];
