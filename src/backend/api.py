@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 origins = [
-    "http://localhost:3000",  # Add the origin(s) you want to allow
+        "*",  # Add the origin(s) you want to allow
     # You can add more origins as needed, or use "*" to allow all origins (not recommended for production)
 ]
 
