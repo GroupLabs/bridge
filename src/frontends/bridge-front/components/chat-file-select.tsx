@@ -32,9 +32,15 @@ interface FileData {
 
 // Fetch function to get files from the server
 async function fetchFiles(): Promise<FileData[]> {
+  const url = process.env.BRIDGE_URL;
+
+  if (!url) {
+    throw new Error('BRIDGE_URL is not defined');
+  }
+  
   try {
     const response = await fetch(
-      'http://0.0.0.0:8000/retrieve_ids/text_chunk', {
+      `${url}/integrations/`, {
         cache: 'no-store'
       });
     const data = await response.json();
