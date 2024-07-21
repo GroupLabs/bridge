@@ -83,8 +83,6 @@ async function tavilySearch(
     throw new Error(`Error: ${response.status}`)
   }
 
-  console.log("Tavily response:", response)
-
   const data = await response.json()
   return data
 }
