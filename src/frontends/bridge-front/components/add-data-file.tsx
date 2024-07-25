@@ -60,7 +60,17 @@ export const AddDataFile: React.FC<AddDataFileProps> = ({ onClose }) => {
         <Input 
           id="file" 
           type="file" 
-          accept="application/pdf"
+          accept="
+          text/plain, 
+          application/rtf,
+          application/msword,
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+          application/pdf,
+          application/epub+zip,
+          text/markdown,
+          application/vnd.ms-powerpoint,
+          application/vnd.openxmlformats-officedocument.presentationml.presentation
+          "
           onChange={handleFileChange} 
         />
       </div>

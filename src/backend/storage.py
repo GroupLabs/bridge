@@ -8,7 +8,17 @@ import json
 
 from celery import Celery
 
+from unstructured.partition.text import partition_text
+from unstructured.partition.rtf import partition_rtf
+from unstructured.partition.doc import partition_doc
+from unstructured.partition.docx import partition_docx
 from unstructured.partition.pdf import partition_pdf # pikapdf dependency is not fork safe, can we remove this dep?
+from unstructured.partition.epub import partition_epub
+# from unstructured.partition.latex import partition_latex # there is no partition_latex
+from unstructured.partition.md import partition_md
+from unstructured.partition.ppt import partition_ppt
+from unstructured.partition.pptx import partition_pptx
+
 
 from connect.postgres import postgres_to_yamls
 from config import config
@@ -67,16 +77,51 @@ def load_data(filepath: str, read=True, c_type=None):
     print("Using connection type: " + c_type)
 
     # unstructured
-    if c_type == "pdf":
+
+    if c_type == "txt":
+        _txt(filepath)
+
+    elif c_type == "rtf":
+        _rtf(filepath)
+    
+    elif c_type == "doc":
+        _doc(filepath)
+
+    elif c_type == "docx":
+        _docx(filepath)
+    
+    elif c_type == "pdf":
         _pdf(filepath, read_pdf=read)
+    
+    elif c_type == "epub":
+        _epub(filepath)
 
-    elif c_type == "txt":
-        pass
+    elif c_type == "latex":
+        _latex(filepath)
 
-    elif c_type == "linear":
-        _linear(filepath)
+    elif c_type == "markdown":
+        _markdown(filepath)
+
+    elif c_type == "ppt":
+        _ppt(filepath)
+    
+    elif c_type == "pptx":
+        _pptx(filepath)
 
     # structured
+
+    elif c_type == "csv":
+        _csv(filepath)
+
+    elif c_type == "tsv":
+        _tsv(filepath)
+    
+    elif c_type == "parquet":
+        _parquet(filepath)
+    
+    elif c_type == "xlsx":
+        _xlsx(filepath)
+
     elif c_type == "db":
         # check if input is a supported connection string
         c_string = parse_connection_string(filepath)
@@ -89,10 +134,22 @@ def load_data(filepath: str, read=True, c_type=None):
                 password=c_string["password"],
                 )
 
-    # mix
+    # mixed
+
     elif c_type == "dir":
         # recursively call load_data
         pass
+
+    elif c_type == "json":
+        _json(filepath)
+    
+    elif c_type == "yaml":
+        _yaml(filepath)
+
+    # third party
+
+    elif c_type == "linear":
+        _linear(filepath)
 
     else:
         logger.warning("unsupported filetype encountered.")
@@ -118,6 +175,137 @@ def retrieve_object_ids(index: str):
 def query(q: str, index: str, doc_ids: str = None):
     return es.hybrid_search(q, index, doc_ids)
 
+## unstructured formats
+
+def _txt(filepath, chunking_strategy="basic"):
+    
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_text(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse TEXT elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+def _rtf(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_rtf(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse RTF elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+def _doc(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_doc(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse DOC elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+def _docx(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_docx(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse DOCX elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
 def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
     
     doc_id = str(uuid5(NAMESPACE_URL, filepath))
@@ -130,8 +318,6 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
             return
 
         if elements is not None:
-            pdf_file = open(filepath, 'rb')
-
             for i, e in enumerate(elements):
                 chunk = "".join(
                     ch for ch in e.text if unicodedata.category(ch)[0] != "C"
@@ -150,12 +336,165 @@ def _pdf(filepath, read_pdf=True, chunking_strategy="by_title"):
 
                 # Insert the document into Elasticsearch
                 es.insert_object(fields, index="text_chunk")
-
-            pdf_file.close()
     else:
         raise PermissionError('File is not readable.')
     
     os.remove(filepath)
+
+def _epub(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_epub(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse EPUB elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+def _latex(filepath, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+def _markdown(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_md(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse MARKDOWN elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+def _ppt(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_ppt(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse PPT elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+def _pptx(filepath, chunking_strategy="by_title"):
+    doc_id = str(uuid5(NAMESPACE_URL, filepath))
+
+    try:
+        elements = partition_pptx(filepath, chunking_strategy=chunking_strategy)
+    except Exception as e:
+        logger.error(f"Failed to parse PPTX elements: {e}")
+        return
+
+    if elements is not None:
+
+        for i, e in enumerate(elements):
+            chunk = "".join(
+                ch for ch in e.text if unicodedata.category(ch)[0] != "C"
+            )  # remove control characters
+            
+            formatted_chunk = re.sub(r'(?<=[.?!])(?=[^\s])', ' ', chunk) # this will add a space character after every ". ? !"
+
+            fields = {
+                "document_id": doc_id,  # document id from path
+                "access_group": "",  # not yet implemented
+                "document_name": os.path.basename(filepath),
+                "chunk_text": formatted_chunk,
+                "chunking_strategy": chunking_strategy,
+                "chunk_no": i,
+            }
+
+            # Insert the document into Elasticsearch
+            es.insert_object(fields, index="text_chunk")
+    
+    os.remove(filepath)
+
+## structured formats
+
+def _csv(filepath, read_pdf=True, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+def _tsv(filepath, read_pdf=True, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+def _parquet(filepath, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+def _xlsx(filepath, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+## Mixed formats
+
+def _json(filepath, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+def _yaml(filepath, chunking_strategy="by_title"):
+    raise NotImplementedError(f"Ingestion for {filepath} is not implemented yet.")
+
+# third party formats
 
 def _linear(filepath):
 

@@ -42,7 +42,7 @@ export function AddData() {
             onChange={setSelectedFileType}
           />
         </div>
-        {selectedFileType === "pdf" && (
+        {selectedFileType === "file" && (
           <AddDataFile onClose={handleCloseDialog} />
         )}
         {selectedFileType === "linear" && (

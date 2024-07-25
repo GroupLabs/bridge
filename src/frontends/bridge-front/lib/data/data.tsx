@@ -1,28 +1,16 @@
 import {
-  ArrowDownIcon,
-  ArrowRightIcon,
-  ArrowUpIcon,
   CheckCircledIcon,
   CircleIcon,
   CrossCircledIcon,
-  QuestionMarkCircledIcon,
   StopwatchIcon,
 } from "@radix-ui/react-icons"
 
 export const labels = [
   // file types
-  // {
-  //   value: "csv",
-  //   label: "CSV",
-  // },
   {
-    value: "pdf",
-    label: "PDF",
+    value: "file",
+    label: "File",
   },
-  // {
-  //   value: "txt",
-  //   label: "TXT",
-  // },
   // 3rd party integrations
   {
     value: "linear",
@@ -69,21 +57,3 @@ export const statuses = [
     icon: CrossCircledIcon,
   },
 ]
-
-// export const priorities = [
-//   {
-//     label: "Low",
-//     value: "low",
-//     icon: ArrowDownIcon,
-//   },
-//   {
-//     label: "Medium",
-//     value: "medium",
-//     icon: ArrowRightIcon,
-//   },
-//   {
-//     label: "High",
-//     value: "high",
-//     icon: ArrowUpIcon,
-//   },
-// ]

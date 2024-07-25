@@ -51,11 +51,11 @@ export const columns: ColumnDef<Task>[] = [
       <DataTableColumnHeader column={column} title="Title" />
     ),
     cell: ({ row }) => {
-      const label = labels.find((label) => label.value === row.original.label)
+      const label = row.original.label
 
       return (
         <div className="flex space-x-2">
-          {label && <Badge variant="outline">{label.label}</Badge>}
+          {label && <Badge variant="outline">{label}</Badge>}
           <span className="max-w-[400px] truncate font-medium">
             {row.getValue("title")}
           </span>
