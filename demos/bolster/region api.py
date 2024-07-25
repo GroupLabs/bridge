@@ -27,140 +27,6 @@ model.max_seq_length = 4096  # Adjust the maximum sequence length if necessary
 # Define the task description
 task = 'Given a web search query, retrieve relevant passages that answer the query'
 
-# Helper function for detailed instructions
-def get_detailed_instruct(task_description: str, query: str) -> str:
-    return f'Instruct: {task_description}\nQuery: {query.lower()}'
-
-# Define the catalog with lowercase keys
-catalog = {
-    "dryer": 520.00,
-    "washing machine": 800.00,
-    "dishwasher": 450.00,
-    "electric stove": 600.00,
-    "refrigerator": 1200.00,
-    "freezer": 780.00,
-    "microwave oven": 150.00,
-    "blender": 90.00,
-    "toaster": 30.00,
-    "coffee maker": 85.00,
-    "air conditioner": 350.00,
-    "heater": 110.00,
-    "ceiling fan": 120.00,
-    "sink": 200.00,
-    "faucet": 75.00,
-    "shower head": 45.00,
-    "toilet": 250.00,
-    "bathtub": 400.00,
-    "bathroom cabinet": 220.00,
-    "kitchen cabinet": 300.00,
-    "range hood": 250.00,
-    "light fixture": 45.00,
-    "LED bulbs": 15.00,
-    "water heater": 480.00,
-    "garbage disposal": 130.00,
-    "humidifier": 70.00,
-    "dehumidifier": 180.00,
-    "air purifier": 200.00,
-    "induction cooktop": 430.00,
-    "vacuum cleaner": 150.00
-}
-
-# Pre-compute embeddings for catalog descriptions with detailed instruction
-catalog_descriptions = [desc.lower() for desc in catalog.keys()]
-catalog_queries = [get_detailed_instruct(task, desc) for desc in catalog_descriptions]
-catalog_embeddings = model.encode(catalog_queries, convert_to_tensor=True, normalize_embeddings=True)
-catalog_embeddings = catalog_embeddings.cpu().detach().numpy()
-
-# Initialize Faiss index for similarity search
-dimension = catalog_embeddings.shape[1]
-faiss_index = faiss.IndexFlatL2(dimension)
-faiss_index.add(catalog_embeddings)
-
-class Item(BaseModel):
-    text: str
-
-@app.post("/categorizer/")
-async def categorizer(item: Item):
-
-#     You can also include the response from your other service here
-    url = "http://localhost:8080/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer no-key"
-    }
-    data = {
-        "model": "LLaMA_CPP",
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a categorizer. Only respond with \"Electrical\", \"Plumbing\", \"Appliance\", or if it does not relate with anything, reply with \"Unknown\""
-            },
-            {
-                "role": "user",
-                "content": item.text
-            }
-        ]
-    }
-
-    response = requests.post(url, json=data, headers=headers)
-    category = response.json()["choices"][0]["message"]["content"].replace("<|eot_id|>", "")
-
-    query_text = get_detailed_instruct(task, item.text.lower())
-    query_embedding = model.encode([query_text], convert_to_tensor=True, normalize_embeddings=True)
-    query_embedding = query_embedding.cpu().detach().numpy()
-    
-    # Search in Faiss index for the top matching catalog items
-    D, I = faiss_index.search(query_embedding, k=len(catalog_descriptions))  # Search among all items
-    
-    results = []
-    prices = []
-    for idx, distance in zip(I[0], D[0]):
-        similarity = (1 - np.sqrt(distance / 2)) * 100  # Convert distance to similarity
-        if similarity >= 99.0:
-            item_description = catalog_descriptions[idx]
-            item_price = catalog[item_description]
-            results = [{
-                "item": item_description,
-                "price": f"${item_price:.2f}",
-                "similarity": f"{similarity:.2f}%"
-            }]
-            pprint(results)
-            return {
-                "query": item.text,
-                "results": sorted(results, key=lambda x: float(x['similarity'].rstrip('%')), reverse=True),
-                "price": f"${item_price:.2f}",
-                "category" : category
-            }
-        elif similarity >= 60.0:  # Apply the 80% similarity threshold
-            item_description = catalog_descriptions[idx]
-            item_price = catalog[item_description]
-            results.append({
-                "item": item_description,
-                "price": f"${item_price:.2f}",
-                "similarity": f"{similarity:.2f}%"
-            })
-            prices.append(item_price)
-    
-    # Calculate average price if there are any results
-    average_price = np.mean(prices) if prices else 0
-
-    if average_price == 0:
-        average_price = "-"
-    else:
-        average_price = f"${average_price:.2f}"
-
-    res = {
-        "query": item.text,
-        "results": sorted(results, key=lambda x: float(x['similarity'].rstrip('%')), reverse=True),
-        "price": average_price,
-        "category" : category
-    }
-
-    pprint(res)
-    return res
-
-
-
 
 
 
@@ -188,7 +54,7 @@ jobs_db = [
     JobWithID(id=2, title="Roof Replacement", latitude=51.1625, longitude=-114.0897, price=15000, description="Full roof replacement with high-quality shingles."), # Cochrane
     JobWithID(id=3, title="Bathroom Remodel", latitude=51.0833, longitude=-114.2014, price=12000, description="Modern bathroom renovation with new fixtures and tiling."), # Airdrie
     JobWithID(id=4, title="House Painting", latitude=51.1521, longitude=-114.3751, price=8000, description="Exterior house painting for a two-story home."), # Bragg Creek
-    JobWithID(id=5, title="Deck Construction", latitude=51.0449, longitude=-114.0715, price=10000, description="Build a new 300 sq ft wooden deck with railings."), # Calgary
+    JobWithID(id=5, title="Deck Construction", latitude=51.0449, longitude=-114.0715, price=13000, description="Build a new 300 sq ft wooden deck with railings."), # Calgary
     JobWithID(id=6, title="Garage Build", latitude=51.0835, longitude=-114.2012, price=20000, description="Construct a new two-car garage."), # Airdrie
     JobWithID(id=7, title="Fence Installation", latitude=51.0448, longitude=-114.0720, price=7000, description="Install a new wooden fence around the property."), # Calgary
     JobWithID(id=8, title="Basement Finishing", latitude=51.1627, longitude=-114.0898, price=30000, description="Finish the basement with new flooring and drywall."), # Cochrane
@@ -216,7 +82,9 @@ jobs_db += [
     JobWithID(id=27, title="Roof Shingle Replacement", latitude=51.1628, longitude=-114.0900, price=15500, description="Replace old roof shingles with high-quality new ones."), # Cochrane
     JobWithID(id=28, title="Bathroom Overhaul", latitude=51.0836, longitude=-114.2017, price=12500, description="Complete bathroom overhaul with new tiles and fixtures."), # Airdrie
     JobWithID(id=29, title="Exterior House Painting", latitude=51.1524, longitude=-114.3754, price=8500, description="Paint the exterior of a two-story house."), # Bragg Creek
-    JobWithID(id=30, title="Deck Building", latitude=51.0445, longitude=-114.0726, price=10500, description="Construction of a 350 sq ft wooden deck with railings."), # Calgary
+    JobWithID(id=30, title="Deck Building", latitude=51.0445, longitude=-114.0726, price=12000, description="Construction of a 350 sq ft wooden deck with railings."), # Calgary
+    JobWithID(id=30, title="Deck Building", latitude=51.04451, longitude=-114.07268, price=13000, description="Construction of a 350 sq ft wooden deck with railings."), # Calgary
+    JobWithID(id=30, title="Deck Building", latitude=51.04452, longitude=-114.07263, price=22000, description="Construction of a 350 sq ft wooden deck with railings."), # Calgary
     JobWithID(id=31, title="Garage Construction", latitude=51.0837, longitude=-114.2018, price=21000, description="Build a new two-car garage from scratch."), # Airdrie
     JobWithID(id=32, title="Fence Setup", latitude=51.0446, longitude=-114.0727, price=7500, description="Set up a new wooden fence around the yard."), # Calgary
     JobWithID(id=33, title="Basement Renovation", latitude=51.1629, longitude=-114.0901, price=31000, description="Complete basement renovation with new flooring and walls."), # Cochrane
@@ -279,27 +147,33 @@ def create_job(job: Job, distance_threshold: float = Query(50.0)):
     D, I = faiss_index.search(job_embedding, k=len(job_descriptions))  # Search among all jobs
     
     similar_jobs = []
+    similar_jobs_all = []
     for idx, distance in zip(I[0], D[0]):
         similarity = (1 - np.sqrt(distance / 2)) * 100  # Convert distance to similarity
         candidate_job = jobs_db[idx]
         distance_to_candidate = haversine_distance(job.latitude, job.longitude, candidate_job.latitude, candidate_job.longitude)
-        if similarity >= 60.0 and distance_to_candidate <= distance_threshold:  # Apply similarity and distance threshold
-            similar_jobs.append(candidate_job)
+        if similarity >= 60.0:
+            similar_jobs_all.append(candidate_job)
+            if distance_to_candidate <= distance_threshold:  # Apply similarity and distance threshold
+                similar_jobs.append(candidate_job)
 
     pprint(similar_jobs)
 
     # Calculate the average price of similar jobs
     if similar_jobs:
         average_price = sum(job.price for job in similar_jobs) / len(similar_jobs)
+    elif similar_jobs_all:
+        average_price = similar_jobs_all[0].price  # Default to 0 if no similar jobs are found
     else:
         average_price = 0  # Default to 0 if no similar jobs are found
+        
 
     job_with_id = JobWithID(id=len(jobs_db) + 1, price=average_price, **job.dict())
     jobs_db.append(job_with_id)
 
-    # Update the Faiss index with the new job
-    job_descriptions.append(job_description)
-    faiss_index.add(job_embedding)
+    # # Update the Faiss index with the new job
+    # job_descriptions.append(job_description)
+    # faiss_index.add(job_embedding)
 
     return job_with_id
 
@@ -323,7 +197,7 @@ def get_similar_jobs(job_id: int, distance_threshold: float = Query(50.0)):
     if similar_jobs:
         average_price = sum(job.price for job in similar_jobs) / len(similar_jobs)
     else:
-        average_price = 0  # Default to 0 if no similar jobs are found
+        average_price = 0 # Default to 0 if no similar jobs are found
 
     return SimilarJobsResponse(selected_job=selected_job, similar_jobs=similar_jobs, average_price=average_price)
 
