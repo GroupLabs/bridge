@@ -1,4 +1,0 @@
-Toolkit (Fairseq) for seq2seq tasks
-
-https://github.com/facebookresearch/fairseq
-

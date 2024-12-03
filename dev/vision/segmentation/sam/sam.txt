@@ -1,3 +1,0 @@
-Demo has UI
-
-https://github.com/facebookresearch/segment-anything/tree/main

@@ -1,3 +1,0 @@
-Marker: Convert PDF to Markdown quickly with high accuracy
-
-https://github.com/VikParuchuri/marker
