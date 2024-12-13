@@ -4,3 +4,6 @@
 [submodule "archive"]
 	path = archive
 	url = https://github.com/GroupLabs/bridge-archive.git
+[submodule "core/faiss"]
+	path = core/faiss
+	url = https://github.com/facebookresearch/faiss.git
