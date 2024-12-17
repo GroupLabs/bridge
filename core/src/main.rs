@@ -1,47 +1,49 @@
 // src/main.rs
 
-#[allow(non_upper_case_globals)] // Suppress non upper case globals warning
-#[allow(non_camel_case_types)] // Suppress non camel case warning
-#[allow(dead_code)] // Suppress function not used warning
+#[allow(non_upper_case_globals)]
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
 use actix_web::rt::{self, System};
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use bindings::__sFILE;
 use bindings::*;
 use libc::{c_int, c_longlong};
 use libc::{fclose, fopen, FILE};
 use log::{error, info};
+use seekstorm::commit::Commit;
+use seekstorm::index::{
+    create_index, AccessType, Document, Index, IndexDocuments, IndexMetaObject, SimilarityType,
+    TokenizerType,
+};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::ptr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::RwLock;
 
 // Wrapper around the raw FAISS index pointer
-struct FaissIndexWrapper(*mut FaissIndex_H, PhantomData<*const ()>);
+struct FaissIndexWrapper(*mut FaissIndex, PhantomData<*const ()>);
 
 // Implement Send and Sync for the wrapper
 unsafe impl Send for FaissIndexWrapper {}
 unsafe impl Sync for FaissIndexWrapper {}
 
 // Structure representing each FAISS index and its associated data
-struct IndexData {
+struct VectorIndexData {
     index: FaissIndexWrapper,
     dimension: c_int,
     k: c_longlong,
-    text_map: Mutex<HashMap<c_longlong, String>>,
-    next_id: Mutex<c_longlong>,
-}
-
-// Shared state for the Actix application managing multiple indices
-struct AppState {
-    indices: Arc<Mutex<HashMap<String, Arc<IndexData>>>>, // Map of index name to IndexData
+    text_map: std::sync::Mutex<HashMap<c_longlong, String>>,
+    next_id: std::sync::Mutex<c_longlong>,
 }
 
 // Structure for creating a new index
@@ -85,41 +87,26 @@ struct ErrorResponse {
     error: String,
 }
 
-// Handler for health
-async fn health() -> impl Responder {
-    HttpResponse::Ok().json(serde_json::json!({
-        "status": "healthy"
-    }))
+#[derive(Clone)]
+struct BridgeIndex {
+    // Vector index (FAISS)
+    vector_index: Arc<VectorIndexData>,
+    // Text index (SeekStorm)
+    text_index: Arc<RwLock<Index>>,
 }
 
-// Handler for creating a new FAISS index
-async fn create_vector_index(
-    state: web::Data<AppState>,
-    req: web::Json<CreateIndexRequest>,
-) -> impl Responder {
-    let raw_index_name = req.name.trim();
-    let dimension = req.dimension;
-    let k = req.k.unwrap_or(5); // Default k to 5 if not provided
+// Application state containing all indices
+struct AppState {
+    indices: Arc<AsyncMutex<HashMap<String, BridgeIndex>>>, // Unified index storage
+}
 
-    if raw_index_name.is_empty() {
-        let response = ErrorResponse {
-            error: "Index name cannot be empty.".to_string(),
-        };
-        return HttpResponse::BadRequest().json(response);
-    }
+// Handler for health
+async fn health() -> impl Responder {
+    HttpResponse::Ok().json(json!({ "status": "healthy" }))
+}
 
-    // Enforce naming convention: name_dXXXX
-    let index_name = format!("{}_d{}", raw_index_name, dimension);
-
-    let mut indices = state.indices.lock().unwrap();
-    if indices.contains_key(&index_name) {
-        let response = ErrorResponse {
-            error: format!("Index '{}' already exists.", index_name),
-        };
-        return HttpResponse::BadRequest().json(response);
-    }
-
-    // **Updated Metric Description to include IDMap**
+// Internal function to build a FAISS index
+fn build_faiss_index(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexData>, String> {
     let metric_description = CString::new("IDMap,Flat").unwrap();
     let mut index_ptr: *mut FaissIndex = ptr::null_mut();
     unsafe {
@@ -132,79 +119,161 @@ async fn create_vector_index(
 
         if status != 0 {
             let error = faiss_get_last_error();
-            let error_message = std::ffi::CStr::from_ptr(error).to_string_lossy();
-            let response = ErrorResponse {
-                error: format!("Error creating FAISS index: {}", error_message),
-            };
-            return HttpResponse::InternalServerError().json(response);
+            let error_message = std::ffi::CStr::from_ptr(error)
+                .to_string_lossy()
+                .to_string();
+            return Err(format!("Error creating FAISS index: {}", error_message));
+        }
+
+        if index_ptr.is_null() {
+            return Err("Failed to create FAISS index: null pointer returned.".to_string());
         }
     }
 
-    // Initialize IndexData
-    let index_data = Arc::new(IndexData {
+    let index_data = Arc::new(VectorIndexData {
         index: FaissIndexWrapper(index_ptr, PhantomData),
         dimension,
         k,
-        text_map: Mutex::new(HashMap::new()),
-        next_id: Mutex::new(0), // Start IDs from 0 for each index
+        text_map: std::sync::Mutex::new(HashMap::new()),
+        next_id: std::sync::Mutex::new(0),
     });
 
-    // Insert the new index into the indices map
-    indices.insert(index_name.clone(), index_data);
+    Ok(index_data)
+}
 
-    HttpResponse::Ok().json(serde_json::json!({
+// Helper function to find an index by base name
+async fn find_index(
+    state: &web::Data<AppState>,
+    raw_index_name: &str,
+) -> Result<(String, BridgeIndex), ErrorResponse> {
+    let indices = state.indices.lock().await;
+    let matching_indices: Vec<(String, BridgeIndex)> = indices
+        .iter()
+        .filter(|(name, _)| name.starts_with(raw_index_name))
+        .map(|(name, data)| (name.clone(), data.clone()))
+        .collect();
+    drop(indices);
+
+    match matching_indices.len() {
+        0 => Err(ErrorResponse {
+            error: format!("No index found with base name '{}'.", raw_index_name),
+        }),
+        1 => Ok(matching_indices[0].clone()),
+        _ => Err(ErrorResponse {
+            error: format!(
+                "Multiple indices found with base name '{}'. Please specify the dimension.",
+                raw_index_name
+            ),
+        }),
+    }
+}
+
+// Build the BridgeIndex (FAISS + SeekStorm)
+async fn build_bridge_index(
+    state: web::Data<AppState>,
+    req: web::Json<CreateIndexRequest>,
+) -> impl Responder {
+    let raw_index_name = req.name.trim();
+    let dimension = req.dimension;
+    let k = req.k.unwrap_or(5);
+    let index_name = format!("{}_d{}", raw_index_name, dimension);
+
+    {
+        let indices = state.indices.lock().await;
+        if indices.contains_key(&index_name) {
+            let response = ErrorResponse {
+                error: format!("Index '{}' already exists.", index_name),
+            };
+            return HttpResponse::BadRequest().json(response);
+        }
+    }
+
+    // Build FAISS index
+    let index_data = match build_faiss_index(dimension, k) {
+        Ok(idx) => idx,
+        Err(e) => {
+            let response = ErrorResponse { error: e };
+            return HttpResponse::InternalServerError().json(response);
+        }
+    };
+
+    let index_path_string = format!("./indices/{}", index_name);
+    let index_path = Path::new(&index_path_string);
+
+    if !index_path.exists() {
+        fs::create_dir_all(index_path).expect("Failed to create index directory");
+    }
+
+    let schema_json = r#"
+    [{"field":"body","field_type":"Text","stored":true,"indexed":true}]"#;
+    let schema = serde_json::from_str(schema_json).expect("Invalid schema JSON");
+
+    let meta = IndexMetaObject {
+        id: 0,
+        name: index_name.to_string(),
+        similarity: SimilarityType::Bm25f,
+        tokenizer: TokenizerType::AsciiAlphabetic,
+        access_type: AccessType::Mmap,
+    };
+
+    let serialize_schema = true;
+    let segment_number_bits = 11;
+
+    let new_index = create_index(
+        index_path,
+        meta,
+        &schema,
+        serialize_schema,
+        &Vec::new(),
+        segment_number_bits,
+        false,
+    )
+    .expect("Failed to create index");
+
+    let text_index = Arc::new(RwLock::new(new_index));
+
+    {
+        let mut indices = state.indices.lock().await;
+        indices.insert(
+            index_name.clone(),
+            BridgeIndex {
+                vector_index: index_data.clone(),
+                text_index,
+            },
+        );
+    }
+
+    HttpResponse::Ok().json(json!({
         "message": format!("Index '{}' created successfully.", index_name)
     }))
 }
 
-// Handler for adding vectors with associated text to a specific index
+// Add handler
 async fn add(state: web::Data<AppState>, item: web::Json<AddRequest>) -> impl Responder {
     let raw_index_name = item.index.trim();
     let text = item.text.clone();
     let vector = item.vector.clone();
 
-    // Retrieve all indices to find matches with the specified name (regardless of dimension)
-    let indices = state.indices.lock().unwrap();
-    let matching_indices: Vec<(String, Arc<IndexData>)> = indices
-        .iter()
-        .filter(|(name, _)| name.starts_with(raw_index_name))
-        .map(|(name, data)| (name.clone(), data.clone()))
-        .collect();
-
-    if matching_indices.is_empty() {
-        let response = ErrorResponse {
-            error: format!("No index found with base name '{}'.", raw_index_name),
-        };
-        return HttpResponse::BadRequest().json(response);
-    } else if matching_indices.len() > 1 {
-        let response = ErrorResponse {
-            error: format!(
-                "Multiple indices found with base name '{}'. Please specify the dimension.",
-                raw_index_name
-            ),
-        };
-        return HttpResponse::BadRequest().json(response);
-    }
-
-    let (index_name, index_data) = &matching_indices[0];
-    drop(indices); // Release the lock early
+    let (_, mut bridge_index) = match find_index(&state, raw_index_name).await {
+        Ok(res) => res,
+        Err(err) => return HttpResponse::BadRequest().json(err),
+    };
 
     // Validate vector dimension
-    if vector.len() as c_int != index_data.dimension {
+    if vector.len() as c_int != bridge_index.vector_index.dimension {
         let error_message = format!(
             "Vector has incorrect dimension: expected {}, got {}",
-            index_data.dimension,
+            bridge_index.vector_index.dimension,
             vector.len()
         );
-        let response = ErrorResponse {
+        return HttpResponse::BadRequest().json(ErrorResponse {
             error: error_message,
-        };
-        return HttpResponse::BadRequest().json(response);
+        });
     }
 
     // Assign a unique ID
     let id = {
-        let mut id_lock = index_data.next_id.lock().unwrap();
+        let mut id_lock = bridge_index.vector_index.next_id.lock().unwrap();
         let current_id = *id_lock;
         *id_lock += 1;
         current_id
@@ -212,32 +281,61 @@ async fn add(state: web::Data<AppState>, item: web::Json<AddRequest>) -> impl Re
 
     // Add the vector to FAISS
     unsafe {
-        let index_ptr = index_data.index.0;
-
-        // FAISS uses labels as IDs; ensure labels are unique
+        let index_ptr = bridge_index.vector_index.index.0;
         faiss_Index_add_with_ids(
             index_ptr,
-            1,                        // Number of vectors to add
-            vector.as_ptr(),          // Pointer to the vector data
-            &id as *const c_longlong, // Pointer to the ID
-        );
-
-        // **Debugging: Check the total number of vectors after addition**
-        let ntotal = faiss_Index_ntotal(index_ptr);
-        println!(
-            "Added vector with ID {} to index '{}'. Total vectors in index: {}",
-            id, index_name, ntotal
+            1, // Number of vectors
+            vector.as_ptr(),
+            &id as *const c_longlong,
         );
     }
 
     // Associate the text with the ID
     {
-        let mut map = index_data.text_map.lock().unwrap();
-        map.insert(id, text);
+        let mut map = bridge_index.vector_index.text_map.lock().unwrap();
+        map.insert(id, text.clone());
     }
 
-    // Respond with success and the assigned ID
-    HttpResponse::Ok().json(serde_json::json!({ "id": id }))
+    println!("Adding to text index");
+
+    let documents_json = r#"
+    [
+        {"body":"body1 here"}
+    ]
+    "#;
+
+    let documents: Vec<Document> = serde_json::from_str(documents_json).unwrap();
+
+    // Index documents
+    let mut text_idx = bridge_index.text_index.write().await;
+
+    // Now we have mutable access to the index.
+    // We can call index_documents and commit safely.
+    if let Err(e) = text_idx.index_documents(documents).await {
+        // Handle error if indexing fails
+        return HttpResponse::InternalServerError().json(json!({
+            "error": format!("Indexing documents failed: {}", e)
+        }));
+    }
+
+    if let Err(e) = text_idx.commit().await {
+        // Handle error if commit fails
+        return HttpResponse::InternalServerError().json(json!({
+            "error": format!("Committing documents failed: {}", e)
+        }));
+    }
+
+    // // Add the document to the SeekStorm text index
+    // let mut doc: Document = HashMap::new();
+    // doc.insert("body".to_string(), json!(text.clone()));
+    // doc.insert("id".to_string(), json!(id));
+
+    // bridge_index.text_index.index_documents(vec![doc]).await;
+    // bridge_index.text_index.commit().await;
+
+    println!("Added vector with ID {} to index", id);
+
+    HttpResponse::Ok().json(json!({ "id": id }))
 }
 
 // Handler for searching within a specific FAISS index
@@ -248,35 +346,14 @@ async fn search_vector_index(
     let raw_index_name = req.index.trim();
     let queries = req.queries.clone();
 
-    // Retrieve all indices to find matches with the specified name (regardless of dimension)
-    let indices = state.indices.lock().unwrap();
-    let matching_indices: Vec<(String, Arc<IndexData>)> = indices
-        .iter()
-        .filter(|(name, _)| name.starts_with(raw_index_name))
-        .map(|(name, data)| (name.clone(), data.clone()))
-        .collect();
+    let (index_name, index_data) = match find_index(&state, raw_index_name).await {
+        Ok(res) => res,
+        Err(err) => return HttpResponse::BadRequest().json(err),
+    };
 
-    if matching_indices.is_empty() {
-        let response = ErrorResponse {
-            error: format!("No index found with base name '{}'.", raw_index_name),
-        };
-        return HttpResponse::BadRequest().json(response);
-    } else if matching_indices.len() > 1 {
-        let response = ErrorResponse {
-            error: format!(
-                "Multiple indices found with base name '{}'. Please specify the dimension.",
-                raw_index_name
-            ),
-        };
-        return HttpResponse::BadRequest().json(response);
-    }
-
-    let (index_name, index_data) = &matching_indices[0];
-    drop(indices); // Release the lock early
-
-    // **Debugging: Check the total number of vectors before search**
+    // Debugging: Check the total number of vectors before search
     unsafe {
-        let ntotal = faiss_Index_ntotal(index_data.index.0);
+        let ntotal = faiss_Index_ntotal(index_data.vector_index.index.0);
         println!(
             "Performing search on index '{}'. Total vectors in index: {}",
             index_name, ntotal
@@ -290,7 +367,7 @@ async fn search_vector_index(
     }
 
     let nq = queries.len() as c_longlong;
-    let k = index_data.k;
+    let k = index_data.vector_index.k;
 
     if nq == 0 {
         let response = ErrorResponse {
@@ -301,11 +378,11 @@ async fn search_vector_index(
 
     // Validate query vectors
     for (i, vec) in queries.iter().enumerate() {
-        if vec.len() as c_int != index_data.dimension {
+        if vec.len() as c_int != index_data.vector_index.dimension {
             let error_message = format!(
                 "Query vector {} has incorrect dimension: expected {}, got {}",
                 i,
-                index_data.dimension,
+                index_data.vector_index.dimension,
                 vec.len()
             );
             let response = ErrorResponse {
@@ -323,7 +400,7 @@ async fn search_vector_index(
 
     // Perform the search
     unsafe {
-        let index_ptr = index_data.index.0;
+        let index_ptr = index_data.vector_index.index.0;
 
         let search_status = faiss_Index_search(
             index_ptr,
@@ -345,7 +422,7 @@ async fn search_vector_index(
     }
 
     // Retrieve the text associated with each neighbor ID
-    let text_map = index_data.text_map.lock().unwrap();
+    let text_map = index_data.vector_index.text_map.lock().unwrap();
     let results: Vec<SearchResult> = (0..nq)
         .map(|i| {
             let start = (i * k) as usize;
@@ -383,24 +460,18 @@ async fn main() -> std::io::Result<()> {
         info!("Using existing storage directory at '{:?}'.", storage_dir);
     }
 
-    // Initialize shared state with an empty indices map
+    // Initialize shared state with an empty indices map using async-aware Mutex
     let app_state = web::Data::new(AppState {
-        indices: Arc::new(Mutex::new(HashMap::new())),
+        indices: Arc::new(AsyncMutex::new(HashMap::new())),
     });
-
-    // Load existing indices from the storage directory
-    load_existing_indices(storage_dir, &app_state).await;
-
-    // Clone `app_state` for use in the shutdown handler
-    let app_state_for_shutdown = app_state.clone();
 
     // Set up the Actix Web server
     let server = HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
             .route("/health", web::get().to(health))
-            .route("/create_vector_index", web::post().to(create_vector_index))
-            .route("/vector_search", web::post().to(search_vector_index))
+            .route("/create_index", web::post().to(build_bridge_index))
+            .route("/search", web::post().to(search_vector_index))
             .route("/add", web::post().to(add))
     })
     .bind(("127.0.0.1", 8080))?;
@@ -413,18 +484,7 @@ async fn main() -> std::io::Result<()> {
             .await
             .expect("Failed to listen for shutdown signal");
 
-        info!("Shutdown signal received. Saving all indices...");
-
-        // Save all indices to disk
-        if let Ok(indices) = app_state_for_shutdown.indices.lock() {
-            if let Err(err) = save_all_indices(&indices) {
-                error!("Error saving indices during shutdown: {}", err);
-            } else {
-                info!("All indices saved successfully.");
-            }
-        } else {
-            error!("Failed to acquire lock on indices during shutdown.");
-        }
+        info!("Shutdown signal received. Cleanup if necessary...");
 
         // Stop the Actix system
         System::current().stop();
@@ -432,84 +492,6 @@ async fn main() -> std::io::Result<()> {
 
     // Await the server's completion
     server.await
-}
-
-// Function to load existing indices on startup
-async fn load_existing_indices(storage_dir: &Path, app_state: &web::Data<AppState>) {
-    let entries = match fs::read_dir(storage_dir) {
-        Ok(entries) => entries,
-        Err(e) => {
-            error!(
-                "Failed to read storage directory '{:?}': {}",
-                storage_dir, e
-            );
-            return;
-        }
-    };
-
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(extension) = path.extension() {
-                    if extension == "index" {
-                        let index_name = match path.file_stem() {
-                            Some(name) => name.to_string_lossy().into_owned(),
-                            None => {
-                                error!("Failed to get index name from file '{:?}'.", path);
-                                continue;
-                            }
-                        };
-
-                        // Parse the dimension from the index name (expected format: name_dXXXX)
-                        let parts: Vec<&str> = index_name.rsplitn(2, "_d").collect();
-                        if parts.len() != 2 {
-                            error!(
-                                "Index name '{}' does not follow the 'name_dXXXX' format.",
-                                index_name
-                            );
-                            continue;
-                        }
-
-                        // let _base_name = parts[1]; // Unused variable removed
-                        let dimension_str = parts[0];
-                        let dimension: c_int = match dimension_str.parse() {
-                            Ok(d) => d,
-                            Err(_) => {
-                                error!(
-                                    "Failed to parse dimension from index name '{}'.",
-                                    index_name
-                                );
-                                continue;
-                            }
-                        };
-
-                        // Load the index from disk
-                        match load_faiss_index(&path, dimension) {
-                            Ok(index_ptr) => {
-                                // Initialize IndexData
-                                let index_data = Arc::new(IndexData {
-                                    index: FaissIndexWrapper(index_ptr, PhantomData),
-                                    dimension,
-                                    k: 5, // Default value; adjust if necessary
-                                    text_map: Mutex::new(HashMap::new()),
-                                    next_id: Mutex::new(0), // Placeholder; adjust if necessary
-                                });
-
-                                // Insert into the indices map
-                                let mut indices = app_state.indices.lock().unwrap();
-                                indices.insert(index_name.clone(), index_data);
-                                info!("Loaded existing index '{}' from '{:?}'.", index_name, path);
-                            }
-                            Err(e) => {
-                                error!("Failed to load FAISS index from '{:?}': {}", path, e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 // Function to load a FAISS index from a given path
@@ -547,7 +529,7 @@ fn load_faiss_index(path: &PathBuf, dimension: c_int) -> Result<*mut FaissIndex,
             return Err("FAISS returned a null index pointer.".to_string());
         }
 
-        let index_dimension = { faiss_Index_d(index_ptr) };
+        let index_dimension = faiss_Index_d(index_ptr);
         if index_dimension != dimension {
             return Err(format!(
                 "Dimension mismatch: expected {}, got {}.",
@@ -557,49 +539,4 @@ fn load_faiss_index(path: &PathBuf, dimension: c_int) -> Result<*mut FaissIndex,
 
         Ok(index_ptr)
     }
-}
-
-fn save_all_indices(indices: &HashMap<String, Arc<IndexData>>) -> Result<(), String> {
-    for (index_name, index_data) in indices.iter() {
-        let save_path = format!("indices/{}.index", index_name);
-        let index_ptr = index_data.index.0;
-
-        unsafe {
-            // Convert the save_path to a C-compatible string
-            let c_path = CString::new(save_path.clone()).map_err(|e| e.to_string())?;
-
-            // Open the file in write-binary mode
-            let mode = CString::new("wb").unwrap();
-            let file: *mut FILE = fopen(c_path.as_ptr(), mode.as_ptr());
-            if file.is_null() {
-                return Err(format!("Failed to open file '{}' for writing.", save_path));
-            }
-
-            // Cast *mut FILE to *mut __sFILE
-            let file_ptr = file as *mut __sFILE;
-
-            // Call faiss_write_index with the correct pointer types
-            let status = faiss_write_index(index_ptr, file_ptr);
-            if status != 0 {
-                let error = faiss_get_last_error();
-                let error_message = if !error.is_null() {
-                    std::ffi::CStr::from_ptr(error)
-                        .to_string_lossy()
-                        .into_owned()
-                } else {
-                    "Unknown error occurred while writing the index.".to_string()
-                };
-                // Close the file before returning
-                fclose(file);
-                return Err(format!(
-                    "Failed to save index '{}': {}",
-                    index_name, error_message
-                ));
-            }
-
-            // Close the file after writing
-            fclose(file);
-        }
-    }
-    Ok(())
 }
