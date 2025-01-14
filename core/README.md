@@ -48,6 +48,10 @@ export DYLD_LIBRARY_PATH=/Users/noelthomas/Documents/GitHub/bridge/core/faiss/bu
 
 in core/
 
-cargo run
+cargo run --release
+
+Only runs in release mode for some reason (https://github.com/SeekStorm/SeekStorm/issues/20)
 
 Requires cargo@1.82 or higher
+
+many vectors, single text -> some algorithms can accept multiple query vectors per query

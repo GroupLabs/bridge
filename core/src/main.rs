@@ -14,14 +14,18 @@ use libc::{c_int, c_longlong};
 use libc::{fclose, fopen, FILE};
 use log::{error, info};
 use seekstorm::commit::Commit;
+use seekstorm::highlighter::{highlighter, Highlight};
 use seekstorm::index::{
-    create_index, AccessType, Document, Index, IndexDocuments, IndexMetaObject, SimilarityType,
-    TokenizerType,
+    create_index, AccessType, DistanceField, Document, FileType, Index, IndexDocument,
+    IndexDocuments, IndexMetaObject, SimilarityType, TokenizerType,
 };
+use seekstorm::search::{QueryType, ResultType, Search};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::ffi::CString;
+// use std::fmt::Result;
 use std::fs;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -70,12 +74,12 @@ struct SearchRequest {
 }
 
 // Structure for search results
-#[derive(Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct SearchResult {
     neighbors: Vec<Neighbor>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Neighbor {
     text: String,
     distance: f32,
@@ -95,6 +99,28 @@ struct BridgeIndex {
     text_index: Arc<RwLock<Index>>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct CombinedSearchResults {
+    vector_results: Vec<SearchResult>, // or whatever your vector results struct is
+    text_results: Vec<TextSearchDoc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TextSearchDoc {
+    pub doc_id: u64,
+    pub score: f32,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CombinedSearchRequest {
+    pub index_name: String,
+    pub vector_queries: Vec<Vec<f32>>,
+    pub text_query: String,
+    pub text_offset: u64,
+    pub text_length: u64,
+}
+
 // Application state containing all indices
 struct AppState {
     indices: Arc<AsyncMutex<HashMap<String, BridgeIndex>>>, // Unified index storage
@@ -105,8 +131,15 @@ async fn health() -> impl Responder {
     HttpResponse::Ok().json(json!({ "status": "healthy" }))
 }
 
-// Internal function to build a FAISS index
-fn build_faiss_index(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexData>, String> {
+// load bridge index (load on boot)
+// save bridge index
+// add
+// delete
+// search
+// close indices and save on down
+
+// create faiss index
+fn create_faiss_index(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexData>, String> {
     let metric_description = CString::new("IDMap,Flat").unwrap();
     let mut index_ptr: *mut FaissIndex = ptr::null_mut();
     unsafe {
@@ -130,7 +163,7 @@ fn build_faiss_index(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexD
         }
     }
 
-    let index_data = Arc::new(VectorIndexData {
+    let faiss_index_data = Arc::new(VectorIndexData {
         index: FaissIndexWrapper(index_ptr, PhantomData),
         dimension,
         k,
@@ -138,7 +171,108 @@ fn build_faiss_index(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexD
         next_id: std::sync::Mutex::new(0),
     });
 
-    Ok(index_data)
+    Ok(faiss_index_data)
+}
+
+// create text index
+fn create_seekstorm_index(
+    index_name: &str,
+    index_path: &Path,
+) -> Result<Arc<RwLock<Index>>, String> {
+    let schema_json = r#"
+    [{"field":"body","field_type":"Text","stored":true,"indexed":true}]"#;
+    let schema = serde_json::from_str(schema_json).expect("Invalid schema JSON");
+
+    let meta = IndexMetaObject {
+        id: 0,
+        name: index_name.to_string(),
+        similarity: SimilarityType::Bm25f,
+        tokenizer: TokenizerType::AsciiAlphabetic,
+        access_type: AccessType::Mmap,
+    };
+
+    let serialize_schema = true;
+    let segment_number_bits = 11;
+
+    let new_index = create_index(
+        index_path,
+        meta,
+        &schema,
+        serialize_schema,
+        &Vec::new(),
+        segment_number_bits,
+        false,
+    )
+    .expect("Failed to create index");
+
+    let text_index = Arc::new(RwLock::new(new_index));
+
+    Ok(text_index)
+}
+
+// create bridge index
+async fn create_bridge_index(
+    state: web::Data<AppState>,
+    req: web::Json<CreateIndexRequest>,
+) -> impl Responder {
+    let raw_index_name = req.name.trim();
+    let dimension = req.dimension;
+    let k = req.k.unwrap_or(5);
+
+    // Construct a "full" index name, e.g., "my_index_d768"
+    let index_name = format!("{}_d{}", raw_index_name, dimension);
+
+    // Check if index already exists in memory
+    {
+        let indices = state.indices.lock().await;
+        if indices.contains_key(&index_name) {
+            let response = json!({ "error": format!("Index '{}' already exists.", index_name) });
+            return HttpResponse::BadRequest().json(response);
+        }
+    }
+
+    // Create the directory structure for storing the index files
+    let index_path_string = format!("./indices/{}", index_name);
+    let index_path = Path::new(&index_path_string);
+
+    if !index_path.exists() {
+        fs::create_dir_all(index_path).expect("Failed to create index directory");
+    }
+
+    // Create the FAISS index
+    let faiss_index = match create_faiss_index(dimension, k) {
+        Ok(idx) => idx,
+        Err(e) => {
+            let response = json!({ "error": e });
+            return HttpResponse::InternalServerError().json(response);
+        }
+    };
+
+    // Create the SeekStorm text index
+    let text_index = match create_seekstorm_index(&index_name, index_path) {
+        Ok(tidx) => tidx,
+        Err(e) => {
+            let response = json!({ "error": e });
+            return HttpResponse::InternalServerError().json(response);
+        }
+    };
+
+    // Create the combined BridgeIndex and store it in AppState
+    {
+        let mut indices = state.indices.lock().await;
+        indices.insert(
+            index_name.clone(),
+            BridgeIndex {
+                vector_index: faiss_index.clone(),
+                text_index: text_index.clone(),
+            },
+        );
+    }
+
+    // Return a success response
+    HttpResponse::Ok().json(json!({
+        "message": format!("Index '{}' created successfully.", index_name)
+    }))
 }
 
 // Helper function to find an index by base name
@@ -168,93 +302,13 @@ async fn find_index(
     }
 }
 
-// Build the BridgeIndex (FAISS + SeekStorm)
-async fn build_bridge_index(
-    state: web::Data<AppState>,
-    req: web::Json<CreateIndexRequest>,
-) -> impl Responder {
-    let raw_index_name = req.name.trim();
-    let dimension = req.dimension;
-    let k = req.k.unwrap_or(5);
-    let index_name = format!("{}_d{}", raw_index_name, dimension);
-
-    {
-        let indices = state.indices.lock().await;
-        if indices.contains_key(&index_name) {
-            let response = ErrorResponse {
-                error: format!("Index '{}' already exists.", index_name),
-            };
-            return HttpResponse::BadRequest().json(response);
-        }
-    }
-
-    // Build FAISS index
-    let index_data = match build_faiss_index(dimension, k) {
-        Ok(idx) => idx,
-        Err(e) => {
-            let response = ErrorResponse { error: e };
-            return HttpResponse::InternalServerError().json(response);
-        }
-    };
-
-    let index_path_string = format!("./indices/{}", index_name);
-    let index_path = Path::new(&index_path_string);
-
-    if !index_path.exists() {
-        fs::create_dir_all(index_path).expect("Failed to create index directory");
-    }
-
-    let schema_json = r#"
-    [{"field":"body","field_type":"Text","stored":true,"indexed":true}]"#;
-    let schema = serde_json::from_str(schema_json).expect("Invalid schema JSON");
-
-    let meta = IndexMetaObject {
-        id: 0,
-        name: index_name.to_string(),
-        similarity: SimilarityType::Bm25f,
-        tokenizer: TokenizerType::AsciiAlphabetic,
-        access_type: AccessType::Mmap,
-    };
-
-    let serialize_schema = true;
-    let segment_number_bits = 11;
-
-    let new_index = create_index(
-        index_path,
-        meta,
-        &schema,
-        serialize_schema,
-        &Vec::new(),
-        segment_number_bits,
-        false,
-    )
-    .expect("Failed to create index");
-
-    let text_index = Arc::new(RwLock::new(new_index));
-
-    {
-        let mut indices = state.indices.lock().await;
-        indices.insert(
-            index_name.clone(),
-            BridgeIndex {
-                vector_index: index_data.clone(),
-                text_index,
-            },
-        );
-    }
-
-    HttpResponse::Ok().json(json!({
-        "message": format!("Index '{}' created successfully.", index_name)
-    }))
-}
-
 // Add handler
 async fn add(state: web::Data<AppState>, item: web::Json<AddRequest>) -> impl Responder {
     let raw_index_name = item.index.trim();
     let text = item.text.clone();
     let vector = item.vector.clone();
 
-    let (_, mut bridge_index) = match find_index(&state, raw_index_name).await {
+    let (_, bridge_index) = match find_index(&state, raw_index_name).await {
         Ok(res) => res,
         Err(err) => return HttpResponse::BadRequest().json(err),
     };
@@ -298,40 +352,25 @@ async fn add(state: web::Data<AppState>, item: web::Json<AddRequest>) -> impl Re
 
     println!("Adding to text index");
 
-    let documents_json = r#"
-    [
-        {"body":"body1 here"}
-    ]
-    "#;
-
-    let documents: Vec<Document> = serde_json::from_str(documents_json).unwrap();
-
     // Index documents
-    let mut text_idx = bridge_index.text_index.write().await;
+    let mut text_idx = bridge_index.text_index;
 
-    // Now we have mutable access to the index.
-    // We can call index_documents and commit safely.
-    if let Err(e) = text_idx.index_documents(documents).await {
-        // Handle error if indexing fails
-        return HttpResponse::InternalServerError().json(json!({
-            "error": format!("Indexing documents failed: {}", e)
-        }));
-    }
+    // let document_json = r#"
+    //     {"body":"body1 here"}
+    // "#;
 
-    if let Err(e) = text_idx.commit().await {
-        // Handle error if commit fails
-        return HttpResponse::InternalServerError().json(json!({
-            "error": format!("Committing documents failed: {}", e)
-        }));
-    }
+    // let document: Document = serde_json::from_str(document_json).unwrap();
 
-    // // Add the document to the SeekStorm text index
-    // let mut doc: Document = HashMap::new();
-    // doc.insert("body".to_string(), json!(text.clone()));
-    // doc.insert("id".to_string(), json!(id));
+    // text_idx.index_document(document, FileType::None).await;
+    // text_idx.commit().await; // unneccessary
 
-    // bridge_index.text_index.index_documents(vec![doc]).await;
-    // bridge_index.text_index.commit().await;
+    // Add the document to the SeekStorm text index
+    let mut doc: Document = HashMap::new();
+    doc.insert("body".to_string(), json!(text.clone()));
+    doc.insert("id".to_string(), json!(id));
+
+    text_idx.index_documents(vec![doc]).await;
+    text_idx.commit().await; // unneccessary
 
     println!("Added vector with ID {} to index", id);
 
@@ -339,71 +378,61 @@ async fn add(state: web::Data<AppState>, item: web::Json<AddRequest>) -> impl Re
 }
 
 // Handler for searching within a specific FAISS index
-async fn search_vector_index(
-    state: web::Data<AppState>,
-    req: web::Json<SearchRequest>,
-) -> impl Responder {
-    let raw_index_name = req.index.trim();
-    let queries = req.queries.clone();
-
-    let (index_name, index_data) = match find_index(&state, raw_index_name).await {
-        Ok(res) => res,
-        Err(err) => return HttpResponse::BadRequest().json(err),
-    };
-
-    // Debugging: Check the total number of vectors before search
-    unsafe {
-        let ntotal = faiss_Index_ntotal(index_data.vector_index.index.0);
-        println!(
-            "Performing search on index '{}'. Total vectors in index: {}",
-            index_name, ntotal
-        );
-        if ntotal == 0 {
-            let response = ErrorResponse {
-                error: "The index is empty. Add vectors before searching.".to_string(),
-            };
-            return HttpResponse::BadRequest().json(response);
-        }
-    }
+/// A pure function that takes a `BridgeIndex` plus query vectors, and returns either
+/// a list of `SearchResult` objects or an error string.
+///
+/// This function does **not** deal with any HTTP/Actix or concurrency logic.
+///
+/// - `index_data`: reference to the combined `BridgeIndex` (which includes Faiss & SeekStorm)
+/// - `queries`: a list of vectors (each a `Vec<f32>`) that we want to search against the Faiss index.
+fn vector_search(
+    index_data: &BridgeIndex,
+    queries: Vec<Vec<f32>>,
+) -> Result<Vec<SearchResult>, String> {
+    use std::ffi::CStr;
 
     let nq = queries.len() as c_longlong;
-    let k = index_data.vector_index.k;
-
     if nq == 0 {
-        let response = ErrorResponse {
-            error: "No query vectors provided.".to_string(),
-        };
-        return HttpResponse::BadRequest().json(response);
+        return Err("No query vectors provided.".into());
     }
 
-    // Validate query vectors
-    for (i, vec) in queries.iter().enumerate() {
-        if vec.len() as c_int != index_data.vector_index.dimension {
-            let error_message = format!(
+    // Check that each query matches the dimension of the index
+    for (i, q) in queries.iter().enumerate() {
+        if q.len() as c_int != index_data.vector_index.dimension {
+            let msg = format!(
                 "Query vector {} has incorrect dimension: expected {}, got {}",
                 i,
                 index_data.vector_index.dimension,
-                vec.len()
+                q.len()
             );
-            let response = ErrorResponse {
-                error: error_message,
-            };
-            return HttpResponse::BadRequest().json(response);
+            return Err(msg);
         }
     }
 
-    // Flatten the query vectors
+    // Flatten the queries: e.g., from Vec<Vec<f32>> into a single Vec<f32>
     let flat_queries: Vec<f32> = queries.into_iter().flatten().collect();
 
-    let mut distances = vec![0.0; (nq * k) as usize];
-    let mut labels = vec![-1; (nq * k) as usize];
+    // Prepare buffers for distances and labels
+    let nq_usize = nq as usize;
+    let k = index_data.vector_index.k;
+    let total_size = nq_usize * (k as usize);
 
-    // Perform the search
+    let mut distances = vec![0.0; total_size];
+    let mut labels = vec![-1; total_size];
+
+    // Perform the Faiss search
     unsafe {
-        let index_ptr = index_data.vector_index.index.0;
+        let faiss_idx_ptr = index_data.vector_index.index.0;
 
+        // Check total vectors in the index
+        let ntotal = faiss_Index_ntotal(faiss_idx_ptr);
+        if ntotal == 0 {
+            return Err("The index is empty. Add vectors before searching.".to_string());
+        }
+
+        // Actually call Faiss
         let search_status = faiss_Index_search(
-            index_ptr,
+            faiss_idx_ptr,
             nq,
             flat_queries.as_ptr(),
             k,
@@ -412,17 +441,15 @@ async fn search_vector_index(
         );
 
         if search_status != 0 {
-            let error = faiss_get_last_error();
-            let error_message = std::ffi::CStr::from_ptr(error).to_string_lossy();
-            let response = ErrorResponse {
-                error: error_message.to_string(),
-            };
-            return HttpResponse::InternalServerError().json(response);
+            let error_ptr = faiss_get_last_error();
+            let error_message = CStr::from_ptr(error_ptr).to_string_lossy().to_string();
+            return Err(error_message);
         }
     }
 
     // Retrieve the text associated with each neighbor ID
     let text_map = index_data.vector_index.text_map.lock().unwrap();
+
     let results: Vec<SearchResult> = (0..nq)
         .map(|i| {
             let start = (i * k) as usize;
@@ -443,55 +470,140 @@ async fn search_vector_index(
         })
         .collect();
 
-    HttpResponse::Ok().json(results)
+    Ok(results)
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    // Initialize the logger
-    env_logger::init();
+async fn text_search(
+    index_data: &BridgeIndex,
+    query: &str,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<TextSearchDoc>, String> {
+    // Parameters for the search
+    let query_type = QueryType::Intersection;
+    let result_type = ResultType::TopkCount;
+    let include_uncommitted = true;
+    let field_filter = Vec::new();
+    let query_facets = Vec::new();
+    let facet_filter = Vec::new();
+    let highlight_config = vec![Highlight {
+        field: "body".to_string(),
+        name: String::new(),
+        fragment_number: 2,
+        fragment_size: 160,
+        highlight_markup: true,
+    }];
 
-    // Define the indices storage directory
-    let storage_dir = Path::new("indices");
-    if !storage_dir.exists() {
-        fs::create_dir(storage_dir)?;
-        info!("Created storage directory at '{:?}'.", storage_dir);
-    } else {
-        info!("Using existing storage directory at '{:?}'.", storage_dir);
+    let index_arc = index_data.text_index.clone();
+
+    // Perform the search
+    let result_object = index_arc
+        .search(
+            query.to_owned(),
+            query_type,
+            offset.try_into().unwrap(),
+            length.try_into().unwrap(),
+            result_type,
+            include_uncommitted,
+            field_filter,
+            query_facets,
+            facet_filter,
+            Vec::new(), // distance_fields
+        )
+        .await;
+
+    // Log search details
+    println!("Search complete");
+    println!("Number of results: {}", result_object.results.len());
+    println!("Result Object: {:#?}", result_object);
+
+    // Prepare highlighter
+    let highlighter = Some(
+        highlighter(
+            &index_arc,
+            highlight_config,
+            result_object.query_terms.clone(),
+        )
+        .await,
+    );
+
+    let return_fields_filter = HashSet::new();
+    let distance_fields: &[DistanceField] = &[];
+
+    // Acquire write lock to retrieve documents
+    let index = index_arc.write().await;
+
+    // Collect document results
+    let mut docs = Vec::new();
+    for result in result_object.results.iter() {
+        let doc = match index.get_document(
+            result.doc_id,
+            false,
+            &highlighter,
+            &return_fields_filter,
+            distance_fields,
+        ) {
+            Ok(d) => d,
+            Err(e) => {
+                return Err(format!(
+                    "Failed to retrieve document {}: {}",
+                    result.doc_id, e
+                ));
+            }
+        };
+
+        let body_field = doc.get("body").and_then(|v| v.as_str().map(String::from));
+
+        docs.push(TextSearchDoc {
+            doc_id: result.doc_id as u64, // Explicit conversion
+            score: result.score,
+            body: body_field,
+        });
     }
 
-    // Initialize shared state with an empty indices map using async-aware Mutex
-    let app_state = web::Data::new(AppState {
-        indices: Arc::new(AsyncMutex::new(HashMap::new())),
-    });
+    Ok(docs)
+}
 
-    // Set up the Actix Web server
-    let server = HttpServer::new(move || {
-        App::new()
-            .app_data(app_state.clone())
-            .route("/health", web::get().to(health))
-            .route("/create_index", web::post().to(build_bridge_index))
-            .route("/search", web::post().to(search_vector_index))
-            .route("/add", web::post().to(add))
-    })
-    .bind(("127.0.0.1", 8080))?;
+pub async fn search_both_indexes(
+    state: web::Data<AppState>,
+    req: web::Json<CombinedSearchRequest>,
+) -> impl Responder {
+    let index_name = req.index_name.trim();
 
-    // Spawn a shutdown handler
-    let server = server.run();
-    rt::spawn(async move {
-        // Wait for a shutdown signal (Ctrl+C)
-        rt::signal::ctrl_c()
-            .await
-            .expect("Failed to listen for shutdown signal");
+    // 1. Find the BridgeIndex
+    let (_, index_data) = match find_index(&state, index_name).await {
+        Ok(res) => res,
+        Err(err) => return HttpResponse::BadRequest().json(err),
+    };
 
-        info!("Shutdown signal received. Cleanup if necessary...");
+    // 2. Vector search (pure function)
+    let vector_results = match vector_search(&index_data, req.vector_queries.clone()) {
+        Ok(r) => r,
+        Err(msg) => return HttpResponse::BadRequest().json(ErrorResponse { error: msg }),
+    };
 
-        // Stop the Actix system
-        System::current().stop();
-    });
+    // 3. Text search (pure async function)
+    let text_results = match text_search(
+        &index_data,
+        &req.text_query,
+        req.text_offset,
+        req.text_length,
+    )
+    .await
+    {
+        Ok(r) => r,
+        Err(msg) => return HttpResponse::BadRequest().json(ErrorResponse { error: msg }),
+    };
 
-    // Await the server's completion
-    server.await
+    // 4. Combine or return them in a single response
+    let combined_results = CombinedSearchResults {
+        vector_results,
+        text_results,
+    };
+
+    HttpResponse::Ok().json(json!({
+        "results": combined_results
+    }))
 }
 
 // Function to load a FAISS index from a given path
@@ -539,4 +651,52 @@ fn load_faiss_index(path: &PathBuf, dimension: c_int) -> Result<*mut FaissIndex,
 
         Ok(index_ptr)
     }
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    // Initialize the logger
+    env_logger::init();
+
+    // Define the indices storage directory
+    let storage_dir = Path::new("indices");
+    if !storage_dir.exists() {
+        fs::create_dir(storage_dir)?;
+        info!("Created storage directory at '{:?}'.", storage_dir);
+    } else {
+        info!("Using existing storage directory at '{:?}'.", storage_dir);
+    }
+
+    // Initialize shared state with an empty indices map using async-aware Mutex
+    let app_state = web::Data::new(AppState {
+        indices: Arc::new(AsyncMutex::new(HashMap::new())),
+    });
+
+    // Set up the Actix Web server
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone())
+            .route("/health", web::get().to(health))
+            .route("/create_index", web::post().to(create_bridge_index))
+            .route("/search", web::post().to(search_both_indexes))
+            .route("/add", web::post().to(add))
+    })
+    .bind(("127.0.0.1", 8080))?;
+
+    // Spawn a shutdown handler
+    let server = server.run();
+    rt::spawn(async move {
+        // Wait for a shutdown signal (Ctrl+C)
+        rt::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for shutdown signal");
+
+        info!("Shutdown signal received. Cleanup if necessary...");
+
+        // Stop the Actix system
+        System::current().stop();
+    });
+
+    // Await the server's completion
+    server.await
 }
