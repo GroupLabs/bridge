@@ -14,8 +14,8 @@ BASE_URL="http://localhost:8080"
 TEST_DURATION=30s
 
 echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}  MAX PERFORMANCE STRESS TEST${NC}"
-echo -e "${MAGENTA}  Finding Absolute Limits${NC}"
+echo -e "${MAGENTA}  REALISTIC PERFORMANCE TEST${NC}"
+echo -e "${MAGENTA}  100K docs × 4096D vectors${NC}"
 echo -e "${MAGENTA}========================================${NC}\n"
 
 # Check if server is running
@@ -28,82 +28,59 @@ echo -e "${GREEN}✓ Server is healthy${NC}\n"
 
 # Clean up
 echo -e "${YELLOW}Cleaning up previous test data...${NC}"
-rm -rf indices/bench_d3 2>/dev/null || true
+rm -rf indices/bench_d4096 2>/dev/null || true
 echo -e "${GREEN}✓ Cleanup complete${NC}\n"
 
 # Setup test index
-echo -e "${YELLOW}Setting up test index...${NC}"
+echo -e "${YELLOW}Setting up test index (4096D)...${NC}"
 curl -sf -X POST "$BASE_URL/create_index" \
     -H "Content-Type: application/json" \
-    -d '{"name":"bench","dimension":3,"k":10}' > /dev/null 2>&1
+    -d '{"name":"bench","dimension":4096,"k":10}' > /dev/null 2>&1
 echo -e "${GREEN}✓ Test index created${NC}\n"
 
-# Pre-populate with test data
-echo -e "${YELLOW}Pre-populating with 200 documents...${NC}"
-for i in {1..200}; do
-    curl -sf -X POST "$BASE_URL/add" \
-        -H "Content-Type: application/json" \
-        -d "{\"index\":\"bench_d3\",\"text\":\"test document $i\",\"vector\":[1.0,2.0,3.0]}" > /dev/null &
-done
-wait
-echo -e "${GREEN}✓ Pre-populated with 200 documents${NC}\n"
+# Pre-populate with test data using Python
+echo -e "${YELLOW}Pre-populating with 100,000 documents (4096D vectors)...${NC}"
+echo -e "${YELLOW}This will take a few minutes...${NC}\n"
+python3 benchmarks/realistic_benchmark.py populate
+echo -e "${GREEN}✓ Pre-population complete${NC}\n"
 
 sleep 2
 
 # Test 1: Hybrid Search - Max Concurrency for Reads
 echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}Test 1: Hybrid Search (MAX READS)${NC}"
+echo -e "${MAGENTA}Test 1: Hybrid Search (50 connections)${NC}"
 echo -e "${MAGENTA}========================================${NC}"
 echo -e "${YELLOW}Threads: 8, Connections: 50, Duration: $TEST_DURATION${NC}\n"
-wrk -t8 -c50 -d$TEST_DURATION -s benchmarks/search.lua "$BASE_URL/search"
+wrk -t8 -c50 -d$TEST_DURATION -s benchmarks/search_4096d.lua "$BASE_URL/search"
 echo ""
 
 sleep 2
 
 # Test 2: Hybrid Search - Even Higher
 echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}Test 2: Hybrid Search (EXTREME)${NC}"
+echo -e "${MAGENTA}Test 2: Hybrid Search (100 connections)${NC}"
 echo -e "${MAGENTA}========================================${NC}"
 echo -e "${YELLOW}Threads: 12, Connections: 100, Duration: $TEST_DURATION${NC}\n"
-wrk -t12 -c100 -d$TEST_DURATION -s benchmarks/search.lua "$BASE_URL/search"
+wrk -t12 -c100 -d$TEST_DURATION -s benchmarks/search_4096d.lua "$BASE_URL/search"
 echo ""
 
 sleep 2
 
 # Test 3: Single Add - Max Throughput (serialized by semaphore)
 echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}Test 3: Single Add (MAX WRITES)${NC}"
+echo -e "${MAGENTA}Test 3: Single Add (50 connections)${NC}"
 echo -e "${MAGENTA}========================================${NC}"
 echo -e "${YELLOW}Threads: 8, Connections: 50, Duration: $TEST_DURATION${NC}\n"
-wrk -t8 -c50 -d$TEST_DURATION -s benchmarks/add.lua "$BASE_URL/add"
+wrk -t8 -c50 -d$TEST_DURATION -s benchmarks/add_4096d.lua "$BASE_URL/add"
 echo ""
 
 sleep 2
-
-# Test 4: Batch Add - Max Batch Throughput
-echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}Test 4: Batch Add (MAX BATCHES)${NC}"
-echo -e "${MAGENTA}========================================${NC}"
-echo -e "${YELLOW}Threads: 8, Connections: 20, Duration: $TEST_DURATION${NC}"
-echo -e "${YELLOW}(10 documents per batch)${NC}\n"
-wrk -t8 -c20 -d$TEST_DURATION -s benchmarks/batch_add.lua "$BASE_URL/add_batch"
-echo ""
-
-sleep 2
-
-# Test 5: Vector-Only Search (bypass SeekStorm)
-echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}Test 5: Vector-Only Search (FAISS MAX)${NC}"
-echo -e "${MAGENTA}========================================${NC}"
-echo -e "${YELLOW}Threads: 12, Connections: 100, Duration: $TEST_DURATION${NC}\n"
-wrk -t12 -c100 -d$TEST_DURATION -s benchmarks/vector_only.lua "$BASE_URL/search"
-echo ""
 
 # Summary
 echo -e "${MAGENTA}========================================${NC}"
-echo -e "${MAGENTA}  MAX PERFORMANCE TEST COMPLETE${NC}"
+echo -e "${MAGENTA}  REALISTIC BENCHMARK COMPLETE${NC}"
 echo -e "${MAGENTA}========================================${NC}\n"
 
-echo -e "${GREEN}All extreme tests completed!${NC}"
-echo -e "${YELLOW}Note: These tests push the system to its limits${NC}"
+echo -e "${GREEN}All tests completed!${NC}"
+echo -e "${YELLOW}Configuration: 100K documents, 4096D vectors${NC}"
 echo ""

@@ -30,6 +30,7 @@ use std::ptr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use tokio::sync::RwLock;
+use rayon::ThreadPoolBuilder;
 
 // Constants
 const INDICES_PATH: &str = "./indices";
@@ -96,6 +97,8 @@ struct BridgeIndex {
     vector_index: Arc<VectorIndexData>,
     text_index: IndexArc,
     wal: Arc<WalWriter>,
+    // Dedicated thread pool for FAISS blocking operations
+    faiss_pool: Arc<rayon::ThreadPool>,
     // Semaphore to limit concurrent SeekStorm writes (prevents shard_queue exhaustion)
     text_write_semaphore: Arc<tokio::sync::Semaphore>,
 }
@@ -192,7 +195,7 @@ struct ErrorResponse {
 /// Create a FAISS index (CPU-intensive, wrapped in spawn_blocking)
 async fn create_faiss_index_async(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexData>, String> {
     tokio::task::spawn_blocking(move || {
-        let metric_description = CString::new("IDMap,Flat").unwrap();
+        let metric_description = CString::new("IDMap,HNSW32,Flat").unwrap();
         let mut index_ptr: *mut FaissIndex = ptr::null_mut();
 
         unsafe {
@@ -222,17 +225,20 @@ async fn create_faiss_index_async(dimension: c_int, k: c_longlong) -> Result<Arc
     .unwrap()
 }
 
-/// Add vectors to FAISS in batch (CPU-intensive)
+/// Add vectors to FAISS in batch (CPU-intensive, uses Rayon pool)
 async fn faiss_add_batch(
+    faiss_pool: Arc<rayon::ThreadPool>,
     index_data: Arc<VectorIndexData>,
     vectors: Vec<Vec<f32>>,
     ids: Vec<i64>,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    faiss_pool.spawn(move || {
         let n = vectors.len() as c_longlong;
         let flat_vectors: Vec<f32> = vectors.into_iter().flatten().collect();
 
-        unsafe {
+        let result = unsafe {
             let status = faiss_Index_add_with_ids(
                 index_data.index.0,
                 n,
@@ -241,14 +247,16 @@ async fn faiss_add_batch(
             );
 
             if status != 0 {
-                return Err("Failed to add vectors to FAISS".to_string());
+                Err("Failed to add vectors to FAISS".to_string())
+            } else {
+                Ok(())
             }
-        }
+        };
 
-        Ok(())
-    })
-    .await
-    .unwrap()
+        let _ = tx.send(result);
+    });
+
+    rx.await.unwrap()
 }
 
 /// Delete vectors from FAISS (CPU-intensive)
@@ -272,24 +280,29 @@ async fn faiss_delete_batch(
     .unwrap()
 }
 
-/// Search FAISS index (CPU-intensive)
+/// Search FAISS index (CPU-intensive, uses Rayon pool)
 async fn faiss_search(
+    faiss_pool: Arc<rayon::ThreadPool>,
     index_data: Arc<VectorIndexData>,
     query: Vec<f32>,
     k: c_longlong,
 ) -> Result<Vec<(i64, f32)>, String> {
-    tokio::task::spawn_blocking(move || {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    faiss_pool.spawn(move || {
         let nq = 1;
         let k_usize = k as usize;
         let mut distances = vec![0.0; k_usize];
         let mut labels = vec![-1; k_usize];
 
-        unsafe {
-            let ntotal = faiss_Index_ntotal(index_data.index.0);
-            if ntotal == 0 {
-                return Err("The index is empty. Add vectors before searching.".to_string());
-            }
+        // Check if index is empty first (before unsafe block)
+        let ntotal = unsafe { faiss_Index_ntotal(index_data.index.0) };
+        if ntotal == 0 {
+            let _ = tx.send(Err("The index is empty. Add vectors before searching.".to_string()));
+            return;
+        }
 
+        let result = unsafe {
             let status = faiss_Index_search(
                 index_data.index.0,
                 nq,
@@ -304,20 +317,21 @@ async fn faiss_search(
                 let error_message = std::ffi::CStr::from_ptr(error_ptr)
                     .to_string_lossy()
                     .to_string();
-                return Err(error_message);
+                Err(error_message)
+            } else {
+                let results: Vec<(i64, f32)> = labels
+                    .into_iter()
+                    .zip(distances.into_iter())
+                    .filter(|(id, _)| *id != -1)
+                    .collect();
+                Ok(results)
             }
-        }
+        };
 
-        let results: Vec<(i64, f32)> = labels
-            .into_iter()
-            .zip(distances.into_iter())
-            .filter(|(id, _)| *id != -1)
-            .collect();
+        let _ = tx.send(result);
+    });
 
-        Ok(results)
-    })
-    .await
-    .unwrap()
+    rx.await.unwrap()
 }
 
 // ============================================================================
@@ -483,12 +497,21 @@ async fn load_bridge_index(index_name: &str, base_path: &Path) -> Result<BridgeI
     let wal_path = index_path.join("wal.log");
     let wal = Arc::new(WalWriter::new(&wal_path).map_err(|e| e.to_string())?);
 
+    // Create dedicated thread pool for FAISS operations
+    let faiss_pool = Arc::new(
+        ThreadPoolBuilder::new()
+            .num_threads(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4))
+            .build()
+            .map_err(|e| format!("Failed to create FAISS thread pool: {}", e))?
+    );
+
     Ok(BridgeIndex {
         name: index_name.to_string(),
         vector_index,
         text_index,
         wal,
-        // Serialize SeekStorm writes (1 at a time) - it has severe concurrency bugs
+        faiss_pool,
+        // SeekStorm race condition at index.rs:3875 requires single-threaded writes
         text_write_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
     })
 }
@@ -565,12 +588,24 @@ async fn create_bridge_index_handler(
         }),
     };
 
+    // Create dedicated thread pool for FAISS operations
+    let faiss_pool = match ThreadPoolBuilder::new()
+        .num_threads(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4))
+        .build()
+    {
+        Ok(pool) => Arc::new(pool),
+        Err(e) => return HttpResponse::InternalServerError().json(ErrorResponse {
+            error: format!("Failed to create FAISS thread pool: {}", e),
+        }),
+    };
+
     let bridge_index = BridgeIndex {
         name: index_name.clone(),
         vector_index,
         text_index,
         wal,
-        // Serialize SeekStorm writes (1 at a time) - it has severe concurrency bugs
+        faiss_pool,
+        // SeekStorm race condition at index.rs:3875 requires single-threaded writes
         text_write_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
     };
 
@@ -628,6 +663,7 @@ async fn add_document(
 
         // Add to FAISS
         if let Err(e) = faiss_add_batch(
+            bridge_index.faiss_pool.clone(),
             bridge_index.vector_index.clone(),
             vec![req.vector.clone()],
             vec![id],
@@ -711,7 +747,7 @@ async fn add_batch(
         let _permit = bridge_index.text_write_semaphore.acquire().await.unwrap();
 
         // Batch add to FAISS
-        if let Err(e) = faiss_add_batch(bridge_index.vector_index.clone(), vectors.clone(), ids.clone()).await {
+        if let Err(e) = faiss_add_batch(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), vectors.clone(), ids.clone()).await {
             return HttpResponse::InternalServerError().json(ErrorResponse { error: e });
         }
 
@@ -797,7 +833,7 @@ async fn search(
     let (vector_results, text_results) = tokio::join!(
         async {
             match &req.vector_query {
-                Some(query) => faiss_search(bridge_index.vector_index.clone(), query.clone(), k).await.ok(),
+                Some(query) => faiss_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query.clone(), k).await.ok(),
                 None => None,
             }
         },
