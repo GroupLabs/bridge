@@ -2,11 +2,23 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    // Add the directory containing `libfaiss_c.dylib` to the library search path
-    println!("cargo:rustc-link-search=native=/Users/noelthomas/Documents/GitHub/bridge/core/faiss/build/c_api");
+    // Add the directory containing FAISS libraries to the library search path
+    println!("cargo:rustc-link-search=native=/Users/noelthomas/Documents/GitHub/grouplabs/bridge/core/faiss/build/c_api");
+    println!("cargo:rustc-link-search=native=/Users/noelthomas/Documents/GitHub/grouplabs/bridge/core/faiss/build/faiss");
 
-    // Tell the linker to link against `faiss_c` (remove the `lib` prefix and `.dylib` extension)
-    println!("cargo:rustc-link-lib=dylib=faiss_c");
+    // Link against FAISS libraries (static linking)
+    println!("cargo:rustc-link-lib=static=faiss_c");
+    println!("cargo:rustc-link-lib=static=faiss");
+
+    // Link against C++ standard library (required for static FAISS)
+    println!("cargo:rustc-link-lib=dylib=c++");
+
+    // Link against OpenMP (required for FAISS parallelism)
+    println!("cargo:rustc-link-search=native=/opt/homebrew/opt/libomp/lib");
+    println!("cargo:rustc-link-lib=dylib=omp");
+
+    // Link against Apple's Accelerate framework (provides BLAS/LAPACK)
+    println!("cargo:rustc-link-lib=framework=Accelerate");
 
     // Generate bindings for the FAISS C API
     let bindings = bindgen::Builder::default()

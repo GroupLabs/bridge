@@ -1,0 +1,188 @@
+[0;35m========================================[0m
+[0;35m  REALISTIC PERFORMANCE TEST[0m
+[0;35m  100K docs × 4096D vectors[0m
+[0;35m========================================[0m
+
+[1;33mChecking server health...[0m
+[0;32m✓ Server is healthy[0m
+
+[1;33mCleaning up previous test data...[0m
+[0;32m✓ Cleanup complete[0m
+
+[1;33mSetting up test index (4096D)...[0m
+[0;32m✓ Test index created[0m
+
+[1;33mPre-populating with 100,000 documents (4096D vectors)...[0m
+[1;33mThis will take a few minutes...[0m
+
+
+Populating with 100,000 documents (4096D vectors)...
+Using 20 parallel workers, batch size: 10
+  Progress: 1,000/100,000 docs (450 docs/sec)
+  Progress: 2,000/100,000 docs (485 docs/sec)
+  Progress: 3,000/100,000 docs (505 docs/sec)
+  Progress: 4,000/100,000 docs (513 docs/sec)
+  Progress: 5,000/100,000 docs (517 docs/sec)
+  Progress: 6,000/100,000 docs (515 docs/sec)
+  Progress: 7,000/100,000 docs (508 docs/sec)
+  Progress: 8,000/100,000 docs (493 docs/sec)
+  Progress: 9,000/100,000 docs (473 docs/sec)
+  Progress: 10,000/100,000 docs (450 docs/sec)
+  Progress: 11,000/100,000 docs (425 docs/sec)
+  Progress: 12,000/100,000 docs (401 docs/sec)
+  Progress: 13,000/100,000 docs (377 docs/sec)
+  Progress: 14,000/100,000 docs (356 docs/sec)
+  Progress: 15,000/100,000 docs (337 docs/sec)
+  Progress: 16,000/100,000 docs (320 docs/sec)
+  Progress: 17,000/100,000 docs (305 docs/sec)
+  Progress: 18,000/100,000 docs (291 docs/sec)
+  Progress: 19,000/100,000 docs (279 docs/sec)
+  Progress: 20,000/100,000 docs (268 docs/sec)
+  Progress: 21,000/100,000 docs (258 docs/sec)
+  Progress: 22,000/100,000 docs (250 docs/sec)
+  Progress: 23,000/100,000 docs (242 docs/sec)
+  Progress: 24,000/100,000 docs (235 docs/sec)
+  Progress: 25,000/100,000 docs (229 docs/sec)
+  Progress: 26,000/100,000 docs (223 docs/sec)
+  Progress: 27,000/100,000 docs (218 docs/sec)
+  Progress: 28,000/100,000 docs (213 docs/sec)
+  Progress: 29,000/100,000 docs (208 docs/sec)
+  Progress: 30,000/100,000 docs (204 docs/sec)
+  Progress: 31,000/100,000 docs (200 docs/sec)
+  Progress: 32,000/100,000 docs (197 docs/sec)
+  Progress: 33,000/100,000 docs (193 docs/sec)
+  Progress: 34,000/100,000 docs (190 docs/sec)
+  Progress: 35,000/100,000 docs (187 docs/sec)
+  Progress: 36,000/100,000 docs (184 docs/sec)
+  Progress: 37,000/100,000 docs (181 docs/sec)
+  Progress: 38,000/100,000 docs (179 docs/sec)
+  Progress: 39,000/100,000 docs (177 docs/sec)
+  Progress: 40,000/100,000 docs (174 docs/sec)
+  Progress: 41,000/100,000 docs (172 docs/sec)
+  Progress: 42,000/100,000 docs (170 docs/sec)
+  Progress: 43,000/100,000 docs (168 docs/sec)
+  Progress: 44,000/100,000 docs (166 docs/sec)
+  Progress: 45,000/100,000 docs (165 docs/sec)
+  Progress: 46,000/100,000 docs (163 docs/sec)
+  Progress: 47,000/100,000 docs (161 docs/sec)
+  Progress: 48,000/100,000 docs (160 docs/sec)
+  Progress: 49,000/100,000 docs (158 docs/sec)
+  Progress: 50,000/100,000 docs (157 docs/sec)
+  Progress: 51,000/100,000 docs (156 docs/sec)
+  Progress: 52,000/100,000 docs (154 docs/sec)
+  Progress: 53,000/100,000 docs (153 docs/sec)
+  Progress: 54,000/100,000 docs (152 docs/sec)
+  Progress: 55,000/100,000 docs (151 docs/sec)
+  Progress: 56,000/100,000 docs (150 docs/sec)
+  Progress: 57,000/100,000 docs (149 docs/sec)
+  Progress: 58,000/100,000 docs (148 docs/sec)
+  Progress: 59,000/100,000 docs (147 docs/sec)
+  Progress: 60,000/100,000 docs (146 docs/sec)
+  Progress: 61,000/100,000 docs (145 docs/sec)
+  Progress: 62,000/100,000 docs (144 docs/sec)
+  Progress: 63,000/100,000 docs (143 docs/sec)
+  Progress: 64,000/100,000 docs (142 docs/sec)
+  Progress: 65,000/100,000 docs (142 docs/sec)
+  Progress: 66,000/100,000 docs (141 docs/sec)
+  Progress: 67,000/100,000 docs (140 docs/sec)
+  Progress: 68,000/100,000 docs (139 docs/sec)
+  Progress: 69,000/100,000 docs (139 docs/sec)
+  Progress: 70,000/100,000 docs (138 docs/sec)
+  Progress: 71,000/100,000 docs (137 docs/sec)
+  Progress: 72,000/100,000 docs (137 docs/sec)
+  Progress: 73,000/100,000 docs (136 docs/sec)
+  Progress: 74,000/100,000 docs (135 docs/sec)
+  Progress: 75,000/100,000 docs (135 docs/sec)
+  Progress: 76,000/100,000 docs (134 docs/sec)
+  Progress: 77,000/100,000 docs (134 docs/sec)
+  Progress: 78,000/100,000 docs (133 docs/sec)
+  Progress: 79,000/100,000 docs (132 docs/sec)
+  Progress: 80,000/100,000 docs (132 docs/sec)
+  Progress: 81,000/100,000 docs (131 docs/sec)
+  Progress: 82,000/100,000 docs (131 docs/sec)
+  Progress: 83,000/100,000 docs (130 docs/sec)
+  Progress: 84,000/100,000 docs (130 docs/sec)
+  Progress: 85,000/100,000 docs (129 docs/sec)
+  Progress: 86,000/100,000 docs (129 docs/sec)
+  Progress: 87,000/100,000 docs (128 docs/sec)
+  Progress: 88,000/100,000 docs (128 docs/sec)
+  Progress: 89,000/100,000 docs (127 docs/sec)
+  Progress: 90,000/100,000 docs (127 docs/sec)
+  Progress: 91,000/100,000 docs (126 docs/sec)
+  Progress: 92,000/100,000 docs (126 docs/sec)
+  Progress: 93,000/100,000 docs (126 docs/sec)
+  Progress: 94,000/100,000 docs (125 docs/sec)
+  Progress: 95,000/100,000 docs (125 docs/sec)
+  Progress: 96,000/100,000 docs (124 docs/sec)
+  Progress: 97,000/100,000 docs (124 docs/sec)
+  Progress: 98,000/100,000 docs (124 docs/sec)
+  Progress: 99,000/100,000 docs (123 docs/sec)
+  Progress: 100,000/100,000 docs (123 docs/sec)
+✓ Populated 100,000 documents in 814.3s (123 docs/sec)
+[0;32m✓ Pre-population complete[0m
+
+[0;35m========================================[0m
+[0;35mTest 1: Hybrid Search (50 connections)[0m
+[0;35m========================================[0m
+[1;33mThreads: 8, Connections: 50, Duration: 30s[0m
+
+Running 30s test @ http://localhost:8080/search
+  8 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    14.43ms    2.63ms  73.88ms   90.85%
+    Req/Sec   416.19     60.13     2.23k    98.52%
+  100931 requests in 30.10s, 172.61MB read
+Requests/sec:   3352.97
+Transfer/sec:      5.73MB
+
+--- Hybrid Search Performance (4096D) ---
+  Requests/sec:   3352.97
+  Avg Latency:    14.43 ms
+  P50 Latency:    14.15 ms
+  P95 Latency:    17.50 ms
+  P99 Latency:    23.25 ms
+  Max Latency:    73.88 ms
+
+[0;35m========================================[0m
+[0;35mTest 2: Hybrid Search (100 connections)[0m
+[0;35m========================================[0m
+[1;33mThreads: 12, Connections: 100, Duration: 30s[0m
+
+Running 30s test @ http://localhost:8080/search
+  12 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    28.74ms    4.07ms 137.12ms   91.16%
+    Req/Sec   278.69     57.40     2.51k    96.64%
+  102242 requests in 30.10s, 174.86MB read
+Requests/sec:   3396.70
+Transfer/sec:      5.81MB
+
+--- Hybrid Search Performance (4096D) ---
+  Requests/sec:   3396.70
+  Avg Latency:    28.74 ms
+  P50 Latency:    28.66 ms
+  P95 Latency:    33.03 ms
+  P99 Latency:    41.04 ms
+  Max Latency:    137.12 ms
+
+[0;35m========================================[0m
+[0;35mTest 3: Single Add (50 connections)[0m
+[0;35m========================================[0m
+[1;33mThreads: 8, Connections: 50, Duration: 30s[0m
+
+Running 30s test @ http://localhost:8080/add
+  8 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   737.01ms  227.56ms   1.19s    61.95%
+    Req/Sec    14.14     13.95    50.00     78.98%
+  1924 requests in 30.10s, 227.35KB read
+Requests/sec:     63.91
+Transfer/sec:      7.55KB
+
+[0;35m========================================[0m
+[0;35m  REALISTIC BENCHMARK COMPLETE[0m
+[0;35m========================================[0m
+
+[0;32mAll tests completed![0m
+[1;33mConfiguration: 100K documents, 4096D vectors[0m
+

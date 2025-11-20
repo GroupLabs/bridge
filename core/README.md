@@ -44,10 +44,32 @@ cmake -B build . \
 
 make -C build
 
-export DYLD_LIBRARY_PATH=/Users/noelthomas/Documents/GitHub/bridge/core/faiss/build/faiss:/Users/noelthomas/Documents/GitHub/bridge/core/faiss/build/c_api:$DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=/Users/noelthomas/Documents/GitHub/grouplabs/bridge/core/faiss/build/faiss:/Users/noelthomas/Documents/GitHub/grouplabs/bridge/core/faiss/build/c_api:/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH
 
 in core/
 
-cargo run
+cargo run --release
+
+OR:
+
+export DYLD_LIBRARY_PATH=$(pwd)/faiss/build/faiss:$(pwd)/faiss/build/c_api:/opt/homebrew/opt/
+  libomp/lib:$DYLD_LIBRARY_PATH && cargo run --release
+
+Only runs in release mode for some reason (https://github.com/SeekStorm/SeekStorm/issues/20)
+
+If release does not build on Mac, you may need to do:
+```
+# Make sure Xcode CLI tools are installed
+xcode-select --install
+
+# In your shell, override CC and CXX to Apple Clang
+export CC=clang
+export CXX=clang++
+
+# Then build again
+cargo build --release
+```
 
 Requires cargo@1.82 or higher
+
+many vectors, single text -> some algorithms can accept multiple query vectors per query
