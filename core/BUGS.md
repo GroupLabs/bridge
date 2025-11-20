@@ -1,0 +1,1 @@
+- seekstorm breaks if apostrophe is included. https://chatgpt.com/share/67cd6857-c6c8-800c-bae0-ae98bbd2174c

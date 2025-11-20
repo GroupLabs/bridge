@@ -6,14 +6,18 @@ build = "build.rs"
 
 [dependencies]
 actix-web = "4.9.0"
+anyhow = "1.0.100"
 bindgen = "0.71.1"
+crc32fast = "1.5.0"
+dashmap = "6.1.0"
 env_logger = "0.11.5"
 libc = "0.2.168"
 log = "0.4.22"
-seekstorm = "0.12.2"
+rayon = "1.11.0"
+seekstorm = { git = "https://github.com/SeekStorm/SeekStorm.git" }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.133"
-tokio = "1.42.0"
+tokio = { version = "1.42.0", features = ["full"] }
 
 [build-dependencies]
 bindgen = "0.71.1"
