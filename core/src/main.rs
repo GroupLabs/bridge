@@ -303,28 +303,51 @@ async fn faiss_search(
         }
 
         let result = unsafe {
-            let status = faiss_Index_search(
-                index_data.index.0,
-                nq,
-                query.as_ptr(),
-                k,
-                distances.as_mut_ptr(),
-                labels.as_mut_ptr(),
+            // Create SearchParametersHNSW with efSearch=128 for production quality (95%+ recall)
+            let mut params_ptr: *mut FaissSearchParametersHNSW = ptr::null_mut();
+            let create_status = faiss_SearchParametersHNSW_new(
+                &mut params_ptr as *mut *mut FaissSearchParametersHNSW,
+                ptr::null_mut(),  // No ID selector
+                128,              // efSearch=128 for production quality
             );
 
-            if status != 0 {
+            if create_status != 0 {
                 let error_ptr = faiss_get_last_error();
                 let error_message = std::ffi::CStr::from_ptr(error_ptr)
                     .to_string_lossy()
                     .to_string();
-                Err(error_message)
+                Err(format!("Failed to create search parameters: {}", error_message))
             } else {
-                let results: Vec<(i64, f32)> = labels
-                    .into_iter()
-                    .zip(distances.into_iter())
-                    .filter(|(id, _)| *id != -1)
-                    .collect();
-                Ok(results)
+                // Cast SearchParametersHNSW to SearchParameters
+                let search_params = params_ptr as *const FaissSearchParameters;
+
+                let status = faiss_Index_search_with_params(
+                    index_data.index.0,
+                    nq,
+                    query.as_ptr(),
+                    k,
+                    search_params,
+                    distances.as_mut_ptr(),
+                    labels.as_mut_ptr(),
+                );
+
+                // Free the search parameters
+                faiss_SearchParametersHNSW_free(params_ptr);
+
+                if status != 0 {
+                    let error_ptr = faiss_get_last_error();
+                    let error_message = std::ffi::CStr::from_ptr(error_ptr)
+                        .to_string_lossy()
+                        .to_string();
+                    Err(error_message)
+                } else {
+                    let results: Vec<(i64, f32)> = labels
+                        .into_iter()
+                        .zip(distances.into_iter())
+                        .filter(|(id, _)| *id != -1)
+                        .collect();
+                    Ok(results)
+                }
             }
         };
 
