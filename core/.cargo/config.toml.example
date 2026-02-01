@@ -1,0 +1,10 @@
+# Machine-specific build configuration
+# Copy this file to config.toml and adjust paths for your system:
+#   cp .cargo/config.toml.example .cargo/config.toml
+
+[env]
+# OpenMP library path (libomp)
+# macOS ARM (Apple Silicon): /opt/homebrew/opt/libomp/lib
+# macOS Intel: /usr/local/opt/libomp/lib
+# Linux: /usr/lib (usually in default path)
+LIBOMP_PATH = "/opt/homebrew/opt/libomp/lib"
