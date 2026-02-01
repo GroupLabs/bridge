@@ -71,10 +71,16 @@ Note: Uses system Apple Clang by default. If you have LLVM installed, you can op
 - `-DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang`
 - `-DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++`
 
+**Intel Mac users**: Replace `/opt/homebrew/opt/libomp` with `/usr/local/opt/libomp` in the cmake command above.
+
 ## Build Bridge (Core)
 
 ```bash
 cd core/
+
+# Configure local library paths (one-time setup)
+cp .cargo/config.toml.example .cargo/config.toml
+# Intel Mac users: edit LIBOMP_PATH to /usr/local/opt/libomp/lib
 
 # Build in release mode (required for SeekStorm performance)
 cargo build --release
@@ -84,17 +90,19 @@ Only runs in release mode for some reason (https://github.com/SeekStorm/SeekStor
 
 ## Run Bridge
 
-Set library paths and run:
 ```bash
-export DYLD_LIBRARY_PATH=$(pwd)/faiss/build/faiss:$(pwd)/faiss/build/c_api:/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH
-
 ./target/release/core
 ```
 
-Or in one line:
-```bash
-export DYLD_LIBRARY_PATH=$(pwd)/faiss/build/faiss:$(pwd)/faiss/build/c_api:/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH && cargo run --release
-```
+No environment variables needed - library paths are embedded in the binary at build time.
+
+## Profiling with Apple Instruments
+
+The binary can be profiled directly with Instruments without any environment setup:
+1. Open Instruments
+2. Choose Time Profiler template
+3. Select `target/release/core` as the target
+4. Start recording
 
 ## Troubleshooting
 
@@ -109,6 +117,19 @@ export CXX=clang++
 
 # Then build again
 cargo build --release
+```
+
+If you get "Library not loaded" errors at runtime:
+```bash
+# Verify rpath is embedded in the binary
+otool -l target/release/core | grep -A2 LC_RPATH
+
+# Should show paths like:
+#   @executable_path/../../faiss/build/faiss
+#   @executable_path/../../faiss/build/c_api
+#   /opt/homebrew/opt/libomp/lib
+
+# If missing, rebuild after setting up .cargo/config.toml
 ```
 
 ## Configuration Notes

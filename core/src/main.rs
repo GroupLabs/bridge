@@ -58,6 +58,7 @@ impl Drop for FaissIndexWrapper {
     }
 }
 
+
 /// High-performance vector index data with lock-free structures
 struct VectorIndexData {
     index: FaissIndexWrapper,
@@ -280,11 +281,11 @@ async fn faiss_delete_batch(
     .unwrap()
 }
 
-/// Search FAISS index (CPU-intensive, uses Rayon pool)
+/// Search FAISS index (CPU-intensive, uses dedicated Rayon pool)
 async fn faiss_search(
     faiss_pool: Arc<rayon::ThreadPool>,
     index_data: Arc<VectorIndexData>,
-    query: Vec<f32>,
+    query: Arc<Vec<f32>>,  // Arc to avoid 16KB clone per request
     k: c_longlong,
 ) -> Result<Vec<(i64, f32)>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -303,58 +304,36 @@ async fn faiss_search(
         }
 
         let result = unsafe {
-            // Create SearchParametersHNSW with efSearch=128 for production quality (95%+ recall)
-            let mut params_ptr: *mut FaissSearchParametersHNSW = ptr::null_mut();
-            let create_status = faiss_SearchParametersHNSW_new(
-                &mut params_ptr as *mut *mut FaissSearchParametersHNSW,
-                ptr::null_mut(),  // No ID selector
-                128,              // efSearch=128 for production quality
+            // Use simple faiss_Index_search - HNSW uses its default efSearch (no per-query alloc overhead)
+            let status = faiss_Index_search(
+                index_data.index.0,
+                nq,
+                query.as_ptr(),
+                k,
+                distances.as_mut_ptr(),
+                labels.as_mut_ptr(),
             );
 
-            if create_status != 0 {
+            if status != 0 {
                 let error_ptr = faiss_get_last_error();
                 let error_message = std::ffi::CStr::from_ptr(error_ptr)
                     .to_string_lossy()
                     .to_string();
-                Err(format!("Failed to create search parameters: {}", error_message))
+                Err(error_message)
             } else {
-                // Cast SearchParametersHNSW to SearchParameters
-                let search_params = params_ptr as *const FaissSearchParameters;
-
-                let status = faiss_Index_search_with_params(
-                    index_data.index.0,
-                    nq,
-                    query.as_ptr(),
-                    k,
-                    search_params,
-                    distances.as_mut_ptr(),
-                    labels.as_mut_ptr(),
-                );
-
-                // Free the search parameters
-                faiss_SearchParametersHNSW_free(params_ptr);
-
-                if status != 0 {
-                    let error_ptr = faiss_get_last_error();
-                    let error_message = std::ffi::CStr::from_ptr(error_ptr)
-                        .to_string_lossy()
-                        .to_string();
-                    Err(error_message)
-                } else {
-                    let results: Vec<(i64, f32)> = labels
-                        .into_iter()
-                        .zip(distances.into_iter())
-                        .filter(|(id, _)| *id != -1)
-                        .collect();
-                    Ok(results)
-                }
+                let results: Vec<(i64, f32)> = labels
+                    .into_iter()
+                    .zip(distances.into_iter())
+                    .filter(|(id, _)| *id != -1)
+                    .collect();
+                Ok(results)
             }
         };
 
         let _ = tx.send(result);
     });
 
-    rx.await.unwrap()
+    rx.await.map_err(|e| format!("Channel receive error: {}", e))?
 }
 
 // ============================================================================
@@ -856,7 +835,10 @@ async fn search(
     let (vector_results, text_results) = tokio::join!(
         async {
             match &req.vector_query {
-                Some(query) => faiss_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query.clone(), k).await.ok(),
+                Some(query) => {
+                    let query_arc = Arc::new(query.clone());
+                    faiss_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
+                },
                 None => None,
             }
         },
@@ -927,6 +909,113 @@ async fn search(
     })
 }
 
+/// MessagePack search endpoint - faster parsing for high-throughput scenarios
+async fn search_msgpack(
+    state: web::Data<AppState>,
+    body: web::Bytes,
+) -> impl Responder {
+    // Deserialize from MessagePack
+    let req: SearchRequest = match rmp_serde::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => return HttpResponse::BadRequest().json(ErrorResponse {
+            error: format!("MessagePack parse error: {}", e),
+        }),
+    };
+
+    let index_name = req.index.trim();
+
+    let bridge_index = {
+        let indices = state.indices.read().await;
+        match indices.get(index_name) {
+            Some(idx) => idx.clone(),
+            None => return HttpResponse::NotFound().json(ErrorResponse {
+                error: format!("Index '{}' not found", index_name),
+            }),
+        }
+    };
+
+    let k = req.k as c_longlong;
+
+    // Parallel search execution
+    let (vector_results, text_results) = tokio::join!(
+        async {
+            match &req.vector_query {
+                Some(query) => {
+                    let query_arc = Arc::new(query.clone());
+                    faiss_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
+                },
+                None => None,
+            }
+        },
+        async {
+            match &req.text_query {
+                Some(query) if !query.is_empty() => {
+                    text_search(
+                        bridge_index.text_index.clone(),
+                        query,
+                        req.text_offset,
+                        req.text_length,
+                    ).await.ok()
+                },
+                _ => None,
+            }
+        }
+    );
+
+    let results = match (vector_results, text_results) {
+        (Some(v), Some(t)) => {
+            weighted_rrf(v, t, req.vector_weight, req.text_weight, &bridge_index.vector_index.text_map)
+        },
+        (Some(v), None) => {
+            v.into_iter()
+                .enumerate()
+                .map(|(rank, (id, _dist))| RRFSearchResult {
+                    id,
+                    text: bridge_index.vector_index.text_map
+                        .get(&id)
+                        .map(|t| t.as_ref().to_string())
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    score: 1.0 / (DEFAULT_RRF_K + rank as f32),
+                    vector_rank: Some(rank),
+                    text_rank: None,
+                    source: "vector".to_string(),
+                })
+                .collect()
+        },
+        (None, Some(t)) => {
+            t.into_iter()
+                .enumerate()
+                .map(|(rank, (id, _score))| RRFSearchResult {
+                    id,
+                    text: bridge_index.vector_index.text_map
+                        .get(&id)
+                        .map(|t| t.as_ref().to_string())
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    score: 1.0 / (DEFAULT_RRF_K + rank as f32),
+                    vector_rank: None,
+                    text_rank: Some(rank),
+                    source: "text".to_string(),
+                })
+                .collect()
+        },
+        (None, None) => {
+            return HttpResponse::BadRequest().json(ErrorResponse {
+                error: "At least one of vector_query or text_query must be provided".to_string(),
+            });
+        }
+    };
+
+    // Return MessagePack response for consistency
+    match rmp_serde::to_vec(&SearchResults { total: results.len(), results }) {
+        Ok(bytes) => HttpResponse::Ok()
+            .content_type("application/msgpack")
+            .body(bytes),
+        Err(_) => HttpResponse::InternalServerError().json(ErrorResponse {
+            error: "Failed to serialize response".to_string(),
+        }),
+    }
+}
+
 async fn save_all_indices(state: web::Data<AppState>) -> impl Responder {
     let indices = state.indices.read().await;
     let base_path = PathBuf::from(INDICES_PATH);
@@ -990,17 +1079,22 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
+            .app_data(web::JsonConfig::default().limit(50 * 1024 * 1024))  // 50MB JSON limit for batch ops
+            .app_data(web::PayloadConfig::default().limit(50 * 1024 * 1024))  // 50MB payload limit
             .route("/health", web::get().to(health))
             .route("/create_index", web::post().to(create_bridge_index_handler))
             .route("/add", web::post().to(add_document))
             .route("/add_batch", web::post().to(add_batch))
             .route("/delete", web::post().to(delete_documents))
             .route("/search", web::post().to(search))
+            .route("/search_msgpack", web::post().to(search_msgpack))
             .route("/save", web::post().to(save_all_indices))
     })
-    .bind(("127.0.0.1", 8080))?;
+    .workers(16)      // Explicit worker count for high concurrency
+    .backlog(4096)    // Handle burst traffic better
+    .bind(("0.0.0.0", 8080))?;
 
-    info!("Server running on http://127.0.0.1:8080");
+    info!("Server running on http://0.0.0.0:8080");
 
     let server_handle = server.run();
 
