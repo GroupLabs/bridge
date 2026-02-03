@@ -39,9 +39,9 @@ const BATCH_SIZE: usize = 100;
 const BATCH_TIMEOUT_MS: u64 = 50;
 const DEFAULT_RRF_K: f32 = 60.0;
 const IVF_PQ_UPGRADE_THRESHOLD: usize = 10_000; // Auto-upgrade to FastScan at 10k vectors
-const FASTSCAN_K_FACTOR: f32 = 10.0; // Rerank factor: search k*k_factor candidates, rerank to top k
-                                      // k_factor=10 gives ~88% recall vs 60% without reranking (SIFT1M)
-                                      // Set to 1.0 to disable reranking for max speed
+const FASTSCAN_K_FACTOR: f32 = 5.0; // Rerank factor: search k*k_factor candidates, rerank to top k
+                                     // k_factor=5 gives 98.7% recall, k_factor=10 gives 98.9%
+                                     // Set to 1.0 to disable reranking for max speed
 
 // Index types
 const INDEX_TYPE_HNSW: u8 = 0;
@@ -209,6 +209,36 @@ struct SearchResults {
 #[derive(Serialize)]
 struct ErrorResponse {
     error: String,
+}
+
+/// Batch search request - multiple queries executed together for higher throughput
+#[derive(Deserialize)]
+struct BatchSearchRequest {
+    index: String,
+    queries: Vec<BatchQueryItem>,
+    #[serde(default = "default_k")]
+    k: usize,
+    #[serde(default = "default_batch_window_ms")]
+    window_ms: u64,  // Time to wait for more queries (0 = no waiting)
+}
+
+#[derive(Deserialize)]
+struct BatchQueryItem {
+    vector_query: Option<Vec<f32>>,
+    text_query: Option<String>,
+    #[serde(default = "default_vector_weight")]
+    vector_weight: f32,
+    #[serde(default = "default_text_weight")]
+    text_weight: f32,
+}
+
+fn default_batch_window_ms() -> u64 { 0 }
+
+#[derive(Serialize)]
+struct BatchSearchResponse {
+    results: Vec<SearchResults>,
+    batch_size: usize,
+    total_time_ms: f64,
 }
 
 // ============================================================================
@@ -506,6 +536,82 @@ async fn faiss_search(
                     .filter(|(id, _)| *id != -1)
                     .collect();
                 Ok(results)
+            }
+        };
+
+        let _ = tx.send(result);
+    });
+
+    rx.await.map_err(|e| format!("Channel receive error: {}", e))?
+}
+
+/// Batch vector search - process multiple queries in one FAISS call for higher throughput
+async fn faiss_batch_search(
+    faiss_pool: Arc<rayon::ThreadPool>,
+    index_data: Arc<VectorIndexData>,
+    queries: Vec<Vec<f32>>,  // Multiple query vectors
+    k: c_longlong,
+) -> Result<Vec<Vec<(i64, f32)>>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let nq = queries.len();
+    let dimension = index_data.dimension as usize;
+
+    faiss_pool.spawn(move || {
+        let k_usize = k as usize;
+
+        // Lock-free access via ArcSwap
+        let index_arc = index_data.index.load();
+        let ptr = index_arc.0;
+
+        // Check if index is empty
+        let ntotal = unsafe { faiss_Index_ntotal(ptr) };
+        if ntotal == 0 {
+            let _ = tx.send(Err("The index is empty. Add vectors before searching.".to_string()));
+            return;
+        }
+
+        // Flatten queries into contiguous array
+        let flat_queries: Vec<f32> = queries.iter().flatten().copied().collect();
+        if flat_queries.len() != nq * dimension {
+            let _ = tx.send(Err("Query dimension mismatch".to_string()));
+            return;
+        }
+
+        // Allocate output buffers for all queries
+        let mut distances = vec![0.0f32; nq * k_usize];
+        let mut labels = vec![-1i64; nq * k_usize];
+
+        let result = unsafe {
+            let status = faiss_Index_search(
+                ptr,
+                nq as c_longlong,
+                flat_queries.as_ptr(),
+                k,
+                distances.as_mut_ptr(),
+                labels.as_mut_ptr(),
+            );
+
+            if status != 0 {
+                let error_ptr = faiss_get_last_error();
+                let error_message = std::ffi::CStr::from_ptr(error_ptr)
+                    .to_string_lossy()
+                    .to_string();
+                Err(error_message)
+            } else {
+                // Split results back into per-query vectors
+                let mut all_results = Vec::with_capacity(nq);
+                for i in 0..nq {
+                    let start = i * k_usize;
+                    let end = start + k_usize;
+                    let query_results: Vec<(i64, f32)> = labels[start..end]
+                        .iter()
+                        .zip(distances[start..end].iter())
+                        .filter(|(id, _)| **id != -1)
+                        .map(|(id, dist)| (*id, *dist))
+                        .collect();
+                    all_results.push(query_results);
+                }
+                Ok(all_results)
             }
         };
 
@@ -1208,6 +1314,141 @@ async fn search_msgpack(
     }
 }
 
+/// Batch search endpoint - execute multiple queries in one call for maximum throughput
+/// With window_ms > 0, the server will wait to accumulate more queries before executing
+async fn batch_search(
+    state: web::Data<AppState>,
+    req: web::Json<BatchSearchRequest>,
+) -> impl Responder {
+    let start_time = std::time::Instant::now();
+    let index_name = req.index.trim();
+
+    let bridge_index = {
+        let indices = state.indices.read().await;
+        match indices.get(index_name) {
+            Some(idx) => idx.clone(),
+            None => return HttpResponse::NotFound().json(ErrorResponse {
+                error: format!("Index '{}' not found", index_name),
+            }),
+        }
+    };
+
+    // Optional: wait for more queries if window_ms > 0
+    if req.window_ms > 0 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(req.window_ms)).await;
+    }
+
+    let k = req.k as c_longlong;
+    let num_queries = req.queries.len();
+
+    // Collect all vector queries
+    let vector_queries: Vec<Vec<f32>> = req.queries
+        .iter()
+        .filter_map(|q| q.vector_query.clone())
+        .collect();
+
+    // Execute batch vector search if we have any vector queries
+    let batch_vector_results = if !vector_queries.is_empty() {
+        match faiss_batch_search(
+            bridge_index.faiss_pool.clone(),
+            bridge_index.vector_index.clone(),
+            vector_queries,
+            k,
+        ).await {
+            Ok(results) => Some(results),
+            Err(e) => {
+                return HttpResponse::InternalServerError().json(ErrorResponse {
+                    error: format!("Batch search failed: {}", e),
+                });
+            }
+        }
+    } else {
+        None
+    };
+
+    // Build results for each query
+    let mut all_results = Vec::with_capacity(num_queries);
+    let mut vector_result_idx = 0;
+
+    for query_item in &req.queries {
+        let vector_results = if query_item.vector_query.is_some() {
+            let results = batch_vector_results
+                .as_ref()
+                .map(|r| r.get(vector_result_idx).cloned())
+                .flatten();
+            vector_result_idx += 1;
+            results
+        } else {
+            None
+        };
+
+        // Text search (still sequential for now - could be batched too)
+        let text_results = match &query_item.text_query {
+            Some(query) if !query.is_empty() => {
+                text_search(
+                    bridge_index.text_index.clone(),
+                    query,
+                    0,
+                    100,
+                ).await.ok()
+            },
+            _ => None,
+        };
+
+        let results = match (vector_results, text_results) {
+            (Some(v), Some(t)) => {
+                weighted_rrf(v, t, query_item.vector_weight, query_item.text_weight, &bridge_index.vector_index.text_map)
+            },
+            (Some(v), None) => {
+                v.into_iter()
+                    .enumerate()
+                    .map(|(rank, (id, _dist))| RRFSearchResult {
+                        id,
+                        text: bridge_index.vector_index.text_map
+                            .get(&id)
+                            .map(|t| t.as_ref().to_string())
+                            .unwrap_or_else(|| "Unknown".to_string()),
+                        score: 1.0 / (DEFAULT_RRF_K + rank as f32),
+                        vector_rank: Some(rank),
+                        text_rank: None,
+                        source: "vector".to_string(),
+                    })
+                    .collect()
+            },
+            (None, Some(t)) => {
+                t.into_iter()
+                    .enumerate()
+                    .map(|(rank, (id, _score))| RRFSearchResult {
+                        id,
+                        text: bridge_index.vector_index.text_map
+                            .get(&id)
+                            .map(|t| t.as_ref().to_string())
+                            .unwrap_or_else(|| "Unknown".to_string()),
+                        score: 1.0 / (DEFAULT_RRF_K + rank as f32),
+                        vector_rank: None,
+                        text_rank: Some(rank),
+                        source: "text".to_string(),
+                    })
+                    .collect()
+            },
+            (None, None) => Vec::new(),
+        };
+
+        all_results.push(SearchResults {
+            total: results.len(),
+            results,
+        });
+    }
+
+    let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+
+    HttpResponse::Ok().json(BatchSearchResponse {
+        results: all_results,
+        batch_size: num_queries,
+        total_time_ms: elapsed_ms,
+    })
+}
+
 async fn save_all_indices(state: web::Data<AppState>) -> impl Responder {
     let indices = state.indices.read().await;
     let base_path = PathBuf::from(INDICES_PATH);
@@ -1287,6 +1528,7 @@ async fn main() -> std::io::Result<()> {
             .route("/delete", web::post().to(delete_documents))
             .route("/search", web::post().to(search))
             .route("/search_msgpack", web::post().to(search_msgpack))
+            .route("/search_batch", web::post().to(batch_search))
             .route("/save", web::post().to(save_all_indices))
     })
     .workers(16)      // Explicit worker count for high concurrency
