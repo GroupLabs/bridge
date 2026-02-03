@@ -40,7 +40,7 @@ fn main() {
         .header("faiss/c_api/index_io_c.h")
         .header("faiss/c_api/AutoTune_c.h")
         .header("faiss/c_api/error_c.h")
-        // Add other headers if needed
+        .header("faiss/c_api/IndexIVF_c.h")
         .clang_arg("-I./faiss/c_api") // Path to FAISS headers
         .allowlist_function("^faiss_.*") // Include all functions starting with 'faiss_'
         .allowlist_type("^Faiss.*") // Include all types starting with 'Faiss'

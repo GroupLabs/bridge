@@ -9,6 +9,7 @@ name = "core"
 path = "src/main.rs"
 
 [dependencies]
+arc-swap = "1.7"
 actix-web = "4.9.0"
 anyhow = "1.0.100"
 bindgen = "0.71.1"
