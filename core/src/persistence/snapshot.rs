@@ -25,10 +25,15 @@ pub struct IndexMetadata {
     pub text_map: HashMap<i64, String>,
     pub snapshot_id: u64,
     pub timestamp: u64,
-    /// Index type: 0=HNSW, 1=FastScan
+    /// Index type: 0=HNSW, 1=FastScan, 2=HNSW_SQ8
     #[serde(default)]
     pub index_type: u8,
+    /// Target upgrade type: 1=FastScan, 2=HNSW_SQ8
+    #[serde(default = "default_upgrade_type")]
+    pub upgrade_type: u8,
 }
+
+fn default_upgrade_type() -> u8 { 1 } // FastScan by default
 
 impl IndexMetadata {
     pub fn new(name: String, dimension: i32, k: i64) -> Self {
@@ -41,6 +46,7 @@ impl IndexMetadata {
             snapshot_id: Self::current_timestamp(),
             timestamp: Self::current_timestamp(),
             index_type: 0, // HNSW by default
+            upgrade_type: 1, // FastScan by default
         }
     }
 
@@ -58,6 +64,7 @@ impl IndexMetadata {
         next_id: &AtomicI64,
         text_map: &DashMap<i64, Arc<str>>,
         index_type: u8,
+        upgrade_type: u8,
     ) -> Self {
         let mut map = HashMap::new();
         for entry in text_map.iter() {
@@ -73,6 +80,7 @@ impl IndexMetadata {
             snapshot_id: Self::current_timestamp(),
             timestamp: Self::current_timestamp(),
             index_type,
+            upgrade_type,
         }
     }
 }

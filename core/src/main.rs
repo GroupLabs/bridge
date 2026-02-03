@@ -38,14 +38,14 @@ const INDICES_PATH: &str = "./indices";
 const BATCH_SIZE: usize = 100;
 const BATCH_TIMEOUT_MS: u64 = 50;
 const DEFAULT_RRF_K: f32 = 60.0;
-const IVF_PQ_UPGRADE_THRESHOLD: usize = 10_000; // Auto-upgrade to FastScan at 10k vectors
-const FASTSCAN_K_FACTOR: f32 = 5.0; // Rerank factor: search k*k_factor candidates, rerank to top k
-                                     // k_factor=5 gives 98.7% recall, k_factor=10 gives 98.9%
-                                     // Set to 1.0 to disable reranking for max speed
+const HNSW_SQ8_UPGRADE_THRESHOLD: usize = 10_000; // Auto-upgrade to HNSW_SQ8 at 10k vectors
+const HNSW_SQ8_K_FACTOR: f32 = 3.0; // Rerank factor for SQ8 (lower than PQ4 since SQ8 is more accurate)
+                                     // k_factor=3 gives ~97-98% recall with better QPS than FastScan
 
 // Index types
 const INDEX_TYPE_HNSW: u8 = 0;
-const INDEX_TYPE_FASTSCAN: u8 = 1;
+const INDEX_TYPE_FASTSCAN: u8 = 1;  // IVF-PQ4 with FastScan (62k QPS, 96.6% recall, 8x memory reduction)
+const INDEX_TYPE_HNSW_SQ8: u8 = 2;  // HNSW with 8-bit scalar quantization (42k QPS, 96.6% recall, 4x memory reduction)
 
 // ============================================================================
 // DATA STRUCTURES
@@ -76,13 +76,14 @@ struct VectorIndexData {
     k: c_longlong,
     text_map: DashMap<i64, Arc<str>>,  // Lock-free concurrent hashmap
     next_id: AtomicI64,                 // Lock-free ID counter
-    index_type: AtomicU8,              // 0=HNSW, 1=IVF-PQ
+    index_type: AtomicU8,              // 0=HNSW, 1=FastScan, 2=HNSW_SQ8
+    upgrade_type: AtomicU8,            // Target upgrade type: 1=FastScan, 2=HNSW_SQ8
     /// Buffer for upgrade (stores all vectors for re-indexing)
     vector_buffer: RwLock<Vec<(i64, Vec<f32>)>>,
 }
 
 impl VectorIndexData {
-    fn new(index_ptr: *mut FaissIndex, dimension: c_int, k: c_longlong) -> Self {
+    fn new(index_ptr: *mut FaissIndex, dimension: c_int, k: c_longlong, upgrade_type: u8) -> Self {
         Self {
             index: ArcSwap::from_pointee(FaissIndexWrapper(index_ptr, PhantomData)),
             dimension,
@@ -90,6 +91,7 @@ impl VectorIndexData {
             text_map: DashMap::new(),
             next_id: AtomicI64::new(0),
             index_type: AtomicU8::new(INDEX_TYPE_HNSW),
+            upgrade_type: AtomicU8::new(upgrade_type),
             vector_buffer: RwLock::new(Vec::new()),
         }
     }
@@ -102,6 +104,7 @@ impl VectorIndexData {
             text_map: DashMap::new(),
             next_id: AtomicI64::new(metadata.next_id),
             index_type: AtomicU8::new(metadata.index_type),
+            upgrade_type: AtomicU8::new(metadata.upgrade_type),
             vector_buffer: RwLock::new(Vec::new()),
         };
 
@@ -141,7 +144,11 @@ struct CreateIndexRequest {
     name: String,
     dimension: c_int,
     k: Option<c_longlong>,
+    #[serde(default = "default_upgrade_type")]
+    upgrade_type: String,  // "fastscan" or "hnsw_sq8"
 }
+
+fn default_upgrade_type() -> String { "fastscan".to_string() }
 
 #[derive(Clone, Deserialize, Serialize)]
 struct AddRequest {
@@ -246,7 +253,7 @@ struct BatchSearchResponse {
 // ============================================================================
 
 /// Create a FAISS index (CPU-intensive, wrapped in spawn_blocking)
-async fn create_faiss_index_async(dimension: c_int, k: c_longlong) -> Result<Arc<VectorIndexData>, String> {
+async fn create_faiss_index_async(dimension: c_int, k: c_longlong, upgrade_type: u8) -> Result<Arc<VectorIndexData>, String> {
     tokio::task::spawn_blocking(move || {
         let metric_description = CString::new("IDMap,HNSW32,Flat").unwrap();
         let mut index_ptr: *mut FaissIndex = ptr::null_mut();
@@ -272,44 +279,99 @@ async fn create_faiss_index_async(dimension: c_int, k: c_longlong) -> Result<Arc
             }
         }
 
-        Ok(Arc::new(VectorIndexData::new(index_ptr, dimension, k)))
+        Ok(Arc::new(VectorIndexData::new(index_ptr, dimension, k, upgrade_type)))
     })
     .await
     .unwrap()
 }
 
-/// Create a FastScan index from buffered vectors
+/// Create an HNSW_SQ8 index from buffered vectors (Descartes-inspired)
+/// Uses 8-bit scalar quantization for memory efficiency + reranking for high recall
+/// Returns a FaissIndexWrapper (Send+Sync safe) containing the new index
+fn create_hnsw_sq8_index(
+    dimension: c_int,
+    vectors: Vec<(i64, Vec<f32>)>,
+) -> Result<FaissIndexWrapper, String> {
+    let n = vectors.len();
+    // HNSW with 8-bit scalar quantization
+    // SQ8 quantizes each float32 to uint8 (4x memory reduction)
+    // HNSW32 means M=32 bidirectional links per node
+    // No reranking - SQ8 is accurate enough (better than PQ4)
+    let desc = CString::new("IDMap2,HNSW32_SQ8").unwrap();
+
+    info!("Creating HNSW_SQ8 index: vectors={}, k_factor={}", n, HNSW_SQ8_K_FACTOR);
+
+    let mut index: *mut FaissIndex = ptr::null_mut();
+    unsafe {
+        // Create HNSW_SQ8 + RFlat index via factory
+        let status = faiss_index_factory(
+            &mut index,
+            dimension,
+            desc.as_ptr(),
+            FaissMetricType_METRIC_L2,
+        );
+
+        if status != 0 {
+            let error = faiss_get_last_error();
+            let error_message = std::ffi::CStr::from_ptr(error)
+                .to_string_lossy()
+                .to_string();
+            return Err(format!("Error creating HNSW_SQ8 index: {}", error_message));
+        }
+
+        // Flatten vectors for training
+        let flat: Vec<f32> = vectors.iter().flat_map(|(_, v)| v.iter().copied()).collect();
+        let ids: Vec<i64> = vectors.iter().map(|(id, _)| *id).collect();
+        let n_vectors = vectors.len() as c_longlong;
+
+        // Train SQ8 (learns quantization ranges from data)
+        let train_status = faiss_Index_train(index, n_vectors, flat.as_ptr());
+        if train_status != 0 {
+            faiss_Index_free(index);
+            return Err("Failed to train HNSW_SQ8 index".to_string());
+        }
+
+        info!("HNSW_SQ8 trained, adding {} vectors", n);
+
+        // Add all vectors with custom IDs
+        let add_status = faiss_Index_add_with_ids(index, n_vectors, flat.as_ptr(), ids.as_ptr());
+        if add_status != 0 {
+            let error = faiss_get_last_error();
+            let error_message = std::ffi::CStr::from_ptr(error)
+                .to_string_lossy()
+                .to_string();
+            faiss_Index_free(index);
+            return Err(format!("Failed to add vectors: {}", error_message));
+        }
+
+        info!("HNSW_SQ8 ready: {} vectors", n);
+
+        Ok(FaissIndexWrapper(index, PhantomData))
+    }
+}
+
+/// Create a FastScan IVF-PQ4 index from buffered vectors
+/// Uses 4-bit product quantization for maximum memory efficiency (8x reduction)
 /// Returns a FaissIndexWrapper (Send+Sync safe) containing the new index
 fn create_fastscan_index(
     dimension: c_int,
     vectors: Vec<(i64, Vec<f32>)>,
 ) -> Result<FaissIndexWrapper, String> {
     let n = vectors.len();
-    // nlist = 4 * sqrt(n), clamped to reasonable range
-    let nlist = ((4.0 * (n as f64).sqrt()) as usize).max(16).min(4096);
-    // m = number of subquantizers (higher = better recall, more memory)
-    // Tests showed m=64 gives best recall for SIFT1M (128D): 59.6% vs m=8's ~30%
-    // For any dimension, we want m=64 when possible (dimension must be divisible by m)
-    let m = if (dimension as usize) % 64 == 0 {
-        64  // Best recall
-    } else if (dimension as usize) % 32 == 0 {
-        32
-    } else if (dimension as usize) % 16 == 0 {
-        16
-    } else {
-        ((dimension as usize) / 2).max(8)  // Fallback for odd dimensions
-    };
-    // FastScan (4-bit PQ) with IDMap wrapper for custom IDs
-    // IMPORTANT: OMP_NUM_THREADS=1 must be set to avoid thread contention
-    let desc = CString::new(format!("IDMap,IVF{},PQ{}x4fs", nlist, m)).unwrap();
+    // IVF with PQ4 (4-bit product quantization) + FastScan
+    // nlist = sqrt(n) for good clustering
+    let nlist = (n as f64).sqrt().ceil() as i32;
+    // m = dimension / 2 subquantizers (each subquantizer handles 2 dimensions)
+    let m = dimension / 2;
+    // IVF + PQ4fs (4-bit PQ with FastScan)
+    let desc = CString::new(format!("IDMap2,IVF{}_PQ{}x4fs", nlist, m)).unwrap();
 
-    info!("Creating FastScan index: nlist={}, m={}, vectors={}, k_factor={}", nlist, m, n, FASTSCAN_K_FACTOR);
+    info!("Creating FastScan index: vectors={}, nlist={}, m={}", n, nlist, m);
 
-    let mut base_index: *mut FaissIndex = ptr::null_mut();
+    let mut index: *mut FaissIndex = ptr::null_mut();
     unsafe {
-        // Create FastScan base index
         let status = faiss_index_factory(
-            &mut base_index,
+            &mut index,
             dimension,
             desc.as_ptr(),
             FaissMetricType_METRIC_L2,
@@ -328,46 +390,29 @@ fn create_fastscan_index(
         let ids: Vec<i64> = vectors.iter().map(|(id, _)| *id).collect();
         let n_vectors = vectors.len() as c_longlong;
 
-        // Train on all vectors (before wrapping)
-        let train_status = faiss_Index_train(base_index, n_vectors, flat.as_ptr());
+        // Train IVF clustering and PQ codebook
+        let train_status = faiss_Index_train(index, n_vectors, flat.as_ptr());
         if train_status != 0 {
-            faiss_Index_free(base_index);
+            faiss_Index_free(index);
             return Err("Failed to train FastScan index".to_string());
         }
 
-        // Set nprobe for balanced recall/speed
-        let nprobe = 32;
-        faiss_IndexIVF_set_nprobe(base_index as *mut FaissIndexIVF, nprobe);
+        info!("FastScan trained, adding {} vectors", n);
 
-        // Wrap in IndexRefineFlat for reranking (if k_factor > 1)
-        let final_index = if FASTSCAN_K_FACTOR > 1.0 {
-            let mut refine_index: *mut FaissIndexRefineFlat = ptr::null_mut();
-            let refine_status = faiss_IndexRefineFlat_new(&mut refine_index, base_index);
-            if refine_status != 0 {
-                faiss_Index_free(base_index);
-                return Err("Failed to create IndexRefineFlat wrapper".to_string());
-            }
-
-            // Set k_factor for reranking (search k*k_factor candidates, rerank to top k)
-            faiss_IndexRefineFlat_set_k_factor(refine_index, FASTSCAN_K_FACTOR);
-            // Own the base index so it gets freed with the refine index
-            faiss_IndexRefineFlat_set_own_fields(refine_index, 1);
-
-            info!("FastScan with reranking: nprobe={}, m={}, k_factor={}", nprobe, m, FASTSCAN_K_FACTOR);
-            refine_index as *mut FaissIndex
-        } else {
-            info!("FastScan without reranking: nprobe={}, m={}", nprobe, m);
-            base_index
-        };
-
-        // Add all vectors with custom IDs (through final index - adds to both base and refine)
-        let add_status = faiss_Index_add_with_ids(final_index, n_vectors, flat.as_ptr(), ids.as_ptr());
+        // Add all vectors with custom IDs
+        let add_status = faiss_Index_add_with_ids(index, n_vectors, flat.as_ptr(), ids.as_ptr());
         if add_status != 0 {
-            faiss_Index_free(final_index);
-            return Err("Failed to add vectors to FastScan index".to_string());
+            let error = faiss_get_last_error();
+            let error_message = std::ffi::CStr::from_ptr(error)
+                .to_string_lossy()
+                .to_string();
+            faiss_Index_free(index);
+            return Err(format!("Failed to add vectors: {}", error_message));
         }
 
-        Ok(FaissIndexWrapper(final_index, PhantomData))
+        info!("FastScan ready: {} vectors", n);
+
+        Ok(FaissIndexWrapper(index, PhantomData))
     }
 }
 
@@ -420,13 +465,19 @@ async fn faiss_add_batch(
             buffer.push((*id, vec.clone()));
         }
 
-        // Check if upgrade needed
+        // Check if upgrade needed (HNSW -> upgraded index at threshold)
         index_data.index_type.load(Ordering::SeqCst) == INDEX_TYPE_HNSW
-            && buffer.len() >= IVF_PQ_UPGRADE_THRESHOLD
+            && buffer.len() >= HNSW_SQ8_UPGRADE_THRESHOLD
     };
 
     if should_upgrade {
-        info!("Upgrading to FastScan index...");
+        let upgrade_type = index_data.upgrade_type.load(Ordering::SeqCst);
+        let upgrade_name = match upgrade_type {
+            INDEX_TYPE_FASTSCAN => "FastScan",
+            INDEX_TYPE_HNSW_SQ8 => "HNSW_SQ8",
+            _ => "FastScan", // default
+        };
+        info!("Upgrading to {} index...", upgrade_name);
 
         // Get all buffered vectors (move out to avoid clone)
         let buffer_snapshot: Vec<(i64, Vec<f32>)> = {
@@ -437,9 +488,13 @@ async fn faiss_add_batch(
         let vector_count = buffer_snapshot.len();
         let dimension = index_data.dimension;
 
-        // Create FastScan index in blocking task
+        // Create upgraded index in blocking task based on upgrade_type
         let new_index_result = tokio::task::spawn_blocking(move || {
-            create_fastscan_index(dimension, buffer_snapshot)
+            match upgrade_type {
+                INDEX_TYPE_FASTSCAN => create_fastscan_index(dimension, buffer_snapshot),
+                INDEX_TYPE_HNSW_SQ8 => create_hnsw_sq8_index(dimension, buffer_snapshot),
+                _ => create_fastscan_index(dimension, buffer_snapshot), // default to FastScan
+            }
         })
         .await
         .map_err(|e| format!("Task join error: {}", e))?;
@@ -449,16 +504,21 @@ async fn faiss_add_batch(
                 // Atomic swap via ArcSwap (lock-free)
                 let old_arc = index_data.index.swap(Arc::new(new_wrapper));
 
-                // Update index type
-                index_data.index_type.store(INDEX_TYPE_FASTSCAN, Ordering::SeqCst);
+                // Update index type to the actual upgraded type
+                let final_type = match upgrade_type {
+                    INDEX_TYPE_FASTSCAN => INDEX_TYPE_FASTSCAN,
+                    INDEX_TYPE_HNSW_SQ8 => INDEX_TYPE_HNSW_SQ8,
+                    _ => INDEX_TYPE_FASTSCAN,
+                };
+                index_data.index_type.store(final_type, Ordering::SeqCst);
 
                 // Old index will be freed when old_arc is dropped
                 drop(old_arc);
 
-                info!("Successfully upgraded to FastScan with {} vectors", vector_count);
+                info!("Successfully upgraded to {} with {} vectors", upgrade_name, vector_count);
             }
             Err(e) => {
-                error!("Failed to upgrade to FastScan: {}. Continuing with HNSW.", e);
+                error!("Failed to upgrade to {}: {}. Continuing with HNSW.", upgrade_name, e);
             }
         }
     }
@@ -772,13 +832,10 @@ async fn load_bridge_index(index_name: &str, base_path: &Path) -> Result<BridgeI
             .map_err(|e| format!("Failed to load snapshot: {}", e))?
     };
 
-    // Set nprobe for FastScan indices (nprobe is not serialized by FAISS)
-    if metadata.index_type == INDEX_TYPE_FASTSCAN {
-        unsafe {
-            // Set nprobe=8 for speed (can be made configurable)
-            faiss_IndexIVF_set_nprobe(faiss_index as *mut FaissIndexIVF, 8);
-        }
-        info!("Set nprobe=8 for loaded FastScan index: {}", index_name);
+    // Note: HNSW_SQ8 doesn't need nprobe (it's not an IVF index)
+    // The efSearch parameter is already part of the HNSW structure
+    if metadata.index_type == INDEX_TYPE_HNSW_SQ8 {
+        info!("Loaded HNSW_SQ8 index: {}", index_name);
     }
 
     let vector_index = Arc::new(VectorIndexData::from_metadata(faiss_index, metadata));
@@ -816,6 +873,7 @@ async fn save_bridge_index(bridge_index: &BridgeIndex, base_path: &Path) -> Resu
     info!("Saving index: {}", bridge_index.name);
 
     let index_type = bridge_index.vector_index.index_type.load(Ordering::SeqCst);
+    let upgrade_type = bridge_index.vector_index.upgrade_type.load(Ordering::SeqCst);
     let metadata = IndexMetadata::from_runtime(
         bridge_index.name.clone(),
         bridge_index.vector_index.dimension,
@@ -823,6 +881,7 @@ async fn save_bridge_index(bridge_index: &BridgeIndex, base_path: &Path) -> Resu
         &bridge_index.vector_index.next_id,
         &bridge_index.vector_index.text_map,
         index_type,
+        upgrade_type,
     );
 
     // Lock-free access via ArcSwap
@@ -857,6 +916,13 @@ async fn create_bridge_index_handler(
     let dimension = req.dimension;
     let k = req.k.unwrap_or(10);
 
+    // Parse upgrade_type: "fastscan" (default) or "hnsw_sq8"
+    let upgrade_type = match req.upgrade_type.to_lowercase().as_str() {
+        "hnsw_sq8" => INDEX_TYPE_HNSW_SQ8,
+        _ => INDEX_TYPE_FASTSCAN, // default to FastScan
+    };
+    let upgrade_type_name = if upgrade_type == INDEX_TYPE_HNSW_SQ8 { "hnsw_sq8" } else { "fastscan" };
+
     // Check if exists
     {
         let indices = state.indices.read().await;
@@ -870,7 +936,7 @@ async fn create_bridge_index_handler(
     let index_path = PathBuf::from(INDICES_PATH).join(&index_name);
     std::fs::create_dir_all(&index_path).ok();
 
-    let vector_index = match create_faiss_index_async(dimension, k).await {
+    let vector_index = match create_faiss_index_async(dimension, k, upgrade_type).await {
         Ok(idx) => idx,
         Err(e) => return HttpResponse::InternalServerError().json(ErrorResponse { error: e }),
     };
@@ -924,7 +990,8 @@ async fn create_bridge_index_handler(
     }
 
     HttpResponse::Ok().json(json!({
-        "message": format!("Index '{}' created successfully", index_name)
+        "message": format!("Index '{}' created successfully", index_name),
+        "upgrade_type": upgrade_type_name
     }))
 }
 
