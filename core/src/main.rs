@@ -39,6 +39,9 @@ const BATCH_SIZE: usize = 100;
 const BATCH_TIMEOUT_MS: u64 = 50;
 const DEFAULT_RRF_K: f32 = 60.0;
 const IVF_PQ_UPGRADE_THRESHOLD: usize = 10_000; // Auto-upgrade to FastScan at 10k vectors
+const FASTSCAN_K_FACTOR: f32 = 10.0; // Rerank factor: search k*k_factor candidates, rerank to top k
+                                      // k_factor=10 gives ~88% recall vs 60% without reranking (SIFT1M)
+                                      // Set to 1.0 to disable reranking for max speed
 
 // Index types
 const INDEX_TYPE_HNSW: u8 = 0;
@@ -254,18 +257,29 @@ fn create_fastscan_index(
     let n = vectors.len();
     // nlist = 4 * sqrt(n), clamped to reasonable range
     let nlist = ((4.0 * (n as f64).sqrt()) as usize).max(16).min(4096);
-    let m = ((dimension as usize) / 64).max(8).min(64);
+    // m = number of subquantizers (higher = better recall, more memory)
+    // Tests showed m=64 gives best recall for SIFT1M (128D): 59.6% vs m=8's ~30%
+    // For any dimension, we want m=64 when possible (dimension must be divisible by m)
+    let m = if (dimension as usize) % 64 == 0 {
+        64  // Best recall
+    } else if (dimension as usize) % 32 == 0 {
+        32
+    } else if (dimension as usize) % 16 == 0 {
+        16
+    } else {
+        ((dimension as usize) / 2).max(8)  // Fallback for odd dimensions
+    };
     // FastScan (4-bit PQ) with IDMap wrapper for custom IDs
     // IMPORTANT: OMP_NUM_THREADS=1 must be set to avoid thread contention
     let desc = CString::new(format!("IDMap,IVF{},PQ{}x4fs", nlist, m)).unwrap();
 
-    info!("Creating FastScan index: nlist={}, m={}, vectors={}", nlist, m, n);
+    info!("Creating FastScan index: nlist={}, m={}, vectors={}, k_factor={}", nlist, m, n, FASTSCAN_K_FACTOR);
 
-    let mut new_index: *mut FaissIndex = ptr::null_mut();
+    let mut base_index: *mut FaissIndex = ptr::null_mut();
     unsafe {
-        // Create FastScan index
+        // Create FastScan base index
         let status = faiss_index_factory(
-            &mut new_index,
+            &mut base_index,
             dimension,
             desc.as_ptr(),
             FaissMetricType_METRIC_L2,
@@ -282,29 +296,49 @@ fn create_fastscan_index(
         // Flatten vectors for training
         let flat: Vec<f32> = vectors.iter().flat_map(|(_, v)| v.iter().copied()).collect();
         let ids: Vec<i64> = vectors.iter().map(|(id, _)| *id).collect();
-        let n = vectors.len() as c_longlong;
+        let n_vectors = vectors.len() as c_longlong;
 
-        // Train on all vectors
-        let train_status = faiss_Index_train(new_index, n, flat.as_ptr());
+        // Train on all vectors (before wrapping)
+        let train_status = faiss_Index_train(base_index, n_vectors, flat.as_ptr());
         if train_status != 0 {
-            faiss_Index_free(new_index);
+            faiss_Index_free(base_index);
             return Err("Failed to train FastScan index".to_string());
         }
 
-        // Add all vectors with custom IDs
-        let add_status = faiss_Index_add_with_ids(new_index, n, flat.as_ptr(), ids.as_ptr());
+        // Set nprobe for balanced recall/speed
+        let nprobe = 32;
+        faiss_IndexIVF_set_nprobe(base_index as *mut FaissIndexIVF, nprobe);
+
+        // Wrap in IndexRefineFlat for reranking (if k_factor > 1)
+        let final_index = if FASTSCAN_K_FACTOR > 1.0 {
+            let mut refine_index: *mut FaissIndexRefineFlat = ptr::null_mut();
+            let refine_status = faiss_IndexRefineFlat_new(&mut refine_index, base_index);
+            if refine_status != 0 {
+                faiss_Index_free(base_index);
+                return Err("Failed to create IndexRefineFlat wrapper".to_string());
+            }
+
+            // Set k_factor for reranking (search k*k_factor candidates, rerank to top k)
+            faiss_IndexRefineFlat_set_k_factor(refine_index, FASTSCAN_K_FACTOR);
+            // Own the base index so it gets freed with the refine index
+            faiss_IndexRefineFlat_set_own_fields(refine_index, 1);
+
+            info!("FastScan with reranking: nprobe={}, m={}, k_factor={}", nprobe, m, FASTSCAN_K_FACTOR);
+            refine_index as *mut FaissIndex
+        } else {
+            info!("FastScan without reranking: nprobe={}, m={}", nprobe, m);
+            base_index
+        };
+
+        // Add all vectors with custom IDs (through final index - adds to both base and refine)
+        let add_status = faiss_Index_add_with_ids(final_index, n_vectors, flat.as_ptr(), ids.as_ptr());
         if add_status != 0 {
-            faiss_Index_free(new_index);
+            faiss_Index_free(final_index);
             return Err("Failed to add vectors to FastScan index".to_string());
         }
 
-        // Set nprobe for speed (adjustable at runtime if needed)
-        // Lower nprobe = faster but lower recall
-        let nprobe = 8; // Start low for max speed
-        faiss_IndexIVF_set_nprobe(new_index as *mut FaissIndexIVF, nprobe);
-        info!("FastScan nprobe set to {}", nprobe);
+        Ok(FaissIndexWrapper(final_index, PhantomData))
     }
-    Ok(FaissIndexWrapper(new_index, PhantomData))
 }
 
 /// Add vectors to FAISS in batch (CPU-intensive, uses Rayon pool)
