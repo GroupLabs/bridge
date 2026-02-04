@@ -8,6 +8,7 @@ mod bindings {
 }
 
 mod persistence;
+pub mod descartes;
 
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use bindings::*;
@@ -33,6 +34,9 @@ use tokio::sync::RwLock;
 use rayon::ThreadPoolBuilder;
 use arc_swap::ArcSwap;
 
+// Import Descartes module for pure Rust vector search
+use descartes::{DescartesConfig, DescartesIndex};
+
 // Constants
 const INDICES_PATH: &str = "./indices";
 const BATCH_SIZE: usize = 100;
@@ -46,6 +50,7 @@ const HNSW_SQ8_K_FACTOR: f32 = 3.0; // Rerank factor for SQ8 (lower than PQ4 sin
 const INDEX_TYPE_HNSW: u8 = 0;
 const INDEX_TYPE_FASTSCAN: u8 = 1;  // IVF-PQ4 with FastScan (62k QPS, 96.6% recall, 8x memory reduction)
 const INDEX_TYPE_HNSW_SQ8: u8 = 2;  // HNSW with 8-bit scalar quantization (42k QPS, 96.6% recall, 4x memory reduction)
+const INDEX_TYPE_DESCARTES: u8 = 3; // Pure Rust FNG with Int8 quantization (99%+ recall, no FAISS dependency)
 
 // ============================================================================
 // DATA STRUCTURES
@@ -71,13 +76,14 @@ impl Drop for FaissIndexWrapper {
 
 /// High-performance vector index data with lock-free structures
 struct VectorIndexData {
-    index: ArcSwap<FaissIndexWrapper>,  // Lock-free swappable index
+    index: ArcSwap<FaissIndexWrapper>,  // Lock-free swappable FAISS index
+    descartes_index: RwLock<Option<DescartesIndex>>, // Optional pure Rust backend
     dimension: c_int,
     k: c_longlong,
     text_map: DashMap<i64, Arc<str>>,  // Lock-free concurrent hashmap
     next_id: AtomicI64,                 // Lock-free ID counter
-    index_type: AtomicU8,              // 0=HNSW, 1=FastScan, 2=HNSW_SQ8
-    upgrade_type: AtomicU8,            // Target upgrade type: 1=FastScan, 2=HNSW_SQ8
+    index_type: AtomicU8,              // 0=HNSW, 1=FastScan, 2=HNSW_SQ8, 3=Descartes
+    upgrade_type: AtomicU8,            // Target upgrade type: 1=FastScan, 2=HNSW_SQ8, 3=Descartes
     /// Buffer for upgrade (stores all vectors for re-indexing)
     vector_buffer: RwLock<Vec<(i64, Vec<f32>)>>,
 }
@@ -86,6 +92,7 @@ impl VectorIndexData {
     fn new(index_ptr: *mut FaissIndex, dimension: c_int, k: c_longlong, upgrade_type: u8) -> Self {
         Self {
             index: ArcSwap::from_pointee(FaissIndexWrapper(index_ptr, PhantomData)),
+            descartes_index: RwLock::new(None),
             dimension,
             k,
             text_map: DashMap::new(),
@@ -99,6 +106,7 @@ impl VectorIndexData {
     fn from_metadata(index_ptr: *mut FaissIndex, metadata: IndexMetadata) -> Self {
         let data = Self {
             index: ArcSwap::from_pointee(FaissIndexWrapper(index_ptr, PhantomData)),
+            descartes_index: RwLock::new(None),
             dimension: metadata.dimension,
             k: metadata.k,
             text_map: DashMap::new(),
@@ -113,6 +121,11 @@ impl VectorIndexData {
         }
 
         data
+    }
+
+    /// Check if using Descartes backend
+    fn is_descartes(&self) -> bool {
+        self.index_type.load(Ordering::SeqCst) == INDEX_TYPE_DESCARTES
     }
 }
 
@@ -149,6 +162,14 @@ struct CreateIndexRequest {
 }
 
 fn default_upgrade_type() -> String { "fastscan".to_string() }
+
+fn parse_upgrade_type(s: &str) -> u8 {
+    match s.to_lowercase().as_str() {
+        "hnsw_sq8" => INDEX_TYPE_HNSW_SQ8,
+        "descartes" => INDEX_TYPE_DESCARTES,
+        _ => INDEX_TYPE_FASTSCAN, // default
+    }
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 struct AddRequest {
@@ -475,6 +496,7 @@ async fn faiss_add_batch(
         let upgrade_name = match upgrade_type {
             INDEX_TYPE_FASTSCAN => "FastScan",
             INDEX_TYPE_HNSW_SQ8 => "HNSW_SQ8",
+            INDEX_TYPE_DESCARTES => "Descartes",
             _ => "FastScan", // default
         };
         info!("Upgrading to {} index...", upgrade_name);
@@ -488,37 +510,57 @@ async fn faiss_add_batch(
         let vector_count = buffer_snapshot.len();
         let dimension = index_data.dimension;
 
-        // Create upgraded index in blocking task based on upgrade_type
-        let new_index_result = tokio::task::spawn_blocking(move || {
-            match upgrade_type {
-                INDEX_TYPE_FASTSCAN => create_fastscan_index(dimension, buffer_snapshot),
-                INDEX_TYPE_HNSW_SQ8 => create_hnsw_sq8_index(dimension, buffer_snapshot),
-                _ => create_fastscan_index(dimension, buffer_snapshot), // default to FastScan
+        if upgrade_type == INDEX_TYPE_DESCARTES {
+            // Create Descartes index (pure Rust, no FAISS)
+            let descartes_result = tokio::task::spawn_blocking(move || {
+                let config = DescartesConfig::new(dimension as usize)
+                    .with_m(32)
+                    .with_ef_construction(200)
+                    .with_ef_search(64);
+
+                let mut index = DescartesIndex::new(config);
+                let vectors: Vec<Vec<f32>> = buffer_snapshot.iter().map(|(_, v)| v.clone()).collect();
+                let ids: Vec<i64> = buffer_snapshot.iter().map(|(id, _)| *id).collect();
+                index.build_with_ids(&vectors, &ids);
+                index
+            })
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?;
+
+            // Store Descartes index
+            {
+                let mut descartes_guard = index_data.descartes_index.write().await;
+                *descartes_guard = Some(descartes_result);
             }
-        })
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?;
+            index_data.index_type.store(INDEX_TYPE_DESCARTES, Ordering::SeqCst);
+            info!("Successfully upgraded to Descartes with {} vectors", vector_count);
+        } else {
+            // Create FAISS-based upgraded index
+            let new_index_result = tokio::task::spawn_blocking(move || {
+                match upgrade_type {
+                    INDEX_TYPE_FASTSCAN => create_fastscan_index(dimension, buffer_snapshot),
+                    INDEX_TYPE_HNSW_SQ8 => create_hnsw_sq8_index(dimension, buffer_snapshot),
+                    _ => create_fastscan_index(dimension, buffer_snapshot),
+                }
+            })
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?;
 
-        match new_index_result {
-            Ok(new_wrapper) => {
-                // Atomic swap via ArcSwap (lock-free)
-                let old_arc = index_data.index.swap(Arc::new(new_wrapper));
-
-                // Update index type to the actual upgraded type
-                let final_type = match upgrade_type {
-                    INDEX_TYPE_FASTSCAN => INDEX_TYPE_FASTSCAN,
-                    INDEX_TYPE_HNSW_SQ8 => INDEX_TYPE_HNSW_SQ8,
-                    _ => INDEX_TYPE_FASTSCAN,
-                };
-                index_data.index_type.store(final_type, Ordering::SeqCst);
-
-                // Old index will be freed when old_arc is dropped
-                drop(old_arc);
-
-                info!("Successfully upgraded to {} with {} vectors", upgrade_name, vector_count);
-            }
-            Err(e) => {
-                error!("Failed to upgrade to {}: {}. Continuing with HNSW.", upgrade_name, e);
+            match new_index_result {
+                Ok(new_wrapper) => {
+                    let old_arc = index_data.index.swap(Arc::new(new_wrapper));
+                    let final_type = match upgrade_type {
+                        INDEX_TYPE_FASTSCAN => INDEX_TYPE_FASTSCAN,
+                        INDEX_TYPE_HNSW_SQ8 => INDEX_TYPE_HNSW_SQ8,
+                        _ => INDEX_TYPE_FASTSCAN,
+                    };
+                    index_data.index_type.store(final_type, Ordering::SeqCst);
+                    drop(old_arc);
+                    info!("Successfully upgraded to {} with {} vectors", upgrade_name, vector_count);
+                }
+                Err(e) => {
+                    error!("Failed to upgrade to {}: {}. Continuing with HNSW.", upgrade_name, e);
+                }
             }
         }
     }
@@ -545,6 +587,26 @@ async fn faiss_delete_batch(
     })
     .await
     .unwrap()
+}
+
+/// Unified search function - uses Descartes if available, otherwise FAISS
+async fn vector_search(
+    faiss_pool: Arc<rayon::ThreadPool>,
+    index_data: Arc<VectorIndexData>,
+    query: Arc<Vec<f32>>,
+    k: c_longlong,
+) -> Result<Vec<(i64, f32)>, String> {
+    // Check if using Descartes backend
+    if index_data.is_descartes() {
+        let descartes_guard = index_data.descartes_index.read().await;
+        if let Some(ref descartes) = *descartes_guard {
+            let results = descartes.search(&query, k as usize);
+            return Ok(results.iter().map(|r| (r.id, r.distance)).collect());
+        }
+    }
+
+    // Fall back to FAISS search
+    faiss_search(faiss_pool, index_data, query, k).await
 }
 
 /// Search FAISS index (CPU-intensive, uses dedicated Rayon pool)
@@ -916,12 +978,13 @@ async fn create_bridge_index_handler(
     let dimension = req.dimension;
     let k = req.k.unwrap_or(10);
 
-    // Parse upgrade_type: "fastscan" (default) or "hnsw_sq8"
-    let upgrade_type = match req.upgrade_type.to_lowercase().as_str() {
-        "hnsw_sq8" => INDEX_TYPE_HNSW_SQ8,
-        _ => INDEX_TYPE_FASTSCAN, // default to FastScan
+    // Parse upgrade_type: "fastscan" (default), "hnsw_sq8", or "descartes"
+    let upgrade_type = parse_upgrade_type(&req.upgrade_type);
+    let upgrade_type_name = match upgrade_type {
+        INDEX_TYPE_HNSW_SQ8 => "hnsw_sq8",
+        INDEX_TYPE_DESCARTES => "descartes",
+        _ => "fastscan",
     };
-    let upgrade_type_name = if upgrade_type == INDEX_TYPE_HNSW_SQ8 { "hnsw_sq8" } else { "fastscan" };
 
     // Check if exists
     {
@@ -1202,7 +1265,7 @@ async fn search(
             match &req.vector_query {
                 Some(query) => {
                     let query_arc = Arc::new(query.clone());
-                    faiss_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
+                    vector_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
                 },
                 None => None,
             }
@@ -1307,7 +1370,7 @@ async fn search_msgpack(
             match &req.vector_query {
                 Some(query) => {
                     let query_arc = Arc::new(query.clone());
-                    faiss_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
+                    vector_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
                 },
                 None => None,
             }

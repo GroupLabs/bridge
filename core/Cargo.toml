@@ -13,11 +13,15 @@ arc-swap = "1.7"
 actix-web = "4.9.0"
 anyhow = "1.0.100"
 bindgen = "0.71.1"
+bincode = "1.3"
 crc32fast = "1.5.0"
 dashmap = "6.1.0"
 env_logger = "0.11.5"
+half = "2.4"
 libc = "0.2.168"
 log = "0.4.22"
+parking_lot = "0.12"
+rand = "0.8"
 rayon = "1.11.0"
 seekstorm = { git = "https://github.com/SeekStorm/SeekStorm.git" }
 rmp-serde = "1.3"
@@ -27,3 +31,20 @@ tokio = { version = "1.42.0", features = ["full"] }
 
 [build-dependencies]
 bindgen = "0.71.1"
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.10"
+
+[lib]
+name = "core"
+path = "src/lib.rs"
+
+[[bench]]
+name = "sift1m_bench"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

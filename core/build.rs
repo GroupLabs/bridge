@@ -9,9 +9,9 @@ fn main() {
     println!("cargo:rustc-link-search=native={}/faiss/build/c_api", manifest_dir);
     println!("cargo:rustc-link-search=native={}/faiss/build/faiss", manifest_dir);
 
-    // Link against FAISS libraries (static linking)
-    println!("cargo:rustc-link-lib=static=faiss_c");
-    println!("cargo:rustc-link-lib=static=faiss");
+    // Link against FAISS libraries (dynamic linking)
+    println!("cargo:rustc-link-lib=dylib=faiss_c");
+    println!("cargo:rustc-link-lib=dylib=faiss");
 
     // Link against C++ standard library (required for static FAISS)
     println!("cargo:rustc-link-lib=dylib=c++");
@@ -25,10 +25,10 @@ fn main() {
     // Link against Apple's Accelerate framework (provides BLAS/LAPACK)
     println!("cargo:rustc-link-lib=framework=Accelerate");
 
-    // Set rpath so binaries find FAISS libraries at runtime (needed for Instruments profiling)
-    // Uses @executable_path for portability - works as long as faiss/build stays relative to target/
-    println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../../faiss/build/faiss");
-    println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../../faiss/build/c_api");
+    // Set rpath so binaries find FAISS libraries at runtime
+    // Use absolute paths for reliability
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}/faiss/build/faiss", manifest_dir);
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}/faiss/build/c_api", manifest_dir);
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", libomp_path);
 
     // Generate bindings for the FAISS C API
