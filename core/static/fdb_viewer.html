@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #09090b;
+            --bg-secondary: #18181b;
+            --bg-tertiary: #27272a;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.15);
+            --success: #22c55e;
+            --error: #ef4444;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            padding: 8px 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--error);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.5);
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        select, input {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        select:hover, input:hover {
+            border-color: var(--border-hover);
+        }
+
+        select:focus, input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        select {
+            min-width: 200px;
+            cursor: pointer;
+        }
+
+        input::placeholder {
+            color: var(--text-muted);
+        }
+
+        button {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        button:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        button.primary:hover {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+
+        /* Panels */
+        .panels {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .panels {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .panel-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 4px 10px;
+            border-radius: 100px;
+        }
+
+        .panel-content {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .panel-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .panel-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .panel-content::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        /* Document List */
+        .doc-list {
+            list-style: none;
+        }
+
+        .doc-item {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.15s ease;
+        }
+
+        .doc-item:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .doc-item.selected {
+            background: var(--accent-glow);
+            border-left: 2px solid var(--accent);
+        }
+
+        .doc-item:last-child {
+            border-bottom: none;
+        }
+
+        .doc-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--accent);
+        }
+
+        .doc-title {
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 100px;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+        }
+
+        .badge.has-meta {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+        }
+
+        /* Metadata View */
+        .metadata-view {
+            padding: 20px;
+        }
+
+        .metadata-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .metadata-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .metadata-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .metadata-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            background: var(--bg-primary);
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            word-break: break-all;
+            color: var(--text-secondary);
+        }
+
+        .metadata-value.json {
+            white-space: pre-wrap;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .metadata-value a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .metadata-value a:hover {
+            text-decoration: underline;
+        }
+
+        /* Empty & Loading States */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            margin-bottom: 16px;
+            opacity: 0.25;
+        }
+
+        .empty-state-icon svg {
+            width: 48px;
+            height: 48px;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            fill: none;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.1);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Search input group */
+        .input-group {
+            display: flex;
+            gap: 0;
+        }
+
+        .input-group input {
+            border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+            border-right: none;
+        }
+
+        .input-group button {
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-text">Bridge <span>/ viewer</span></div>
+            </div>
+            <div class="status-pill">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </header>
+
+        <div class="controls">
+            <select id="indexSelect">
+                <option value="">Select an index...</option>
+            </select>
+            <div class="input-group">
+                <input type="number" id="docIdInput" placeholder="Document ID">
+                <button class="primary" onclick="fetchDocument()">Fetch</button>
+            </div>
+            <button onclick="refreshIndices()">Refresh</button>
+        </div>
+
+        <div class="panels">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Documents</span>
+                    <span class="panel-count" id="docCount">0</span>
+                </div>
+                <div class="panel-content">
+                    <ul class="doc-list" id="docList">
+                        <li class="empty-state">
+                            <div class="empty-state-icon">
+                                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                            </div>
+                            <div class="empty-state-text">Select an index to browse</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Details</span>
+                </div>
+                <div class="panel-content">
+                    <div id="metadataView" class="metadata-view">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            </div>
+                            <div class="empty-state-text">Select a document to view details</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let currentIndex = '';
+        let documents = [];
+
+        async function checkConnection() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                const data = await res.json();
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = 'Connected';
+                refreshIndices();
+            } catch (e) {
+                document.getElementById('statusText').textContent = 'Disconnected';
+            }
+        }
+
+        async function refreshIndices() {
+            try {
+                const res = await fetch(`${API_BASE}/fdb/indices`);
+                const data = await res.json();
+                const select = document.getElementById('indexSelect');
+                select.innerHTML = '<option value="">Select an index...</option>';
+                (data.indices || []).forEach(idx => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = idx;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Failed to fetch indices:', e);
+            }
+        }
+
+        async function listDocuments() {
+            const index = document.getElementById('indexSelect').value;
+            if (!index) return;
+            currentIndex = index;
+
+            const list = document.getElementById('docList');
+            list.innerHTML = '<li class="loading"><div class="spinner"></div>Loading documents...</li>';
+
+            try {
+                const res = await fetch(`${API_BASE}/fdb/list?index=${encodeURIComponent(index)}`);
+                const data = await res.json();
+                documents = data.documents || [];
+
+                document.getElementById('docCount').textContent = data.count?.toLocaleString() || documents.length;
+
+                if (documents.length === 0) {
+                    list.innerHTML = '<li class="empty-state"><div class="empty-state-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="9" y1="14" x2="15" y2="14"/></svg></div><div class="empty-state-text">No documents in this index</div></li>';
+                    return;
+                }
+
+                list.innerHTML = '';
+                documents.slice(0, 100).forEach(doc => {
+                    const li = document.createElement('li');
+                    li.className = 'doc-item';
+                    li.dataset.id = doc.id;
+                    li.onclick = () => showDocument(doc.id);
+                    li.innerHTML = `
+                        <div>
+                            <div class="doc-id">#${doc.id}</div>
+                            <div class="doc-title">${doc.title || 'Untitled'}</div>
+                        </div>
+                        <span class="badge ${doc.has_metadata ? 'has-meta' : ''}">${doc.has_metadata ? 'metadata' : 'no meta'}</span>
+                    `;
+                    list.appendChild(li);
+                });
+
+                if (documents.length > 100) {
+                    const more = document.createElement('li');
+                    more.className = 'empty-state';
+                    more.innerHTML = `<div class="empty-state-text">Showing 100 of ${data.count?.toLocaleString()} documents</div>`;
+                    list.appendChild(more);
+                }
+            } catch (e) {
+                list.innerHTML = `<li class="error">Error: ${e.message}</li>`;
+            }
+        }
+
+        async function fetchDocument() {
+            const index = document.getElementById('indexSelect').value;
+            const docId = document.getElementById('docIdInput').value;
+
+            if (!index) {
+                alert('Please select an index first');
+                return;
+            }
+            if (!docId) {
+                alert('Please enter a document ID');
+                return;
+            }
+
+            currentIndex = index;
+            showDocument(parseInt(docId));
+        }
+
+        async function showDocument(docId) {
+            const view = document.getElementById('metadataView');
+            view.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+            document.querySelectorAll('.doc-item').forEach(el => {
+                el.classList.toggle('selected', el.dataset.id == docId);
+            });
+
+            try {
+                const res = await fetch(`${API_BASE}/fdb/get?index=${encodeURIComponent(currentIndex)}&id=${docId}`);
+                const data = await res.json();
+
+                if (data.error) {
+                    view.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+
+                const sourceUrl = data.metadata?.source_url;
+                const urlDisplay = sourceUrl
+                    ? `<a href="${sourceUrl}" target="_blank">${sourceUrl}</a>`
+                    : '—';
+
+                view.innerHTML = `
+                    <div class="metadata-grid">
+                        <div class="metadata-field">
+                            <div class="metadata-label">Document ID</div>
+                            <div class="metadata-value">${docId}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Index</div>
+                            <div class="metadata-value">${currentIndex}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Title</div>
+                            <div class="metadata-value">${data.metadata?.title || '—'}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Author</div>
+                            <div class="metadata-value">${data.metadata?.author || '—'}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Source URL</div>
+                            <div class="metadata-value">${urlDisplay}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Custom Fields</div>
+                            <div class="metadata-value json">${JSON.stringify(data.metadata?.custom_fields || {}, null, 2)}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Filter Tags</div>
+                            <div class="metadata-value json">${JSON.stringify(data.filter_metadata?.filter_tags || [], null, 2)}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Created At</div>
+                            <div class="metadata-value">${data.filter_metadata?.created_at ? new Date(data.filter_metadata.created_at * 1000).toLocaleString() : '—'}</div>
+                        </div>
+                        <div class="metadata-field">
+                            <div class="metadata-label">Filter Numerics</div>
+                            <div class="metadata-value json">${JSON.stringify(data.filter_metadata?.filter_numerics || {}, null, 2)}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                view.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            }
+        }
+
+        document.getElementById('indexSelect').addEventListener('change', (e) => {
+            if (e.target.value) {
+                currentIndex = e.target.value;
+                listDocuments();
+            }
+        });
+
+        // Keyboard shortcut: Enter in doc ID input
+        document.getElementById('docIdInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') fetchDocument();
+        });
+
+        // Initialize
+        checkConnection();
+    </script>
+</body>
+</html>

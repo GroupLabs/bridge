@@ -7,3 +7,6 @@
 [submodule "core/faiss"]
 	path = core/faiss
 	url = https://github.com/facebookresearch/faiss.git
+[submodule "core/foundationdb"]
+	path = core/foundationdb
+	url = https://github.com/apple/foundationdb.git

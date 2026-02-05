@@ -1,5 +1,13 @@
 // src/main.rs - High-Performance Hybrid Search System
 
+// Explicit link directives for FAISS and OpenMP libraries
+// Required because LTO can prevent build.rs link instructions from propagating
+#[link(name = "faiss_c")]
+#[link(name = "faiss")]
+#[link(name = "omp")]
+#[link(name = "c++")]
+extern "C" {}
+
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -9,13 +17,15 @@ mod bindings {
 
 mod persistence;
 pub mod descartes;
+mod fdb;
 
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use bindings::*;
 use dashmap::DashMap;
 use libc::{c_int, c_longlong};
 use log::{error, info};
-use persistence::{Operation, WalWriter, load_snapshot, save_snapshot, IndexMetadata};
+use persistence::{Operation, WalWriter, load_snapshot, save_snapshot, IndexMetadata, FilterMetadata};
+use fdb::{DocumentMetadata, OptionalFdbClient};
 use seekstorm::index::{
     create_index, open_index, Document, IndexArc, IndexDocuments, IndexMetaObject,
     SimilarityType, StemmerType, StopwordType, FrequentwordType, TokenizerType, AccessType,
@@ -81,6 +91,7 @@ struct VectorIndexData {
     dimension: c_int,
     k: c_longlong,
     text_map: DashMap<i64, Arc<str>>,  // Lock-free concurrent hashmap
+    filter_map: DashMap<i64, FilterMetadata>,  // In-memory filter metadata for search-time filtering
     next_id: AtomicI64,                 // Lock-free ID counter
     index_type: AtomicU8,              // 0=HNSW, 1=FastScan, 2=HNSW_SQ8, 3=Descartes
     upgrade_type: AtomicU8,            // Target upgrade type: 1=FastScan, 2=HNSW_SQ8, 3=Descartes
@@ -96,6 +107,7 @@ impl VectorIndexData {
             dimension,
             k,
             text_map: DashMap::new(),
+            filter_map: DashMap::new(),
             next_id: AtomicI64::new(0),
             index_type: AtomicU8::new(INDEX_TYPE_HNSW),
             upgrade_type: AtomicU8::new(upgrade_type),
@@ -110,6 +122,7 @@ impl VectorIndexData {
             dimension: metadata.dimension,
             k: metadata.k,
             text_map: DashMap::new(),
+            filter_map: DashMap::new(),
             next_id: AtomicI64::new(metadata.next_id),
             index_type: AtomicU8::new(metadata.index_type),
             upgrade_type: AtomicU8::new(metadata.upgrade_type),
@@ -118,6 +131,10 @@ impl VectorIndexData {
 
         for (id, text) in metadata.text_map {
             data.text_map.insert(id, Arc::from(text.as_str()));
+        }
+
+        for (id, filter) in metadata.filter_map {
+            data.filter_map.insert(id, filter);
         }
 
         data
@@ -146,6 +163,7 @@ struct BridgeIndex {
 struct AppState {
     indices: Arc<RwLock<HashMap<String, BridgeIndex>>>,
     op_counter: Arc<AtomicU64>,
+    fdb: Arc<OptionalFdbClient>,
 }
 
 // ============================================================================
@@ -171,11 +189,46 @@ fn parse_upgrade_type(s: &str) -> u8 {
     }
 }
 
+/// Numeric filter for search
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct NumericFilter {
+    field: String,
+    #[serde(default)]
+    min: Option<f64>,
+    #[serde(default)]
+    max: Option<f64>,
+}
+
+/// Rich metadata stored in FDB (not needed for filtering)
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct RichMetadata {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    author: Option<String>,
+    #[serde(default)]
+    source_url: Option<String>,
+    #[serde(default)]
+    custom_fields: HashMap<String, serde_json::Value>,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 struct AddRequest {
     index: String,
     text: String,
     vector: Vec<f32>,
+    /// Filter tags for search-time filtering (e.g., ["category:tech", "status:published"])
+    #[serde(default)]
+    filter_tags: Vec<String>,
+    /// Creation timestamp for time-based filtering
+    #[serde(default)]
+    created_at: Option<i64>,
+    /// Numeric fields for range filtering (e.g., {"price": 29.99, "rating": 4.5})
+    #[serde(default)]
+    filter_numerics: HashMap<String, f64>,
+    /// Rich metadata stored in FDB (title, author, custom fields)
+    #[serde(default)]
+    metadata: Option<RichMetadata>,
 }
 
 #[derive(Deserialize)]
@@ -188,6 +241,18 @@ struct BatchAddRequest {
 struct DocumentRequest {
     text: String,
     vector: Vec<f32>,
+    /// Filter tags for search-time filtering
+    #[serde(default)]
+    filter_tags: Vec<String>,
+    /// Creation timestamp for time-based filtering
+    #[serde(default)]
+    created_at: Option<i64>,
+    /// Numeric fields for range filtering
+    #[serde(default)]
+    filter_numerics: HashMap<String, f64>,
+    /// Rich metadata stored in FDB
+    #[serde(default)]
+    metadata: Option<RichMetadata>,
 }
 
 #[derive(Deserialize)]
@@ -211,6 +276,21 @@ struct SearchRequest {
     text_offset: u64,
     #[serde(default = "default_text_length")]
     text_length: u64,
+    /// Filter by tags (documents must have ALL specified tags)
+    #[serde(default)]
+    filter_tags: Vec<String>,
+    /// Filter documents created after this timestamp
+    #[serde(default)]
+    created_after: Option<i64>,
+    /// Filter documents created before this timestamp
+    #[serde(default)]
+    created_before: Option<i64>,
+    /// Numeric range filters
+    #[serde(default)]
+    numeric_filters: Vec<NumericFilter>,
+    /// Include rich metadata from FDB in results
+    #[serde(default)]
+    include_metadata: bool,
 }
 
 fn default_vector_weight() -> f32 { 0.5 }
@@ -226,6 +306,9 @@ struct RRFSearchResult {
     vector_rank: Option<usize>,
     text_rank: Option<usize>,
     source: String,  // "both", "vector", or "text"
+    /// Rich metadata from FDB (only included if include_metadata=true)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<RichMetadata>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -817,6 +900,90 @@ async fn text_search(
 }
 
 // ============================================================================
+// FILTER PREDICATES
+// ============================================================================
+
+/// Check if a document passes all filter predicates
+fn passes_filters(
+    filter_metadata: &FilterMetadata,
+    filter_tags: &[String],
+    created_after: Option<i64>,
+    created_before: Option<i64>,
+    numeric_filters: &[NumericFilter],
+) -> bool {
+    // Check filter tags (document must have ALL specified tags)
+    if !filter_tags.is_empty() {
+        for required_tag in filter_tags {
+            if !filter_metadata.filter_tags.contains(required_tag) {
+                return false;
+            }
+        }
+    }
+
+    // Check created_after
+    if let Some(after) = created_after {
+        if filter_metadata.created_at < after {
+            return false;
+        }
+    }
+
+    // Check created_before
+    if let Some(before) = created_before {
+        if filter_metadata.created_at > before {
+            return false;
+        }
+    }
+
+    // Check numeric filters
+    for nf in numeric_filters {
+        if let Some(&value) = filter_metadata.filter_numerics.get(&nf.field) {
+            if let Some(min) = nf.min {
+                if value < min {
+                    return false;
+                }
+            }
+            if let Some(max) = nf.max {
+                if value > max {
+                    return false;
+                }
+            }
+        } else {
+            // Document doesn't have this numeric field - filter it out
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Apply filters to a list of search results
+fn apply_filters(
+    results: Vec<(i64, f32)>,
+    filter_map: &DashMap<i64, FilterMetadata>,
+    filter_tags: &[String],
+    created_after: Option<i64>,
+    created_before: Option<i64>,
+    numeric_filters: &[NumericFilter],
+) -> Vec<(i64, f32)> {
+    // Skip filtering if no filters specified
+    if filter_tags.is_empty() && created_after.is_none() && created_before.is_none() && numeric_filters.is_empty() {
+        return results;
+    }
+
+    results
+        .into_iter()
+        .filter(|(id, _)| {
+            if let Some(filter_metadata) = filter_map.get(id) {
+                passes_filters(&filter_metadata, filter_tags, created_after, created_before, numeric_filters)
+            } else {
+                // No filter metadata - include by default (backwards compatibility)
+                true
+            }
+        })
+        .collect()
+}
+
+// ============================================================================
 // WEIGHTED RRF (Reciprocal Rank Fusion)
 // ============================================================================
 
@@ -870,12 +1037,38 @@ fn weighted_rrf(
                 vector_rank,
                 text_rank,
                 source: source.to_string(),
+                metadata: None, // Will be enriched later if include_metadata=true
             }
         })
         .collect();
 
     results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
     results
+}
+
+/// Enrich search results with metadata from FDB
+async fn enrich_with_metadata(
+    results: &mut [RRFSearchResult],
+    index_name: &str,
+    fdb: &OptionalFdbClient,
+) {
+    if results.is_empty() || !fdb.is_available() {
+        return;
+    }
+
+    let ids: Vec<i64> = results.iter().map(|r| r.id).collect();
+    let metadata_map = fdb.get_metadata_batch(index_name, &ids).await;
+
+    for result in results.iter_mut() {
+        if let Some(doc_meta) = metadata_map.get(&result.id) {
+            result.metadata = Some(RichMetadata {
+                title: doc_meta.title.clone(),
+                author: doc_meta.author.clone(),
+                source_url: doc_meta.source_url.clone(),
+                custom_fields: doc_meta.custom_fields.clone(),
+            });
+        }
+    }
 }
 
 // ============================================================================
@@ -942,6 +1135,7 @@ async fn save_bridge_index(bridge_index: &BridgeIndex, base_path: &Path) -> Resu
         bridge_index.vector_index.k,
         &bridge_index.vector_index.next_id,
         &bridge_index.vector_index.text_map,
+        &bridge_index.vector_index.filter_map,
         index_type,
         upgrade_type,
     );
@@ -1087,6 +1281,18 @@ async fn add_document(
     let id = bridge_index.vector_index.next_id.fetch_add(1, Ordering::SeqCst);
     let text_arc: Arc<str> = Arc::from(req.text.as_str());
 
+    // Build filter metadata for in-memory storage
+    let filter_metadata = FilterMetadata {
+        filter_tags: req.filter_tags.clone(),
+        created_at: req.created_at.unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64
+        }),
+        filter_numerics: req.filter_numerics.clone(),
+    };
+
     // Serialize ALL writes (FAISS + SeekStorm) to prevent concurrency issues
     {
         let _permit = bridge_index.text_write_semaphore.acquire().await.unwrap();
@@ -1104,12 +1310,31 @@ async fn add_document(
         // Add to text map
         bridge_index.vector_index.text_map.insert(id, text_arc.clone());
 
+        // Add to filter map (in-memory for search-time filtering)
+        bridge_index.vector_index.filter_map.insert(id, filter_metadata.clone());
+
         // Add to text index
         let mut doc: Document = HashMap::new();
         doc.insert("body".to_string(), json!(req.text));
         doc.insert("id".to_string(), json!(id));
 
         bridge_index.text_index.index_documents(vec![doc]).await;
+    }
+
+    // Store rich metadata in FDB (best-effort, async)
+    if let Some(ref rich_meta) = req.metadata {
+        let fdb = state.fdb.clone();
+        let index_name_owned = index_name.to_string();
+        let doc_metadata = DocumentMetadata {
+            title: rich_meta.title.clone(),
+            author: rich_meta.author.clone(),
+            source_url: rich_meta.source_url.clone(),
+            custom_fields: rich_meta.custom_fields.clone(),
+        };
+        // Fire and forget - don't block on FDB
+        tokio::spawn(async move {
+            fdb.store_metadata_best_effort(&index_name_owned, id, &doc_metadata).await;
+        });
     }
 
     // Log to WAL (commented out for high-throughput benchmarking)
@@ -1119,6 +1344,7 @@ async fn add_document(
     //     id,
     //     req.text.clone(),
     //     req.vector.clone(),
+    //     Some(filter_metadata),
     // )) {
     //     error!("Failed to write to WAL: {}", e);
     // }
@@ -1145,6 +1371,12 @@ async fn add_batch(
     let mut ids = Vec::new();
     let mut vectors = Vec::new();
     let mut docs = Vec::new();
+    let mut fdb_metadata_batch: Vec<(i64, DocumentMetadata)> = Vec::new();
+
+    let now_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
 
     for doc_req in &req.documents {
         if doc_req.vector.len() as c_int != bridge_index.vector_index.dimension {
@@ -1160,6 +1392,13 @@ async fn add_batch(
         let id = bridge_index.vector_index.next_id.fetch_add(1, Ordering::SeqCst);
         let text_arc: Arc<str> = Arc::from(doc_req.text.as_str());
 
+        // Build filter metadata
+        let filter_metadata = FilterMetadata {
+            filter_tags: doc_req.filter_tags.clone(),
+            created_at: doc_req.created_at.unwrap_or(now_ts),
+            filter_numerics: doc_req.filter_numerics.clone(),
+        };
+
         ids.push(id);
         vectors.push(doc_req.vector.clone());
 
@@ -1168,8 +1407,19 @@ async fn add_batch(
         doc.insert("id".to_string(), json!(id));
         docs.push(doc);
 
-        // Store text for later insertion (after semaphore acquired)
+        // Store text and filter metadata
         bridge_index.vector_index.text_map.insert(id, text_arc);
+        bridge_index.vector_index.filter_map.insert(id, filter_metadata);
+
+        // Collect FDB metadata if present
+        if let Some(ref rich_meta) = doc_req.metadata {
+            fdb_metadata_batch.push((id, DocumentMetadata {
+                title: rich_meta.title.clone(),
+                author: rich_meta.author.clone(),
+                source_url: rich_meta.source_url.clone(),
+                custom_fields: rich_meta.custom_fields.clone(),
+            }));
+        }
     }
 
     // Serialize ALL writes (FAISS + SeekStorm) to prevent concurrency issues
@@ -1185,6 +1435,15 @@ async fn add_batch(
         bridge_index.text_index.index_documents(docs).await;
     }
 
+    // Store rich metadata in FDB (best-effort, async)
+    if !fdb_metadata_batch.is_empty() {
+        let fdb = state.fdb.clone();
+        let index_name_owned = index_name.to_string();
+        tokio::spawn(async move {
+            fdb.store_metadata_batch_best_effort(&index_name_owned, &fdb_metadata_batch).await;
+        });
+    }
+
     // Log to WAL (commented out for high-throughput benchmarking)
     // Uncomment for durability guarantees
     // for (id, doc_req) in ids.iter().zip(&req.documents) {
@@ -1193,6 +1452,7 @@ async fn add_batch(
     //         *id,
     //         doc_req.text.clone(),
     //         doc_req.vector.clone(),
+    //         Some(FilterMetadata { ... }),
     //     )) {
     //         error!("Failed to write to WAL: {}", e);
     //     }
@@ -1220,10 +1480,23 @@ async fn delete_documents(
         }
     };
 
-    // Delete from FAISS and text map
+    // Delete from FAISS, text map, and filter map
     if let Err(e) = faiss_delete_batch(bridge_index.vector_index.clone(), req.ids.clone()).await {
         return HttpResponse::InternalServerError().json(ErrorResponse { error: e });
     }
+
+    // Also remove from filter_map
+    for id in &req.ids {
+        bridge_index.vector_index.filter_map.remove(id);
+    }
+
+    // Delete from FDB (best-effort, async)
+    let fdb = state.fdb.clone();
+    let index_name_owned = index_name.to_string();
+    let ids_clone = req.ids.clone();
+    tokio::spawn(async move {
+        fdb.delete_documents_best_effort(&index_name_owned, &ids_clone).await;
+    });
 
     // TODO: SeekStorm delete support when available
 
@@ -1257,7 +1530,14 @@ async fn search(
         }
     };
 
-    let k = req.k as c_longlong;
+    // Fetch more results than k to account for filtering
+    let has_filters = !req.filter_tags.is_empty()
+        || req.created_after.is_some()
+        || req.created_before.is_some()
+        || !req.numeric_filters.is_empty();
+
+    // Fetch 3x k if filtering, to have enough results after filtering
+    let fetch_k = if has_filters { (req.k * 3) as c_longlong } else { req.k as c_longlong };
 
     // Parallel search execution
     let (vector_results, text_results) = tokio::join!(
@@ -1265,7 +1545,7 @@ async fn search(
             match &req.vector_query {
                 Some(query) => {
                     let query_arc = Arc::new(query.clone());
-                    vector_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, k).await.ok()
+                    vector_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, fetch_k).await.ok()
                 },
                 None => None,
             }
@@ -1277,7 +1557,7 @@ async fn search(
                         bridge_index.text_index.clone(),
                         query,
                         req.text_offset,
-                        req.text_length,
+                        req.text_length.max(fetch_k as u64),
                     ).await.ok()
                 },
                 _ => None,
@@ -1285,7 +1565,30 @@ async fn search(
         }
     );
 
-    let results = match (vector_results, text_results) {
+    // Apply filters to raw results before RRF fusion
+    let filtered_vector = vector_results.map(|v| {
+        apply_filters(
+            v,
+            &bridge_index.vector_index.filter_map,
+            &req.filter_tags,
+            req.created_after,
+            req.created_before,
+            &req.numeric_filters,
+        )
+    });
+
+    let filtered_text = text_results.map(|t| {
+        apply_filters(
+            t,
+            &bridge_index.vector_index.filter_map,
+            &req.filter_tags,
+            req.created_after,
+            req.created_before,
+            &req.numeric_filters,
+        )
+    });
+
+    let mut results = match (filtered_vector, filtered_text) {
         (Some(v), Some(t)) => {
             // Weighted RRF fusion
             weighted_rrf(v, t, req.vector_weight, req.text_weight, &bridge_index.vector_index.text_map)
@@ -1304,6 +1607,7 @@ async fn search(
                     vector_rank: Some(rank),
                     text_rank: None,
                     source: "vector".to_string(),
+                    metadata: None,
                 })
                 .collect()
         },
@@ -1321,6 +1625,7 @@ async fn search(
                     vector_rank: None,
                     text_rank: Some(rank),
                     source: "text".to_string(),
+                    metadata: None,
                 })
                 .collect()
         },
@@ -1330,6 +1635,14 @@ async fn search(
             });
         }
     };
+
+    // Truncate to requested k
+    results.truncate(req.k);
+
+    // Enrich with FDB metadata if requested
+    if req.include_metadata && !results.is_empty() {
+        enrich_with_metadata(&mut results, index_name, &state.fdb).await;
+    }
 
     HttpResponse::Ok().json(SearchResults {
         total: results.len(),
@@ -1407,6 +1720,7 @@ async fn search_msgpack(
                     vector_rank: Some(rank),
                     text_rank: None,
                     source: "vector".to_string(),
+                    metadata: None,
                 })
                 .collect()
         },
@@ -1423,6 +1737,7 @@ async fn search_msgpack(
                     vector_rank: None,
                     text_rank: Some(rank),
                     source: "text".to_string(),
+                    metadata: None,
                 })
                 .collect()
         },
@@ -1542,6 +1857,7 @@ async fn batch_search(
                         vector_rank: Some(rank),
                         text_rank: None,
                         source: "vector".to_string(),
+                        metadata: None,
                     })
                     .collect()
             },
@@ -1558,6 +1874,7 @@ async fn batch_search(
                         vector_rank: None,
                         text_rank: Some(rank),
                         source: "text".to_string(),
+                        metadata: None,
                     })
                     .collect()
             },
@@ -1595,6 +1912,144 @@ async fn save_all_indices(state: web::Data<AppState>) -> impl Responder {
 }
 
 // ============================================================================
+// FDB VIEWER ENDPOINTS
+// ============================================================================
+
+/// Serve the FDB viewer HTML page
+async fn fdb_viewer() -> impl Responder {
+    let html = include_str!("../static/fdb_viewer.html");
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
+}
+
+/// List all available indices
+async fn fdb_list_indices(state: web::Data<AppState>) -> impl Responder {
+    let indices = state.indices.read().await;
+    let index_names: Vec<&String> = indices.keys().collect();
+    HttpResponse::Ok().json(json!({
+        "indices": index_names
+    }))
+}
+
+/// Query parameters for FDB list endpoint
+#[derive(Deserialize)]
+struct FdbListQuery {
+    index: String,
+}
+
+/// List documents in an index (shows IDs and whether they have FDB metadata)
+async fn fdb_list_documents(
+    state: web::Data<AppState>,
+    query: web::Query<FdbListQuery>,
+) -> impl Responder {
+    let index_name = query.index.trim();
+
+    let bridge_index = {
+        let indices = state.indices.read().await;
+        match indices.get(index_name) {
+            Some(idx) => idx.clone(),
+            None => return HttpResponse::NotFound().json(json!({
+                "error": format!("Index '{}' not found", index_name)
+            })),
+        }
+    };
+
+    // Get all document IDs from the text_map (in-memory)
+    let mut documents: Vec<serde_json::Value> = Vec::new();
+    for entry in bridge_index.vector_index.text_map.iter() {
+        let id = *entry.key();
+        let text = entry.value().as_ref();
+        let title = text.chars().take(50).collect::<String>();
+
+        // Check if filter metadata exists
+        let has_filter = bridge_index.vector_index.filter_map.contains_key(&id);
+
+        documents.push(json!({
+            "id": id,
+            "title": if title.len() < text.len() { format!("{}...", title) } else { title },
+            "has_metadata": has_filter
+        }));
+    }
+
+    // Sort by ID
+    documents.sort_by(|a, b| {
+        a["id"].as_i64().unwrap_or(0).cmp(&b["id"].as_i64().unwrap_or(0))
+    });
+
+    HttpResponse::Ok().json(json!({
+        "index": index_name,
+        "count": documents.len(),
+        "documents": documents
+    }))
+}
+
+/// Query parameters for FDB get endpoint
+#[derive(Deserialize)]
+struct FdbGetQuery {
+    index: String,
+    id: i64,
+}
+
+/// Get a specific document's metadata (both in-memory filter metadata and FDB rich metadata)
+async fn fdb_get_document(
+    state: web::Data<AppState>,
+    query: web::Query<FdbGetQuery>,
+) -> impl Responder {
+    let index_name = query.index.trim();
+    let doc_id = query.id;
+
+    let bridge_index = {
+        let indices = state.indices.read().await;
+        match indices.get(index_name) {
+            Some(idx) => idx.clone(),
+            None => return HttpResponse::NotFound().json(json!({
+                "error": format!("Index '{}' not found", index_name)
+            })),
+        }
+    };
+
+    // Get text from in-memory map
+    let text = bridge_index.vector_index.text_map
+        .get(&doc_id)
+        .map(|t| t.as_ref().to_string());
+
+    // Get filter metadata from in-memory map
+    let filter_metadata = bridge_index.vector_index.filter_map
+        .get(&doc_id)
+        .map(|f| json!({
+            "filter_tags": f.filter_tags,
+            "created_at": f.created_at,
+            "filter_numerics": f.filter_numerics
+        }));
+
+    // Get rich metadata from FDB (if available)
+    let fdb_metadata = state.fdb.get_metadata(index_name, doc_id).await;
+
+    let metadata_json = fdb_metadata.map(|m| json!({
+        "title": m.title,
+        "author": m.author,
+        "source_url": m.source_url,
+        "custom_fields": m.custom_fields
+    }));
+
+    if text.is_none() && filter_metadata.is_none() && metadata_json.is_none() {
+        return HttpResponse::NotFound().json(json!({
+            "error": format!("Document {} not found in index '{}'", doc_id, index_name)
+        }));
+    }
+
+    HttpResponse::Ok().json(json!({
+        "id": doc_id,
+        "index": index_name,
+        "text": text,
+        "filter_metadata": filter_metadata,
+        "metadata": metadata_json,
+        "fdb_available": state.fdb.is_available()
+    }))
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -1610,6 +2065,18 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     info!("Starting Bridge Search Server (OMP_NUM_THREADS=1 for optimal throughput)...");
+
+    // Try to connect to FDB (best-effort - continues without it if unavailable)
+    // FDB network initialization is handled inside OptionalFdbClient::try_new()
+    let fdb_client = OptionalFdbClient::try_new();
+    if fdb_client.is_available() {
+        info!("FoundationDB connected - rich metadata storage enabled");
+    } else {
+        #[cfg(feature = "fdb")]
+        info!("FoundationDB not available - continuing without rich metadata storage");
+        #[cfg(not(feature = "fdb"))]
+        info!("FoundationDB support not compiled - filter metadata stored in-memory only");
+    }
 
     // Load existing indices on startup
     let base_path = PathBuf::from(INDICES_PATH);
@@ -1641,6 +2108,7 @@ async fn main() -> std::io::Result<()> {
     let app_state = web::Data::new(AppState {
         indices: Arc::new(RwLock::new(loaded_indices)),
         op_counter: Arc::new(AtomicU64::new(0)),
+        fdb: Arc::new(fdb_client),
     });
 
     // Clone for shutdown handler before moving into HttpServer
@@ -1660,6 +2128,11 @@ async fn main() -> std::io::Result<()> {
             .route("/search_msgpack", web::post().to(search_msgpack))
             .route("/search_batch", web::post().to(batch_search))
             .route("/save", web::post().to(save_all_indices))
+            // FDB Viewer endpoints
+            .route("/fdb", web::get().to(fdb_viewer))
+            .route("/fdb/indices", web::get().to(fdb_list_indices))
+            .route("/fdb/list", web::get().to(fdb_list_documents))
+            .route("/fdb/get", web::get().to(fdb_get_document))
     })
     .workers(16)      // Explicit worker count for high concurrency
     .backlog(4096)    // Handle burst traffic better

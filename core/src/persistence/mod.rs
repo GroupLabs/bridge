@@ -3,4 +3,4 @@ pub mod wal;
 pub mod snapshot;
 
 pub use wal::{WalWriter, Operation};
-pub use snapshot::{save_snapshot, load_snapshot, IndexMetadata};
+pub use snapshot::{save_snapshot, load_snapshot, IndexMetadata, FilterMetadata};

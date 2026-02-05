@@ -15,6 +15,17 @@ use crate::bindings::*;
 struct SendFaissIndex(*mut FaissIndex);
 unsafe impl Send for SendFaissIndex {}
 
+/// Filter metadata stored in-memory for search-time filtering
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FilterMetadata {
+    #[serde(default)]
+    pub filter_tags: Vec<String>,
+    #[serde(default)]
+    pub created_at: i64,
+    #[serde(default)]
+    pub filter_numerics: HashMap<String, f64>,
+}
+
 /// Metadata for a Bridge index (FAISS + SeekStorm)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexMetadata {
@@ -31,6 +42,9 @@ pub struct IndexMetadata {
     /// Target upgrade type: 1=FastScan, 2=HNSW_SQ8
     #[serde(default = "default_upgrade_type")]
     pub upgrade_type: u8,
+    /// Filter metadata for search-time filtering (doc_id -> FilterMetadata)
+    #[serde(default)]
+    pub filter_map: HashMap<i64, FilterMetadata>,
 }
 
 fn default_upgrade_type() -> u8 { 1 } // FastScan by default
@@ -47,6 +61,7 @@ impl IndexMetadata {
             timestamp: Self::current_timestamp(),
             index_type: 0, // HNSW by default
             upgrade_type: 1, // FastScan by default
+            filter_map: HashMap::new(),
         }
     }
 
@@ -63,12 +78,18 @@ impl IndexMetadata {
         k: i64,
         next_id: &AtomicI64,
         text_map: &DashMap<i64, Arc<str>>,
+        filter_map: &DashMap<i64, FilterMetadata>,
         index_type: u8,
         upgrade_type: u8,
     ) -> Self {
-        let mut map = HashMap::new();
+        let mut txt_map = HashMap::new();
         for entry in text_map.iter() {
-            map.insert(*entry.key(), entry.value().as_ref().to_string());
+            txt_map.insert(*entry.key(), entry.value().as_ref().to_string());
+        }
+
+        let mut flt_map = HashMap::new();
+        for entry in filter_map.iter() {
+            flt_map.insert(*entry.key(), entry.value().clone());
         }
 
         Self {
@@ -76,11 +97,12 @@ impl IndexMetadata {
             dimension,
             k,
             next_id: next_id.load(Ordering::SeqCst),
-            text_map: map,
+            text_map: txt_map,
             snapshot_id: Self::current_timestamp(),
             timestamp: Self::current_timestamp(),
             index_type,
             upgrade_type,
+            filter_map: flt_map,
         }
     }
 }

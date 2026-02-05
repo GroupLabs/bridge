@@ -8,15 +8,20 @@ pub mod search;
 pub mod adaptive;
 pub mod persistence;
 pub mod bitset;
+pub mod ivf;
+pub mod benchmark;
+pub mod bench_compare;
+pub mod hybrid_bench;
 
 use serde::{Deserialize, Serialize};
 
-pub use quantization::{ScalarQuantizer, QuantizedVectorStorage};
+pub use quantization::{ScalarQuantizer, QuantizedVectorStorage, simd_type, simd_type_name};
 pub use graph::{GraphNode, FullyNavigatableGraph};
 pub use build::GraphBuilder;
 pub use search::SearchResult;
 pub use adaptive::AdaptiveNeighborSelector;
 pub use bitset::BitSet;
+pub use ivf::{IvfConfig, IvfIndex};
 
 /// Configuration for Descartes index
 #[derive(Debug, Clone, Serialize, Deserialize)]

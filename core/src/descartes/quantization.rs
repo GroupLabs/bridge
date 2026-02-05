@@ -3,6 +3,28 @@
 
 use serde::{Deserialize, Serialize};
 
+// FFI declarations for SIMD-optimized distance functions
+extern "C" {
+    fn bridge_l2_distance_i8(a: *const i8, b: *const i8, dim: usize) -> i32;
+    fn bridge_simd_type() -> i32;
+}
+
+/// Returns the SIMD implementation type being used.
+/// 0 = scalar, 1 = NEON, 2 = AVX2
+pub fn simd_type() -> i32 {
+    unsafe { bridge_simd_type() }
+}
+
+/// Returns a human-readable string for the SIMD type
+pub fn simd_type_name() -> &'static str {
+    match simd_type() {
+        0 => "scalar",
+        1 => "NEON",
+        2 => "AVX2",
+        _ => "unknown",
+    }
+}
+
 /// Scalar Quantizer: maps float32 values to int8 [-128, 127]
 /// Uses per-dimension min/max for optimal range utilization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,13 +259,18 @@ impl QuantizedVectorStorage {
 }
 
 /// Compute L2 squared distance between two i8 vectors
-/// Uses 4 accumulators to break the dependency chain, enabling SIMD pipelining.
-/// With -C target-cpu=native, generates AVX2/AVX-512 instructions.
+/// Uses SIMD-optimized C++ implementation (AVX2 on x86_64, NEON on ARM64)
 #[inline]
 pub fn l2_distance_i8(a: &[i8], b: &[i8]) -> i32 {
     debug_assert_eq!(a.len(), b.len());
+    unsafe { bridge_l2_distance_i8(a.as_ptr(), b.as_ptr(), a.len()) }
+}
 
-    // 4 accumulators - good balance between parallelism and register pressure
+/// Pure Rust fallback (for comparison benchmarking)
+#[inline]
+pub fn l2_distance_i8_rust(a: &[i8], b: &[i8]) -> i32 {
+    debug_assert_eq!(a.len(), b.len());
+
     let mut sum0: i32 = 0;
     let mut sum1: i32 = 0;
     let mut sum2: i32 = 0;
@@ -252,7 +279,6 @@ pub fn l2_distance_i8(a: &[i8], b: &[i8]) -> i32 {
     let len = a.len();
     let chunks = len / 4;
 
-    // Process 4 elements at a time with separate accumulators
     for i in 0..chunks {
         let base = i * 4;
         unsafe {
@@ -267,7 +293,6 @@ pub fn l2_distance_i8(a: &[i8], b: &[i8]) -> i32 {
         }
     }
 
-    // Handle remainder
     for i in (chunks * 4)..len {
         let d = unsafe { *a.get_unchecked(i) as i32 - *b.get_unchecked(i) as i32 };
         sum0 += d * d;
@@ -425,5 +450,90 @@ mod tests {
         // Add more vectors
         storage.set_vector(5, &[5, 6]);
         assert_eq!(storage.get_vector(5), vec![5, 6]);
+    }
+
+    #[test]
+    fn test_simd_type() {
+        let simd = super::simd_type();
+        let name = super::simd_type_name();
+        println!("SIMD implementation: {} (type={})", name, simd);
+        // On ARM64: expect NEON (1), on x86_64: expect AVX2 (2)
+        #[cfg(target_arch = "aarch64")]
+        assert_eq!(simd, 1, "Expected NEON on ARM64");
+        #[cfg(target_arch = "x86_64")]
+        assert_eq!(simd, 2, "Expected AVX2 on x86_64");
+    }
+
+    #[test]
+    fn test_simd_distance_correctness() {
+        // Test that SIMD distance matches scalar reference
+        let a: Vec<i8> = (0..128).map(|i| (i % 256) as i8).collect();
+        let b: Vec<i8> = (0..128).map(|i| ((i * 2) % 256) as i8).collect();
+
+        let simd_dist = l2_distance_i8(&a, &b);
+
+        // Compute reference scalar
+        let ref_dist: i32 = a.iter()
+            .zip(b.iter())
+            .map(|(&x, &y)| {
+                let d = x as i32 - y as i32;
+                d * d
+            })
+            .sum();
+
+        assert_eq!(simd_dist, ref_dist, "SIMD distance should match scalar reference");
+    }
+
+    #[test]
+    fn test_simd_distance_benchmark() {
+        use std::time::Instant;
+        use std::hint::black_box;
+
+        let dim = 128;
+        let n_vectors = 10_000;
+        let n_iterations = 100;
+
+        // Generate random vectors
+        let mut rng = rand::thread_rng();
+        use rand::Rng;
+        let vectors: Vec<Vec<i8>> = (0..n_vectors)
+            .map(|_| (0..dim).map(|_| rng.gen::<i8>()).collect())
+            .collect();
+        let query: Vec<i8> = (0..dim).map(|_| rng.gen::<i8>()).collect();
+
+        // Warmup
+        for v in vectors.iter().take(100) {
+            black_box(l2_distance_i8(black_box(&query), black_box(v)));
+            black_box(l2_distance_i8_rust(black_box(&query), black_box(v)));
+        }
+
+        // Benchmark SIMD (C++)
+        let start = Instant::now();
+        for _ in 0..n_iterations {
+            for v in &vectors {
+                black_box(l2_distance_i8(black_box(&query), black_box(v)));
+            }
+        }
+        let elapsed_simd = start.elapsed();
+
+        // Benchmark Rust fallback
+        let start = Instant::now();
+        for _ in 0..n_iterations {
+            for v in &vectors {
+                black_box(l2_distance_i8_rust(black_box(&query), black_box(v)));
+            }
+        }
+        let elapsed_rust = start.elapsed();
+
+        let total_distances = n_vectors * n_iterations;
+        let ns_per_simd = elapsed_simd.as_nanos() as f64 / total_distances as f64;
+        let ns_per_rust = elapsed_rust.as_nanos() as f64 / total_distances as f64;
+
+        println!("\n=== Distance Benchmark Comparison ===");
+        println!("SIMD type: {}", super::simd_type_name());
+        println!("Dimension: {}, Vectors: {}", dim, n_vectors);
+        println!("C++ SIMD: {:.1}ns/dist ({:.1}M/sec)", ns_per_simd, 1000.0 / ns_per_simd);
+        println!("Rust:     {:.1}ns/dist ({:.1}M/sec)", ns_per_rust, 1000.0 / ns_per_rust);
+        println!("Speedup:  {:.2}x", ns_per_rust / ns_per_simd);
     }
 }

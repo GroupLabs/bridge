@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::snapshot::FilterMetadata;
+
 /// Operations that can be logged to the WAL
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operation {
@@ -23,6 +25,9 @@ pub enum Operation {
         text: String,
         vector: Vec<f32>,
         timestamp: u64,
+        /// Filter metadata for search-time filtering
+        #[serde(default)]
+        filter_metadata: Option<FilterMetadata>,
     },
     Delete {
         index: String,
@@ -61,13 +66,14 @@ impl Operation {
         }
     }
 
-    pub fn add(index: String, id: i64, text: String, vector: Vec<f32>) -> Self {
+    pub fn add(index: String, id: i64, text: String, vector: Vec<f32>, filter_metadata: Option<FilterMetadata>) -> Self {
         Operation::Add {
             index,
             id,
             text,
             vector,
             timestamp: Self::current_timestamp(),
+            filter_metadata,
         }
     }
 
@@ -290,6 +296,7 @@ mod tests {
                 1,
                 "hello world".to_string(),
                 vec![1.0, 2.0, 3.0],
+                None,
             )).unwrap();
             writer.flush().unwrap();
         }

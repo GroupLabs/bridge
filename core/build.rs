@@ -4,6 +4,31 @@ use std::path::PathBuf;
 fn main() {
     // Get the project root directory (works on any machine)
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    // Compile bridge_simd.cpp with SIMD optimizations
+    let mut simd_build = cc::Build::new();
+    simd_build
+        .cpp(true)
+        .file("src/simd/bridge_simd.cpp")
+        .opt_level(3);
+
+    // Add architecture-specific flags
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    if target_arch == "x86_64" {
+        simd_build.flag("-mavx2");
+    }
+    // ARM NEON is enabled by default on aarch64
+
+    simd_build.compile("bridge_simd");
+
+    // Pass the static library directly to the linker
+    // Using rustc-link-arg because rustc-link-lib doesn't seem to propagate to bin targets
+    let simd_lib_path = out_path.join("libbridge_simd.a");
+    println!("cargo:rustc-link-arg={}", simd_lib_path.display());
+
+    println!("cargo:rerun-if-changed=src/simd/bridge_simd.cpp");
+    println!("cargo:rerun-if-changed=src/simd/bridge_simd.h");
 
     // Add the directory containing FAISS libraries to the library search path
     println!("cargo:rustc-link-search=native={}/faiss/build/c_api", manifest_dir);
@@ -32,7 +57,7 @@ fn main() {
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", libomp_path);
 
     // Generate bindings for the FAISS C API
-    let bindings = bindgen::Builder::default()
+    let faiss_bindings = bindgen::Builder::default()
         .header("faiss/c_api/Index_c.h")
         .header("faiss/c_api/IndexFlat_c.h")
         .header("faiss/c_api/clone_index_c.h")
@@ -46,11 +71,37 @@ fn main() {
         .allowlist_type("^Faiss.*") // Include all types starting with 'Faiss'
         .allowlist_var("^METRIC_.*") // Include all variables like METRIC_L2
         .generate()
-        .expect("Unable to generate bindings");
+        .expect("Unable to generate FAISS bindings");
 
-    // Write the bindings to the $OUT_DIR/bindings.rs
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings
+    faiss_bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
+        .expect("Couldn't write FAISS bindings!");
+
+    // FoundationDB bindings (only when fdb feature is enabled)
+    #[cfg(feature = "fdb")]
+    {
+        let fdb_include_path = format!("{}/foundationdb/bindings/c", manifest_dir);
+        let fdb_lib_path = format!("{}/foundationdb/build/lib", manifest_dir);
+
+        // Link against FDB client library
+        println!("cargo:rustc-link-search=native={}", fdb_lib_path);
+        println!("cargo:rustc-link-lib=dylib=fdb_c");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", fdb_lib_path);
+
+        // Generate FDB bindings
+        let fdb_bindings = bindgen::Builder::default()
+            .header(format!("{}/foundationdb/fdb_c.h", fdb_include_path))
+            .clang_arg(format!("-I{}", fdb_include_path))
+            .allowlist_function("^fdb_.*")
+            .allowlist_type("^FDB.*")
+            .allowlist_var("^FDB_.*")
+            .generate()
+            .expect("Unable to generate FDB bindings");
+
+        fdb_bindings
+            .write_to_file(out_path.join("fdb_bindings.rs"))
+            .expect("Couldn't write FDB bindings!");
+
+        println!("cargo:rerun-if-changed=foundationdb/bindings/c/foundationdb/fdb_c.h");
+    }
 }

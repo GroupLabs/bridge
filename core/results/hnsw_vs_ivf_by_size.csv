@@ -1,0 +1,5 @@
+vectors,hnsw_qps,ivf_qps,winner,speedup,hnsw_recall,ivf_recall,hnsw_build_s,ivf_build_s
+1000,109548,195427,ivf,1.78,1.0,1.0,0.39,0.02
+5000,98594,60942,hnsw,1.62,1.0,1.0,2.06,0.10
+10000,66236,34581,hnsw,1.92,1.0,1.0,4.19,0.19
+50000,31837,6305,hnsw,5.05,0.998,1.0,22.64,2.13
