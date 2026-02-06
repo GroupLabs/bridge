@@ -10,6 +10,7 @@ fn main() {
     let mut simd_build = cc::Build::new();
     simd_build
         .cpp(true)
+        .flag("-std=c++11")
         .file("src/simd/bridge_simd.cpp")
         .opt_level(3);
 

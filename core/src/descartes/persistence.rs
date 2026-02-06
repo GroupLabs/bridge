@@ -4,7 +4,7 @@
 use crate::descartes::{
     graph::FullyNavigatableGraph,
     quantization::{ScalarQuantizer, QuantizedVectorStorage},
-    DescartesConfig, DescartesIndex,
+    ContiguousVectorStorage, DescartesConfig, DescartesIndex,
 };
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -32,12 +32,17 @@ pub struct DescartesSnapshot {
 impl DescartesSnapshot {
     /// Create snapshot from index
     pub fn from_index(index: &DescartesIndex) -> Self {
+        // Convert ContiguousVectorStorage to Vec<Vec<f32>> for serialization
+        let original_vectors: Vec<Vec<f32>> = (0..index.original_vectors.len())
+            .map(|i| index.original_vectors.get_vector(i).to_vec())
+            .collect();
+
         Self {
             config: index.config.clone(),
             quantizer: index.quantizer.clone(),
             storage: index.storage.clone(),
             graph: index.graph.clone(),
-            original_vectors: index.original_vectors.clone(),
+            original_vectors,
             id_map: index.id_map.clone(),
         }
     }
@@ -49,12 +54,18 @@ impl DescartesSnapshot {
             reverse_id_map.insert(id, idx);
         }
 
+        // Convert Vec<Vec<f32>> back to ContiguousVectorStorage
+        let original_vectors = ContiguousVectorStorage::from_vectors(
+            &self.original_vectors,
+            self.config.dimension,
+        );
+
         DescartesIndex {
             config: self.config,
             quantizer: self.quantizer,
             storage: self.storage,
             graph: self.graph,
-            original_vectors: self.original_vectors,
+            original_vectors,
             id_map: self.id_map,
             reverse_id_map,
         }

@@ -12,6 +12,14 @@ path = "src/main.rs"
 name = "hybrid_bench"
 path = "src/bin/hybrid_bench.rs"
 
+[[bin]]
+name = "sift1m_multicore"
+path = "src/bin/sift1m_multicore.rs"
+
+[[bin]]
+name = "hybrid_bench_multicore"
+path = "src/bin/hybrid_bench_multicore.rs"
+
 [dependencies]
 arc-swap = "1.7"
 actix-web = "4.9.0"

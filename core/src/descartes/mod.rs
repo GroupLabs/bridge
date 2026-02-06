@@ -15,6 +15,27 @@ pub mod hybrid_bench;
 
 use serde::{Deserialize, Serialize};
 
+// FFI declarations for SIMD-optimized f32 distance
+extern "C" {
+    fn bridge_l2_distance_f32(a: *const f32, b: *const f32, dim: usize) -> f32;
+    fn bridge_l2_distances_f32_batch(
+        query: *const f32,
+        vectors: *const f32,
+        dim: usize,
+        n: usize,
+        distances: *mut f32,
+    );
+    // Scatter-gather batch with prefetching
+    fn bridge_l2_distances_f32_indexed(
+        query: *const f32,
+        vectors: *const f32,
+        dim: usize,
+        indices: *const usize,
+        n: usize,
+        distances: *mut f32,
+    );
+}
+
 pub use quantization::{ScalarQuantizer, QuantizedVectorStorage, simd_type, simd_type_name};
 pub use graph::{GraphNode, FullyNavigatableGraph};
 pub use build::GraphBuilder;
@@ -40,6 +61,9 @@ pub struct DescartesConfig {
     pub ml: f64,
     /// Number of sectors for coordinate partitioning (typically 4)
     pub num_sectors: usize,
+    /// Reranking factor: fetch rerank_factor*k candidates, rerank with exact distances
+    /// Higher = better recall, lower QPS. Use 30 for >95% recall.
+    pub rerank_factor: usize,
 }
 
 impl Default for DescartesConfig {
@@ -52,6 +76,7 @@ impl Default for DescartesConfig {
             ef_search: 64,
             ml: 1.0 / (32_f64).ln(), // 1/ln(M)
             num_sectors: 4,
+            rerank_factor: 10, // Default: 10x overcollection for reranking
         }
     }
 }
@@ -80,16 +105,83 @@ impl DescartesConfig {
         self.ef_search = ef;
         self
     }
+
+    pub fn with_rerank_factor(mut self, factor: usize) -> Self {
+        self.rerank_factor = factor;
+        self
+    }
+}
+
+/// Contiguous float32 vector storage for cache-friendly SIMD operations
+#[derive(Clone)]
+pub struct ContiguousVectorStorage {
+    dimension: usize,
+    num_vectors: usize,
+    /// Row-major: data[i * dimension + d] = vector[i][d]
+    data: Vec<f32>,
+}
+
+impl ContiguousVectorStorage {
+    pub fn new(dimension: usize) -> Self {
+        Self {
+            dimension,
+            num_vectors: 0,
+            data: Vec::new(),
+        }
+    }
+
+    pub fn from_vectors(vectors: &[Vec<f32>], dimension: usize) -> Self {
+        let num_vectors = vectors.len();
+        let mut data = Vec::with_capacity(num_vectors * dimension);
+        for v in vectors {
+            data.extend_from_slice(v);
+        }
+        Self { dimension, num_vectors, data }
+    }
+
+    #[inline]
+    pub fn get_vector_ptr(&self, idx: usize) -> *const f32 {
+        unsafe { self.data.as_ptr().add(idx * self.dimension) }
+    }
+
+    #[inline]
+    pub fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.num_vectors
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.num_vectors == 0
+    }
+
+    /// Get a slice for vector at index (for compatibility)
+    #[inline]
+    pub fn get_vector(&self, idx: usize) -> &[f32] {
+        let start = idx * self.dimension;
+        &self.data[start..start + self.dimension]
+    }
+
+    /// Get raw data pointer for SIMD batch operations
+    #[inline]
+    pub fn data_ptr(&self) -> *const f32 {
+        self.data.as_ptr()
+    }
 }
 
 /// Main Descartes index structure
+#[derive(Clone)]
 pub struct DescartesIndex {
     pub config: DescartesConfig,
     pub quantizer: ScalarQuantizer,
     pub storage: QuantizedVectorStorage,
     pub graph: FullyNavigatableGraph,
-    /// Original vectors for reranking (enables high recall with fast search)
-    pub original_vectors: Vec<Vec<f32>>,
+    /// Original vectors for reranking - contiguous storage for SIMD
+    pub original_vectors: ContiguousVectorStorage,
     /// ID mapping: internal index -> external ID
     pub id_map: Vec<i64>,
     /// Reverse mapping: external ID -> internal index
@@ -103,7 +195,7 @@ impl DescartesIndex {
             quantizer: ScalarQuantizer::new(config.dimension),
             storage: QuantizedVectorStorage::new(config.dimension, 0),
             graph: FullyNavigatableGraph::new(config.m, config.m_max),
-            original_vectors: Vec::new(),
+            original_vectors: ContiguousVectorStorage::new(config.dimension),
             id_map: Vec::new(),
             reverse_id_map: std::collections::HashMap::new(),
             config,
@@ -125,8 +217,8 @@ impl DescartesIndex {
             self.reverse_id_map.insert(id, idx);
         }
 
-        // Store original vectors for reranking
-        self.original_vectors = vectors.to_vec();
+        // Store original vectors for reranking - contiguous for SIMD
+        self.original_vectors = ContiguousVectorStorage::from_vectors(vectors, self.config.dimension);
 
         // Train quantizer and encode vectors
         self.quantizer.train(vectors);
@@ -147,8 +239,10 @@ impl DescartesIndex {
     pub fn search(&self, query: &[f32], k: usize) -> Vec<SearchResult> {
         let quantized_query = self.quantizer.encode(query);
 
-        // Fetch 3*k candidates for reranking - balances speed and recall
-        let rerank_k = (k * 3).max(32);
+        // Fetch rerank_factor*k candidates for reranking
+        // Higher factor = better recall, lower QPS
+        // FastScan needs 30x for 95% recall, HNSW typically needs less
+        let rerank_k = (k * self.config.rerank_factor).max(self.config.ef_search);
         let candidates = search::beam_search(
             &self.graph,
             &self.storage,
@@ -157,17 +251,45 @@ impl DescartesIndex {
             self.config.ef_search,
         );
 
-        // Rerank top candidates using original float32 vectors
-        // Pre-allocate to avoid reallocations
-        let mut reranked: Vec<(f32, i64)> = Vec::with_capacity(candidates.len());
+        let n_candidates = candidates.len();
+        if n_candidates == 0 {
+            return Vec::new();
+        }
+
+        let dim = self.config.dimension;
+
+        // Collect valid candidate indices and external IDs
+        let mut indices: Vec<usize> = Vec::with_capacity(n_candidates);
+        let mut candidate_ids: Vec<i64> = Vec::with_capacity(n_candidates);
+
         for r in &candidates {
             let idx = r.id as usize;
             if idx < self.original_vectors.len() {
-                let dist = l2_distance_f32_fast(query, &self.original_vectors[idx]);
-                let ext_id = *self.id_map.get(idx).unwrap_or(&r.id);
-                reranked.push((dist, ext_id));
+                indices.push(idx);
+                candidate_ids.push(*self.id_map.get(idx).unwrap_or(&r.id));
             }
         }
+
+        let actual_count = indices.len();
+
+        // Batch compute distances with scatter-gather + prefetching
+        let mut distances: Vec<f32> = vec![0.0; actual_count];
+        unsafe {
+            bridge_l2_distances_f32_indexed(
+                query.as_ptr(),
+                self.original_vectors.data_ptr(),
+                dim,
+                indices.as_ptr(),
+                actual_count,
+                distances.as_mut_ptr(),
+            );
+        }
+
+        // Combine distances with IDs and sort
+        let mut reranked: Vec<(f32, i64)> = distances
+            .into_iter()
+            .zip(candidate_ids.into_iter())
+            .collect();
 
         reranked.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -199,41 +321,6 @@ impl DescartesIndex {
     }
 }
 
-/// Fast L2 squared distance for float32 vectors
-/// Uses 4 accumulators to break dependency chain
-#[inline]
-fn l2_distance_f32_fast(a: &[f32], b: &[f32]) -> f32 {
-    debug_assert_eq!(a.len(), b.len());
-
-    let mut sum0: f32 = 0.0;
-    let mut sum1: f32 = 0.0;
-    let mut sum2: f32 = 0.0;
-    let mut sum3: f32 = 0.0;
-
-    let len = a.len();
-    let chunks = len / 4;
-
-    for i in 0..chunks {
-        let base = i * 4;
-        unsafe {
-            let d0 = *a.get_unchecked(base) - *b.get_unchecked(base);
-            let d1 = *a.get_unchecked(base + 1) - *b.get_unchecked(base + 1);
-            let d2 = *a.get_unchecked(base + 2) - *b.get_unchecked(base + 2);
-            let d3 = *a.get_unchecked(base + 3) - *b.get_unchecked(base + 3);
-            sum0 += d0 * d0;
-            sum1 += d1 * d1;
-            sum2 += d2 * d2;
-            sum3 += d3 * d3;
-        }
-    }
-
-    for i in (chunks * 4)..len {
-        let d = unsafe { *a.get_unchecked(i) - *b.get_unchecked(i) };
-        sum0 += d * d;
-    }
-
-    sum0 + sum1 + sum2 + sum3
-}
 
 #[cfg(test)]
 mod tests {

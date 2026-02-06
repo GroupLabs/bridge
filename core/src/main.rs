@@ -18,6 +18,7 @@ mod bindings {
 mod persistence;
 pub mod descartes;
 mod fdb;
+pub mod text_index;
 
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use bindings::*;
@@ -846,11 +847,19 @@ async fn create_text_index(index_name: &str, index_path: &Path) -> Result<IndexA
         stemmer: StemmerType::None,
         stop_words: StopwordType::None,
         frequent_words: FrequentwordType::None,
-        ngram_indexing: NgramSet::NgramFF as u8 | NgramSet::NgramFFF as u8,
+        // Mixed bigrams + frequent trigrams for 2x faster phrase queries
+        ngram_indexing: NgramSet::NgramFF as u8
+            | NgramSet::NgramFR as u8
+            | NgramSet::NgramRF as u8
+            | NgramSet::NgramFFF as u8,
         access_type: AccessType::Ram,
     };
 
-    let segment_number_bits1 = 11;
+    // Use 1 shard per CPU core for optimal SeekStorm performance
+    let num_cores = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(8);
+    let segment_number_bits1 = (num_cores as f64).log2().ceil() as usize;
     let new_index = create_index(
         index_path,
         meta,
@@ -876,11 +885,11 @@ async fn text_search(
 
     let result_object = text_index.search(
         query_string,
-        QueryType::Intersection,
+        QueryType::Union,  // Union is faster than Intersection
         offset as usize,
         length as usize,
-        ResultType::TopkCount,
-        true,
+        ResultType::Topk,  // Topk is faster than TopkCount
+        false,             // Disable highlights for performance
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -897,6 +906,39 @@ async fn text_search(
         .collect();
 
     Ok(search_results)
+}
+
+/// Blocking text search for use with spawn_blocking - enables true CPU parallelism
+fn text_search_blocking(
+    text_index: IndexArc,
+    query: String,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<(i64, f32)>, String> {
+    // Use tokio's block_on to run async SeekStorm search in blocking context
+    let handle = tokio::runtime::Handle::current();
+    handle.block_on(async move {
+        let result_object = text_index.search(
+            query,
+            QueryType::Union,
+            offset as usize,
+            length as usize,
+            ResultType::Topk,
+            false,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        ).await;
+
+        let search_results: Vec<(i64, f32)> = result_object
+            .results
+            .iter()
+            .map(|result| (result.doc_id as i64, result.score))
+            .collect();
+
+        Ok(search_results)
+    })
 }
 
 // ============================================================================
@@ -1539,31 +1581,36 @@ async fn search(
     // Fetch 3x k if filtering, to have enough results after filtering
     let fetch_k = if has_filters { (req.k * 3) as c_longlong } else { req.k as c_longlong };
 
-    // Parallel search execution
-    let (vector_results, text_results) = tokio::join!(
-        async {
-            match &req.vector_query {
-                Some(query) => {
-                    let query_arc = Arc::new(query.clone());
-                    vector_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, fetch_k).await.ok()
-                },
-                None => None,
-            }
+    // True parallel search execution - vector on rayon pool, text on blocking pool
+    // This achieves CPU parallelism since both searches are CPU-bound
+    let text_index = bridge_index.text_index.clone();
+    let text_query = req.text_query.clone();
+    let text_offset = req.text_offset;
+    let text_length = req.text_length.max(fetch_k as u64);
+
+    let text_handle = match text_query {
+        Some(query) if !query.is_empty() => {
+            Some(tokio::task::spawn_blocking(move || {
+                text_search_blocking(text_index, query, text_offset, text_length).ok()
+            }))
         },
-        async {
-            match &req.text_query {
-                Some(query) if !query.is_empty() => {
-                    text_search(
-                        bridge_index.text_index.clone(),
-                        query,
-                        req.text_offset,
-                        req.text_length.max(fetch_k as u64),
-                    ).await.ok()
-                },
-                _ => None,
-            }
-        }
-    );
+        _ => None,
+    };
+
+    // Vector search runs on dedicated rayon pool (already parallel)
+    let vector_results = match &req.vector_query {
+        Some(query) => {
+            let query_arc = Arc::new(query.clone());
+            vector_search(bridge_index.faiss_pool.clone(), bridge_index.vector_index.clone(), query_arc, fetch_k).await.ok()
+        },
+        None => None,
+    };
+
+    // Await text search completion (runs in parallel with vector search above)
+    let text_results = match text_handle {
+        Some(handle) => handle.await.ok().flatten(),
+        None => None,
+    };
 
     // Apply filters to raw results before RRF fusion
     let filtered_vector = vector_results.map(|v| {

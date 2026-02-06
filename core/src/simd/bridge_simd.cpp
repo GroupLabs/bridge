@@ -168,6 +168,185 @@ static int32_t bridge_l2_distance_i8_scalar(const int8_t* a, const int8_t* b, si
     return sum0 + sum1 + sum2 + sum3;
 }
 
+// ============== Float32 AVX2 Implementation ==============
+#ifdef USE_AVX2
+
+static float bridge_l2_distance_f32_avx2(const float* a, const float* b, size_t dim) {
+    __m256 sum = _mm256_setzero_ps();
+
+    size_t i = 0;
+    // Process 8 floats at a time
+    for (; i + 8 <= dim; i += 8) {
+        __m256 va = _mm256_loadu_ps(a + i);
+        __m256 vb = _mm256_loadu_ps(b + i);
+        __m256 diff = _mm256_sub_ps(va, vb);
+        sum = _mm256_fmadd_ps(diff, diff, sum);  // FMA: sum += diff * diff
+    }
+
+    // Horizontal sum of 8 floats
+    __m128 sum128 = _mm_add_ps(
+        _mm256_castps256_ps128(sum),
+        _mm256_extractf128_ps(sum, 1)
+    );
+    sum128 = _mm_hadd_ps(sum128, sum128);
+    sum128 = _mm_hadd_ps(sum128, sum128);
+    float result = _mm_cvtss_f32(sum128);
+
+    // Handle remainder
+    for (; i < dim; i++) {
+        float d = a[i] - b[i];
+        result += d * d;
+    }
+
+    return result;
+}
+
+// Batch: compute distances from query to multiple vectors with prefetching
+static void bridge_l2_distances_f32_batch_avx2(
+    const float* query,
+    const float* vectors,  // row-major: vectors[i * dim + d]
+    size_t dim,
+    size_t n,
+    float* distances
+) {
+    const size_t PREFETCH_AHEAD = 4;  // Prefetch 4 vectors ahead
+
+    for (size_t i = 0; i < n; i++) {
+        // Prefetch upcoming vectors into L1 cache
+        if (i + PREFETCH_AHEAD < n) {
+            const float* prefetch_ptr = vectors + (i + PREFETCH_AHEAD) * dim;
+            // Prefetch multiple cache lines (64 bytes = 16 floats each)
+            _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr), _MM_HINT_T0);
+            _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 16), _MM_HINT_T0);
+            if (dim > 32) {
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 32), _MM_HINT_T0);
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 48), _MM_HINT_T0);
+            }
+            if (dim > 64) {
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 64), _MM_HINT_T0);
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 80), _MM_HINT_T0);
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 96), _MM_HINT_T0);
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 112), _MM_HINT_T0);
+            }
+        }
+        distances[i] = bridge_l2_distance_f32_avx2(query, vectors + i * dim, dim);
+    }
+}
+
+#endif // USE_AVX2
+
+// ============== Float32 NEON Implementation ==============
+#ifdef USE_NEON
+
+static float bridge_l2_distance_f32_neon(const float* a, const float* b, size_t dim) {
+    float32x4_t sum0 = vdupq_n_f32(0.0f);
+    float32x4_t sum1 = vdupq_n_f32(0.0f);
+    float32x4_t sum2 = vdupq_n_f32(0.0f);
+    float32x4_t sum3 = vdupq_n_f32(0.0f);
+
+    size_t i = 0;
+    // Process 16 floats at a time (4 vectors of 4)
+    for (; i + 16 <= dim; i += 16) {
+        float32x4_t va0 = vld1q_f32(a + i);
+        float32x4_t vb0 = vld1q_f32(b + i);
+        float32x4_t va1 = vld1q_f32(a + i + 4);
+        float32x4_t vb1 = vld1q_f32(b + i + 4);
+        float32x4_t va2 = vld1q_f32(a + i + 8);
+        float32x4_t vb2 = vld1q_f32(b + i + 8);
+        float32x4_t va3 = vld1q_f32(a + i + 12);
+        float32x4_t vb3 = vld1q_f32(b + i + 12);
+
+        float32x4_t d0 = vsubq_f32(va0, vb0);
+        float32x4_t d1 = vsubq_f32(va1, vb1);
+        float32x4_t d2 = vsubq_f32(va2, vb2);
+        float32x4_t d3 = vsubq_f32(va3, vb3);
+
+        sum0 = vfmaq_f32(sum0, d0, d0);  // FMA: sum += d * d
+        sum1 = vfmaq_f32(sum1, d1, d1);
+        sum2 = vfmaq_f32(sum2, d2, d2);
+        sum3 = vfmaq_f32(sum3, d3, d3);
+    }
+
+    // Process 4 floats at a time
+    for (; i + 4 <= dim; i += 4) {
+        float32x4_t va = vld1q_f32(a + i);
+        float32x4_t vb = vld1q_f32(b + i);
+        float32x4_t d = vsubq_f32(va, vb);
+        sum0 = vfmaq_f32(sum0, d, d);
+    }
+
+    // Combine partial sums
+    float32x4_t sum = vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3));
+    float result = vaddvq_f32(sum);
+
+    // Handle remainder
+    for (; i < dim; i++) {
+        float d = a[i] - b[i];
+        result += d * d;
+    }
+
+    return result;
+}
+
+static void bridge_l2_distances_f32_batch_neon(
+    const float* query,
+    const float* vectors,
+    size_t dim,
+    size_t n,
+    float* distances
+) {
+    const size_t PREFETCH_AHEAD = 4;  // Prefetch 4 vectors ahead
+
+    for (size_t i = 0; i < n; i++) {
+        // Prefetch upcoming vectors into L1 cache
+        if (i + PREFETCH_AHEAD < n) {
+            const float* prefetch_ptr = vectors + (i + PREFETCH_AHEAD) * dim;
+            // Prefetch multiple cache lines (64 bytes = 16 floats each)
+            __builtin_prefetch(prefetch_ptr, 0, 3);       // Read, high locality
+            __builtin_prefetch(prefetch_ptr + 16, 0, 3);
+            if (dim > 32) {
+                __builtin_prefetch(prefetch_ptr + 32, 0, 3);
+                __builtin_prefetch(prefetch_ptr + 48, 0, 3);
+            }
+            if (dim > 64) {
+                __builtin_prefetch(prefetch_ptr + 64, 0, 3);
+                __builtin_prefetch(prefetch_ptr + 80, 0, 3);
+                __builtin_prefetch(prefetch_ptr + 96, 0, 3);
+                __builtin_prefetch(prefetch_ptr + 112, 0, 3);
+            }
+        }
+        distances[i] = bridge_l2_distance_f32_neon(query, vectors + i * dim, dim);
+    }
+}
+
+#endif // USE_NEON
+
+// ============== Float32 Scalar Fallback ==============
+static float bridge_l2_distance_f32_scalar(const float* a, const float* b, size_t dim) {
+    float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;
+
+    size_t i = 0;
+    size_t chunks = dim / 4;
+    for (size_t c = 0; c < chunks; c++) {
+        float d0 = a[i] - b[i];
+        float d1 = a[i+1] - b[i+1];
+        float d2 = a[i+2] - b[i+2];
+        float d3 = a[i+3] - b[i+3];
+        sum0 += d0 * d0;
+        sum1 += d1 * d1;
+        sum2 += d2 * d2;
+        sum3 += d3 * d3;
+        i += 4;
+    }
+
+    for (; i < dim; i++) {
+        float d = a[i] - b[i];
+        sum0 += d * d;
+    }
+
+    return sum0 + sum1 + sum2 + sum3;
+}
+
 // ============== Public API ==============
 extern "C" {
 
@@ -190,6 +369,78 @@ void bridge_l2_distances_i8_batch(
 ) {
     for (size_t i = 0; i < n; i++) {
         distances[i] = bridge_l2_distance_i8(query, vectors + i * dim, dim);
+    }
+}
+
+float bridge_l2_distance_f32(const float* a, const float* b, size_t dim) {
+#ifdef USE_AVX2
+    return bridge_l2_distance_f32_avx2(a, b, dim);
+#elif defined(USE_NEON)
+    return bridge_l2_distance_f32_neon(a, b, dim);
+#else
+    return bridge_l2_distance_f32_scalar(a, b, dim);
+#endif
+}
+
+void bridge_l2_distances_f32_batch(
+    const float* query,
+    const float* vectors,
+    size_t dim,
+    size_t n,
+    float* distances
+) {
+#ifdef USE_AVX2
+    bridge_l2_distances_f32_batch_avx2(query, vectors, dim, n, distances);
+#elif defined(USE_NEON)
+    bridge_l2_distances_f32_batch_neon(query, vectors, dim, n, distances);
+#else
+    for (size_t i = 0; i < n; i++) {
+        distances[i] = bridge_l2_distance_f32_scalar(query, vectors + i * dim, dim);
+    }
+#endif
+}
+
+// Scatter-gather batch: compute distances for vectors at given indices
+// indices[i] is the row index into vectors storage
+void bridge_l2_distances_f32_indexed(
+    const float* query,
+    const float* vectors,  // row-major storage
+    size_t dim,
+    const size_t* indices,
+    size_t n,
+    float* distances
+) {
+    const size_t PREFETCH_AHEAD = 4;
+
+    for (size_t i = 0; i < n; i++) {
+        // Prefetch upcoming vectors
+        if (i + PREFETCH_AHEAD < n) {
+            const float* prefetch_ptr = vectors + indices[i + PREFETCH_AHEAD] * dim;
+#ifdef USE_AVX2
+            _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr), _MM_HINT_T0);
+            _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 16), _MM_HINT_T0);
+            if (dim > 32) {
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 32), _MM_HINT_T0);
+                _mm_prefetch(reinterpret_cast<const char*>(prefetch_ptr + 48), _MM_HINT_T0);
+            }
+#else
+            __builtin_prefetch(prefetch_ptr, 0, 3);
+            __builtin_prefetch(prefetch_ptr + 16, 0, 3);
+            if (dim > 32) {
+                __builtin_prefetch(prefetch_ptr + 32, 0, 3);
+                __builtin_prefetch(prefetch_ptr + 48, 0, 3);
+            }
+#endif
+        }
+
+        const float* vec = vectors + indices[i] * dim;
+#ifdef USE_AVX2
+        distances[i] = bridge_l2_distance_f32_avx2(query, vec, dim);
+#elif defined(USE_NEON)
+        distances[i] = bridge_l2_distance_f32_neon(query, vec, dim);
+#else
+        distances[i] = bridge_l2_distance_f32_scalar(query, vec, dim);
+#endif
     }
 }
 
