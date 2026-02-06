@@ -18,6 +18,7 @@ fn main() {
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     if target_arch == "x86_64" {
         simd_build.flag("-mavx2");
+        simd_build.flag("-mfma");
     }
     // ARM NEON is enabled by default on aarch64
 
@@ -34,28 +35,38 @@ fn main() {
     // Add the directory containing FAISS libraries to the library search path
     println!("cargo:rustc-link-search=native={}/faiss/build/c_api", manifest_dir);
     println!("cargo:rustc-link-search=native={}/faiss/build/faiss", manifest_dir);
+    // Also check /usr/local/lib for system-installed FAISS
+    println!("cargo:rustc-link-search=native=/usr/local/lib");
 
     // Link against FAISS libraries (dynamic linking)
     println!("cargo:rustc-link-lib=dylib=faiss_c");
     println!("cargo:rustc-link-lib=dylib=faiss");
 
     // Link against C++ standard library (required for static FAISS)
-    println!("cargo:rustc-link-lib=dylib=c++");
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_os == "macos" {
+        println!("cargo:rustc-link-lib=dylib=c++");
+    } else {
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+    }
 
     // Link against OpenMP (required for FAISS parallelism)
-    // Path is configured in .cargo/config.toml via LIBOMP_PATH
-    let libomp_path = env::var("LIBOMP_PATH").unwrap_or_else(|_| "/opt/homebrew/opt/libomp/lib".to_string());
-    println!("cargo:rustc-link-search=native={}", libomp_path);
-    println!("cargo:rustc-link-lib=dylib=omp");
-
-    // Link against Apple's Accelerate framework (provides BLAS/LAPACK)
-    println!("cargo:rustc-link-lib=framework=Accelerate");
+    if target_os == "macos" {
+        let libomp_path = env::var("LIBOMP_PATH").unwrap_or_else(|_| "/opt/homebrew/opt/libomp/lib".to_string());
+        println!("cargo:rustc-link-search=native={}", libomp_path);
+        println!("cargo:rustc-link-lib=dylib=omp");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", libomp_path);
+        // Link against Apple's Accelerate framework (provides BLAS/LAPACK)
+        println!("cargo:rustc-link-lib=framework=Accelerate");
+    } else {
+        // Linux: OpenMP is typically gomp, and BLAS is openblas
+        println!("cargo:rustc-link-lib=dylib=gomp");
+        println!("cargo:rustc-link-lib=dylib=openblas");
+    }
 
     // Set rpath so binaries find FAISS libraries at runtime
-    // Use absolute paths for reliability
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}/faiss/build/faiss", manifest_dir);
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}/faiss/build/c_api", manifest_dir);
-    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", libomp_path);
 
     // Generate bindings for the FAISS C API
     let faiss_bindings = bindgen::Builder::default()
